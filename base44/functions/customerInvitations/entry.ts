@@ -9,9 +9,8 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const action = body.action;
-    // Use the app's configured base URL from environment or fall back to the request origin
-    // Note: BASE44_APP_BASE_URL should be set in production to the app's actual URL
-    const appBaseUrl = Deno.env.get("BASE44_APP_BASE_URL") || Deno.env.get("VITE_BASE44_APP_BASE_URL") || new URL(req.url).origin;
+    // Use the app's configured base URL - hardcoded for production app
+    const appBaseUrl = Deno.env.get("BASE44_APP_BASE_URL") || Deno.env.get("VITE_BASE44_APP_BASE_URL") || "https://archetypal-frontier-build-flow.base44.app";
     const portalUrl = `${appBaseUrl}/login`;
 
     async function createAuditLog(aBase44, action, desc, projectId, extra = {}) {
