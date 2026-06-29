@@ -47,17 +47,15 @@ export default function ViewCustomerPortalDialog({ project, open, onOpenChange }
   }
 
   const handlePreview = () => {
-    if (selectedCustomer) {
-      enterPreviewMode(project, selectedCustomer);
-      onOpenChange(false);
-    }
+    if (enteringMode) return;
+    enterPreviewMode(project, selectedCustomer);
+    onOpenChange(false);
   };
 
   const handleActSubmit = () => {
-    if (selectedCustomer && actReason.trim()) {
-      enterActMode(project, selectedCustomer, actReason.trim());
-      onOpenChange(false);
-    }
+    if (enteringMode || !actReason.trim()) return;
+    enterActMode(project, selectedCustomer, actReason.trim());
+    onOpenChange(false);
   };
 
   const canAct = hasPermission(user, "act_as_customer");
@@ -173,9 +171,11 @@ export default function ViewCustomerPortalDialog({ project, open, onOpenChange }
 
           <div className="py-4 space-y-4">
             {/* Preview Mode */}
-            <div
+            <button
+              type="button"
               onClick={handlePreview}
-              className="p-4 rounded-lg border-2 border-gray-200 hover:border-gray-900 cursor-pointer transition-all"
+              disabled={enteringMode}
+              className="w-full text-left p-4 rounded-lg border-2 border-gray-200 hover:border-gray-900 cursor-pointer transition-all disabled:opacity-50"
             >
               <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
                 <ExternalLink className="h-4 w-4" />
@@ -192,7 +192,8 @@ export default function ViewCustomerPortalDialog({ project, open, onOpenChange }
                 ✗ Cannot submit or edit selections<br/>
                 ✗ Cannot add comments or upload files
               </div>
-            </div>
+              {enteringMode && <span className="text-xs text-gray-500 mt-2 block">Loading...</span>}
+            </button>
 
             {/* Act Mode */}
             {canAct && (
