@@ -23,7 +23,15 @@ export default function InvitationManagement() {
 
   const handleAction = async (action, invitationId, extra = {}) => {
     try {
-      await base44.functions.invoke("customerInvitations", { action, invitation_id: invitationId, ...extra });
+      const res = await base44.functions.invoke("customerInvitations", { action, invitation_id: invitationId, ...extra });
+      const data = res.data;
+      if (data.email_sent) {
+        alert(`Invitation ${action}ed successfully!\n\nInvite link: ${data.invite_link}`);
+      } else if (data.invite_link) {
+        alert(`Invitation ${action}ed but email failed: ${data.email_error || 'Unknown error'}\n\nInvite link: ${data.invite_link}`);
+      } else {
+        alert(`Invitation ${action}ed successfully`);
+      }
       load();
     } catch (e) {
       alert(e.response?.data?.error || "Failed");

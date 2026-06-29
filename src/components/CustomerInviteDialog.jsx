@@ -43,7 +43,13 @@ export default function CustomerInviteDialog({ open, onClose, preselectedProject
         action: "create", email, customer_name: name, phone,
         project_ids: selectedProjects, project_names: projectNames
       });
-      if (onInvited) onInvited(res.data);
+      const data = res.data;
+      if (onInvited) onInvited(data);
+      if (data.email_sent) {
+        alert(`Invitation sent to ${email}!\n\nInvite link: ${data.invite_link}`);
+      } else {
+        alert(`Invitation created but email failed: ${data.email_error || 'Unknown error'}\n\nInvite link: ${data.invite_link}`);
+      }
       onClose();
     } catch (e) {
       setError(e.response?.data?.error || e.message || "Failed to send invitation");
