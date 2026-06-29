@@ -135,7 +135,7 @@ export default function RoleRouter() {
 
   return (
     <Routes>
-      <Route element={<CustomerLayout />}>
+      <Route element={<CustomerPortalProvider><CustomerLayout /></CustomerPortalProvider>}>
         <Route path="/portal" element={<CustomerDashboard />} />
         <Route path="/portal/project/:projectId" element={<CustomerProjectView />} />
         <Route path="/portal/project/:projectId/final-package" element={<CustomerFinalPackage />} />
