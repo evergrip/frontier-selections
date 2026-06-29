@@ -55,6 +55,18 @@
       "type": "string",
       "format": "date-time"
     },
+    "first_opened_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_opened_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "opened_count": {
+      "type": "number",
+      "default": 0
+    },
     "user_id": {
       "type": "string"
     },

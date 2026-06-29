@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogIn, Mail, Lock, Loader2, CheckCircle } from "lucide-react";
+import { LogIn, Mail, Lock, Loader2, CheckCircle, XCircle, AlertCircle, Clock } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 
@@ -16,17 +16,55 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [inviteInfo, setInviteInfo] = useState(null);
+  const [inviteError, setInviteError] = useState(null);
+  const [validatingInvite, setValidatingInvite] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (inviteId) {
-      loadInviteInfo();
+      validateInvite();
     }
   }, [inviteId]);
 
-  const loadInviteInfo = async () => {
-    // Note: We can't load invite details without auth, so we just note the invite exists
-    // The actual validation happens after login via the linkUser mechanism
-    setInviteInfo({ id: inviteId, isInviteLink: true });
+  const validateInvite = async () => {
+    setValidatingInvite(true);
+    setInviteError(null);
+    try {
+      const response = await base44.functions.invoke("validateInvite", { invitation_id: inviteId });
+      const data = response.data;
+      
+      if (data.valid) {
+        setInviteInfo(data.invitation);
+        if (data.already_accepted) {
+          // Invite already used - show message but allow login
+          setInviteError({
+            type: "already_accepted",
+            message: data.message,
+            icon: CheckCircle
+          });
+        }
+        // Pre-fill email if available
+        if (data.invitation?.email) {
+          setEmail(data.invitation.email);
+        }
+      } else {
+        // Invalid/expired/cancelled invite
+        setInviteError({
+          type: data.error || "invalid",
+          message: data.message || "This invitation link is invalid.",
+          icon: XCircle
+        });
+      }
+    } catch (err) {
+      console.error("Invite validation error:", err);
+      setInviteError({
+        type: "server_error",
+        message: "Unable to validate invitation. Please check your link or contact support.",
+        icon: AlertCircle
+      });
+    } finally {
+      setValidatingInvite(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -49,19 +87,71 @@ export default function Login() {
 
   return (
     <AuthLayout
-      icon={LogIn}
-      title={inviteInfo ? "You're invited!" : "Welcome back"}
-      subtitle={inviteInfo ? `Join ${inviteInfo.customer_name || 'the project'}` : "Log in to your account"}
+      icon={inviteError ? (inviteError.type === "already_accepted" ? CheckCircle : XCircle) : LogIn}
+      title={
+        inviteError 
+          ? (inviteError.type === "already_accepted" ? "Welcome Back!" : "Invitation Issue")
+          : (inviteInfo ? "You're Invited!" : "Welcome Back")
+      }
+      subtitle={
+        inviteError
+          ? inviteError.message
+          : (inviteInfo ? `Join ${inviteInfo.customer_name || 'the project'}` : "Log in to your account")
+      }
       footer={
         <>
-          {inviteInfo ? "Already have an account? " : "Don't have an account? "}
-          <Link to={inviteInfo ? "/login" : "/register"} className="text-primary font-medium hover:underline">
-            {inviteInfo ? "Log in" : "Create one"}
-          </Link>
+          {!inviteError && (
+            <>
+              {inviteInfo ? "Already have an account? " : "Don't have an account? "}
+              <Link to={inviteInfo ? "/login" : "/register"} className="text-primary font-medium hover:underline">
+                {inviteInfo ? "Log in" : "Create one"}
+              </Link>
+            </>
+          )}
         </>
       }
     >
-      {inviteInfo && (
+      {validatingInvite && (
+        <div className="mb-6 p-4 rounded-lg bg-blue-50 border border-blue-200">
+          <div className="flex items-center gap-3">
+            <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+            <p className="text-sm text-blue-900">Validating invitation...</p>
+          </div>
+        </div>
+      )}
+
+      {inviteError && (
+        <div className={`mb-6 p-4 rounded-lg border ${
+          inviteError.type === "already_accepted" 
+            ? "bg-green-50 border-green-200" 
+            : "bg-red-50 border-red-200"
+        }`}>
+          <div className="flex items-start gap-3">
+            {inviteError.icon && <inviteError.icon className={`w-5 h-5 mt-0.5 ${
+              inviteError.type === "already_accepted" ? "text-green-600" : "text-red-600"
+            }`} />}
+            <div className="flex-1">
+              <p className={`text-sm font-medium ${
+                inviteError.type === "already_accepted" ? "text-green-900" : "text-red-900"
+              }`}>
+                {inviteError.type === "already_accepted" ? "Already Accepted" : "Invitation Invalid"}
+              </p>
+              <p className={`text-sm mt-1 ${
+                inviteError.type === "already_accepted" ? "text-green-700" : "text-red-700"
+              }`}>
+                {inviteError.message}
+              </p>
+              {inviteError.type !== "already_accepted" && (
+                <p className="text-xs text-red-600 mt-3">
+                  Please contact Frontier Building Group if you believe this is an error.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {inviteInfo && !inviteError && (
         <div className="mb-6 p-4 rounded-lg bg-green-50 border border-green-200">
           <div className="flex items-start gap-3">
             <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
@@ -73,6 +163,12 @@ export default function Login() {
               <p className="text-xs text-green-600 mt-2">
                 Create an account using this email to get started.
               </p>
+              {inviteInfo.expiry_date && (
+                <div className="flex items-center gap-2 mt-2 text-xs text-green-600">
+                  <Clock className="w-3 h-3" />
+                  <span>Expires: {new Date(inviteInfo.expiry_date).toLocaleDateString()}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

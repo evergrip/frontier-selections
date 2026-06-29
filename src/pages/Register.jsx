@@ -1,10 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { UserPlus, Mail, Lock, Loader2, CheckCircle } from "lucide-react";
+import { UserPlus, Mail, Lock, Loader2, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
@@ -20,6 +20,44 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [showOtp, setShowOtp] = useState(false);
   const [otpCode, setOtpCode] = useState("");
+  const [inviteInfo, setInviteInfo] = useState(null);
+  const [inviteError, setInviteError] = useState(null);
+  const [validatingInvite, setValidatingInvite] = useState(false);
+
+  useEffect(() => {
+    if (inviteId) {
+      validateInvite();
+    }
+  }, [inviteId]);
+
+  const validateInvite = async () => {
+    setValidatingInvite(true);
+    setInviteError(null);
+    try {
+      const response = await base44.functions.invoke("validateInvite", { invitation_id: inviteId });
+      const data = response.data;
+      
+      if (data.valid) {
+        setInviteInfo(data.invitation);
+        if (data.invitation?.email) {
+          setEmail(data.invitation.email);
+        }
+      } else {
+        setInviteError({
+          type: data.error || "invalid",
+          message: data.message || "This invitation link is invalid."
+        });
+      }
+    } catch (err) {
+      console.error("Invite validation error:", err);
+      setInviteError({
+        type: "server_error",
+        message: "Unable to validate invitation. Please check your link or contact support."
+      });
+    } finally {
+      setValidatingInvite(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -136,9 +174,17 @@ export default function Register() {
 
   return (
     <AuthLayout
-      icon={UserPlus}
-      title={inviteId ? "You're invited!" : "Create your account"}
-      subtitle={inviteId ? "Join the project" : "Sign up to get started"}
+      icon={inviteError ? XCircle : (inviteInfo ? CheckCircle : UserPlus)}
+      title={
+        inviteError 
+          ? "Invitation Issue" 
+          : (inviteInfo ? "You're Invited!" : "Create Your Account")
+      }
+      subtitle={
+        inviteError
+          ? inviteError.message
+          : (inviteInfo ? "Join the project" : "Sign up to get started")
+      }
       footer={
         <>
           Already have an account?{" "}
@@ -148,14 +194,41 @@ export default function Register() {
         </>
       }
     >
-      {inviteId && (
+      {validatingInvite && (
+        <div className="mb-6 p-4 rounded-lg bg-blue-50 border border-blue-200">
+          <div className="flex items-center gap-3">
+            <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+            <p className="text-sm text-blue-900">Validating invitation...</p>
+          </div>
+        </div>
+      )}
+
+      {inviteError && (
+        <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200">
+          <div className="flex items-start gap-3">
+            <XCircle className="w-5 h-5 text-red-600 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-900">Invitation Invalid</p>
+              <p className="text-sm text-red-700 mt-1">{inviteError.message}</p>
+              <p className="text-xs text-red-600 mt-3">
+                Please contact Frontier Building Group if you believe this is an error.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {inviteInfo && !inviteError && (
         <div className="mb-6 p-4 rounded-lg bg-green-50 border border-green-200">
           <div className="flex items-start gap-3">
             <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-medium text-green-900">Invitation Received</p>
               <p className="text-sm text-green-700 mt-1">
-                Create an account using this email to access your project.
+                You've been invited to access: <strong>{(inviteInfo.project_names || []).join(", ")}</strong>
+              </p>
+              <p className="text-xs text-green-600 mt-2">
+                Create an account using <strong>{inviteInfo.email}</strong> to get started.
               </p>
             </div>
           </div>

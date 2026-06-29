@@ -9,8 +9,10 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const action = body.action;
-    const origin = new URL(req.url).origin;
-    const portalUrl = `${origin}/login`;
+    // Use the app's configured base URL from environment or fall back to the request origin
+    // Note: BASE44_APP_BASE_URL should be set in production to the app's actual URL
+    const appBaseUrl = Deno.env.get("BASE44_APP_BASE_URL") || Deno.env.get("VITE_BASE44_APP_BASE_URL") || new URL(req.url).origin;
+    const portalUrl = `${appBaseUrl}/login`;
 
     async function createAuditLog(aBase44, action, desc, projectId, extra = {}) {
       await aBase44.entities.AuditLog.create({
@@ -230,8 +232,17 @@ Deno.serve(async (req) => {
       if (!me) return Response.json({ linked: false });
       const invitations = await base44.entities.CustomerInvitation.filter({ email: me.email });
       let linked = 0;
+      const now = new Date().toISOString();
+      
       for (const inv of invitations) {
         if (inv.status !== 'Cancelled' && inv.status !== 'Deactivated') {
+          // Update invitation status to show account was created
+          await base44.entities.CustomerInvitation.update(inv.id, {
+            user_id: me.id,
+            status: 'Active',
+            last_login: now
+          });
+          
           for (const pid of inv.project_ids || []) {
             try {
               const project = await base44.entities.Project.get(pid);
@@ -242,6 +253,15 @@ Deno.serve(async (req) => {
               }
             } catch (e) {}
           }
+          
+          // Log account creation/linking
+          await createAuditLog(base44.asServiceRole, 'invite_accepted_account_created',
+            `${me.email} accepted invitation and created account`,
+            (inv.project_ids || [])[0], { 
+              invitation_id: inv.id, 
+              user_id: me.id,
+              severity: 'high' 
+            });
         }
       }
       return Response.json({ linked });
