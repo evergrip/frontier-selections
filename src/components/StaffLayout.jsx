@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { label: "Supplier Orders", path: "/supplier-orders", icon: ClipboardList },
   { label: "Mood Board", path: "/mood-board", icon: Palette },
   { label: "Reports", path: "/reports", icon: FileText },
+  { label: "Final Package", path: "/final-package", icon: Package },
 ];
 
 export default function StaffLayout() {

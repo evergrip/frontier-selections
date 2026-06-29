@@ -35,6 +35,16 @@ export default function CustomerProjectView() {
 
       <ProjectTimeline projectId={projectId} staff={false} />
 
+      <Link to={`/portal/project/${projectId}/final-package`} className="block bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-gray-900">Final Selections Package</h3>
+            <p className="text-sm text-gray-500 mt-0.5">View your approved selections</p>
+          </div>
+          <span className="text-sm text-blue-600">View →</span>
+        </div>
+      </Link>
+
       <CommentThread projectId={projectId} targetType="project" targetId={projectId} staff={false} title="Ask a Question" />
     </div>
   );
