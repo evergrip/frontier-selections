@@ -40,6 +40,7 @@ import HelpArticleManager from "@/pages/training/admin/HelpArticleManager";
 import FeatureRegistryManager from "@/pages/training/admin/FeatureRegistryManager";
 import KnowledgeCheckManager from "@/pages/training/admin/KnowledgeCheckManager";
 import AdminPanel from "@/pages/admin/AdminPanel";
+import EmailSettings from "@/pages/admin/EmailSettings";
 
 import CustomerDashboard from "@/pages/portal/CustomerDashboard";
 import CustomerAreaView from "@/pages/portal/CustomerAreaView";
@@ -115,6 +116,7 @@ export default function RoleRouter() {
           <Route path="/training/admin/features" element={<FeatureRegistryManager />} />
           <Route path="/training/admin/knowledge-checks" element={<KnowledgeCheckManager />} />
           <Route path="/admin" element={<AdminPanel />} />
+          <Route path="/admin/email-settings" element={<EmailSettings />} />
         </Route>
         {/* Portal routes for impersonation — separate from StaffLayout to avoid double-layout */}
         <Route element={<CustomerPortalProvider><CustomerLayout /></CustomerPortalProvider>}>

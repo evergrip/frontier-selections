@@ -12,79 +12,25 @@ Deno.serve(async (req) => {
     const origin = new URL(req.url).origin;
     const portalUrl = `${origin}/login`;
 
-    // linkUser is callable by customers themselves (to link their own account on first login)
-    if (action === 'linkUser') {
-      const invitations = await base44.asServiceRole.entities.CustomerInvitation.filter({ email: user.email });
-      for (const inv of invitations) {
-        if (inv.status === 'Invitation sent' || inv.status === 'Invitation opened') {
-          await base44.asServiceRole.entities.CustomerInvitation.update(inv.id, {
-            status: 'Active', user_id: user.id, last_login: new Date().toISOString()
-          });
-        }
-      }
-      return Response.json({ message: 'User linked', count: invitations.length });
+    async function createAuditLog(aBase44, action, desc, projectId, extra = {}) {
+      await aBase44.entities.AuditLog.create({
+        target_type: 'customer_invitation', target_id: extra.invitation_id || 'N/A',
+        action, action_type: action, description: desc, actor_user_id: user.id,
+        actor_name: user.full_name || user.email, actor_role: user.role,
+        project_id: projectId || null, severity: extra.severity || 'medium', ...extra
+      });
     }
 
-    // All other actions require staff/admin
-    if (user.role !== 'admin' && user.role !== 'staff') return Response.json({ error: 'Forbidden' }, { status: 403 });
-
-    // Helper: send invitation email
     async function sendInviteEmail(email, customerName, projectNames, expiryDate) {
-      const projectList = projectNames.length > 1
-        ? projectNames.map(n => `  • ${n}`).join('\n')
-        : projectNames[0] || 'your project';
+      const projectList = projectNames.length > 1 ? projectNames.map(n => `  • ${n}`).join('\n') : projectNames[0] || 'your project';
       const expiryStr = expiryDate ? new Date(expiryDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '7 days';
-      const body = `Hello ${customerName || ''},
-
-You've been invited to Frontier Selections — the client portal for your construction project with Frontier Building Group.
-
-${projectNames.length > 1 ? 'Your projects:' : 'Your project:'}
-${projectList}
-
-Through the Frontier Selections portal, you can:
-  • Browse and select materials for your project
-  • Configure product options (colours, sizes, finishes)
-  • Track your selection allowances and budget
-  • Submit selections for staff review
-  • Request changes to approved items
-  • View your final selections package
-
-To get started, click the link below to set up your account:
-${portalUrl}
-
-This invitation expires on ${expiryStr}. If you have any questions, please contact your Frontier Building Group project coordinator.
-
-Thank you,
-Frontier Building Group`;
-
-      const emailPayload = {
-        to: email,
-        subject: "You've been invited to Frontier Selections",
-        body: body,
-        from_name: "Frontier Building Group"
-      };
+      const emailBody = `Hello ${customerName || ''},\n\nYou've been invited to Frontier Selections.\n\n${projectNames.length > 1 ? 'Your projects:' : 'Your project:'}\n${projectList}\n\nTo get started: ${portalUrl}\n\nThis invitation expires on ${expiryStr}.\n\nThank you,\nFrontier Building Group`;
+      
       const emailRes = await base44.functions.invoke("sendNotifications", {
-        action: "sendEmail",
-        ...emailPayload
+        action: "sendEmail", to: email, subject: "You've been invited to Frontier Selections",
+        body: emailBody, from_name: "Frontier Building Group"
       });
       return emailRes.data;
-    }
-
-    // Helper: create audit log
-    async function createAuditLog(auditBase44, action, description, projectId, extra = {}) {
-      await auditBase44.entities.AuditLog.create({
-        target_type: 'customer_invitation',
-        target_id: extra.invitation_id || 'N/A',
-        action: action,
-        action_type: action,
-        description: description,
-        actor_user_id: user.id,
-        actor_name: user.full_name || user.email,
-        actor_role: user.role,
-        project_id: projectId || null,
-        severity: extra.severity || 'medium',
-        ...extra
-      });
     }
 
     if (action === 'create') {
@@ -93,8 +39,7 @@ Frontier Building Group`;
         return Response.json({ error: 'Email and at least one project are required' }, { status: 400 });
       }
 
-      // Check for existing invitation
-      const existing = await base44.asServiceRole.entities.CustomerInvitation.filter({ email: email });
+      const existing = await base44.asServiceRole.entities.CustomerInvitation.filter({ email });
       if (existing.length > 0 && existing[0].status !== 'Cancelled' && existing[0].status !== 'Deactivated') {
         return Response.json({ error: 'An active invitation already exists for this email' }, { status: 400 });
       }
@@ -102,53 +47,56 @@ Frontier Building Group`;
       const expiryDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
       const now = new Date().toISOString();
 
-      // Create or reactivate invitation
       let invitation;
       if (existing.length > 0) {
         invitation = await base44.asServiceRole.entities.CustomerInvitation.update(existing[0].id, {
-          customer_name, phone, project_ids, project_names,
-          status: 'Invitation sent', invited_by: user.id, invited_by_name: user.full_name || user.email,
+          customer_name, phone, project_ids, project_names, status: 'Invitation sent',
+          invited_by: user.id, invited_by_name: user.full_name || user.email,
           invited_date: now, expiry_date: expiryDate, last_sent_date: now
         });
       } else {
         invitation = await base44.asServiceRole.entities.CustomerInvitation.create({
-          email, customer_name, phone, project_ids, project_names,
-          status: 'Invitation sent', invited_by: user.id, invited_by_name: user.full_name || user.email,
+          email, customer_name, phone, project_ids, project_names, status: 'Invitation sent',
+          invited_by: user.id, invited_by_name: user.full_name || user.email,
           invited_date: now, expiry_date: expiryDate, last_sent_date: now
         });
       }
 
-      // Invite user to the platform
-      try {
-        await base44.asServiceRole.users.inviteUser(email, 'user');
-      } catch (e) {
-        // User may already exist — that's OK
-      }
+      try { await base44.asServiceRole.users.inviteUser(email, 'user'); } catch (e) {}
 
-      // Add customer to projects' assigned_customers
       for (const pid of project_ids) {
         try {
           const project = await base44.asServiceRole.entities.Project.get(pid);
           const current = project.assigned_customers || [];
           if (!current.includes(email)) {
-            await base44.asServiceRole.entities.Project.update(pid, {
-              assigned_customers: [...current, email]
-            });
+            await base44.asServiceRole.entities.Project.update(pid, { assigned_customers: [...current, email] });
           }
-        } catch (e) { /* project may not exist */ }
+        } catch (e) {}
       }
 
-      // Send custom email
+      let emailResult = null, emailError = null;
       try {
-        await sendInviteEmail(email, customer_name, project_names || [], expiryDate);
-      } catch (e) { /* email may fail */ }
+        emailResult = await sendInviteEmail(email, customer_name, project_names || [], expiryDate);
+        if (emailResult && !emailResult.email_sent) emailError = emailResult.reason || emailResult.error;
+      } catch (e) { emailError = e.message; }
 
-      // Audit log
-      await createAuditLog(base44.asServiceRole, 'customer_invited',
-        `${user.full_name || user.email} invited ${customer_name || email} to project(s): ${(project_names || []).join(', ')}`,
-        project_ids[0], { severity: 'high' });
+      const inviteLink = `${portalUrl}?invite=${invitation.id}`;
+      const auditExtra = { severity: 'high', invitation_id: invitation.id, email_sent: emailResult?.email_sent || false, email_error: emailError, invite_link: inviteLink };
+      
+      if (emailError) {
+        await createAuditLog(base44.asServiceRole, 'customer_invited_email_failed',
+          `${user.full_name || user.email} invited ${customer_name || email} but email failed: ${emailError}`,
+          project_ids[0], auditExtra);
+      } else {
+        await createAuditLog(base44.asServiceRole, 'customer_invited',
+          `${user.full_name || user.email} invited ${customer_name || email} to project(s): ${(project_names || []).join(', ')}`,
+          project_ids[0], auditExtra);
+      }
 
-      return Response.json({ message: 'Invitation sent successfully', invitation });
+      return Response.json({ 
+        message: emailResult?.email_sent ? 'Invitation sent successfully' : 'Invitation created (email not sent)', 
+        invitation, invite_link: inviteLink, email_sent: emailResult?.email_sent || false, email_error: emailError 
+      });
     }
 
     if (action === 'resend') {
@@ -161,19 +109,31 @@ Frontier Building Group`;
         status: 'Invitation sent', expiry_date: expiryDate, last_sent_date: now
       });
 
+      try { await base44.asServiceRole.users.inviteUser(invitation.email, 'user'); } catch (e) {}
+
+      let emailResult = null, emailError = null;
       try {
-        await base44.asServiceRole.users.inviteUser(invitation.email, 'user');
-      } catch (e) { /* may already exist */ }
+        emailResult = await sendInviteEmail(invitation.email, invitation.customer_name, invitation.project_names || [], expiryDate);
+        if (emailResult && !emailResult.email_sent) emailError = emailResult.reason || emailResult.error;
+      } catch (e) { emailError = e.message; }
 
-      try {
-        await sendInviteEmail(invitation.email, invitation.customer_name, invitation.project_names || [], expiryDate);
-      } catch (e) { /* email may fail */ }
+      const inviteLink = `${portalUrl}?invite=${invitation.id}`;
+      const auditExtra = { invitation_id, email_sent: emailResult?.email_sent || false, email_error: emailError, invite_link: inviteLink };
 
-      await createAuditLog(base44.asServiceRole, 'invitation_resent',
-        `${user.full_name || user.email} resent invitation to ${invitation.customer_name || invitation.email}`,
-        (invitation.project_ids || [])[0], { invitation_id, severity: 'medium' });
+      if (emailError) {
+        await createAuditLog(base44.asServiceRole, 'invitation_resent_email_failed',
+          `${user.full_name || user.email} resent invitation but email failed: ${emailError}`,
+          (invitation.project_ids || [])[0], auditExtra);
+      } else {
+        await createAuditLog(base44.asServiceRole, 'invitation_resent',
+          `${user.full_name || user.email} resent invitation to ${invitation.customer_name || invitation.email}`,
+          (invitation.project_ids || [])[0], auditExtra);
+      }
 
-      return Response.json({ message: 'Invitation resent' });
+      return Response.json({ 
+        message: emailResult?.email_sent ? 'Invitation resent successfully' : 'Invitation reset (email not sent)',
+        invite_link: inviteLink, email_sent: emailResult?.email_sent || false, email_error: emailError 
+      });
     }
 
     if (action === 'cancel') {
@@ -181,15 +141,12 @@ Frontier Building Group`;
       const invitation = await base44.asServiceRole.entities.CustomerInvitation.get(invitation_id);
       await base44.asServiceRole.entities.CustomerInvitation.update(invitation_id, { status: 'Cancelled' });
 
-      // Remove from projects
       for (const pid of invitation.project_ids || []) {
         try {
           const project = await base44.asServiceRole.entities.Project.get(pid);
           const current = project.assigned_customers || [];
-          await base44.asServiceRole.entities.Project.update(pid, {
-            assigned_customers: current.filter(c => c !== invitation.email)
-          });
-        } catch (e) { /* */ }
+          await base44.asServiceRole.entities.Project.update(pid, { assigned_customers: current.filter(c => c !== invitation.email) });
+        } catch (e) {}
       }
 
       await createAuditLog(base44.asServiceRole, 'invitation_cancelled',
@@ -206,15 +163,12 @@ Frontier Building Group`;
         status: 'Deactivated', deactivated_date: new Date().toISOString()
       });
 
-      // Remove from projects
       for (const pid of invitation.project_ids || []) {
         try {
           const project = await base44.asServiceRole.entities.Project.get(pid);
           const current = project.assigned_customers || [];
-          await base44.asServiceRole.entities.Project.update(pid, {
-            assigned_customers: current.filter(c => c !== invitation.email)
-          });
-        } catch (e) { /* */ }
+          await base44.asServiceRole.entities.Project.update(pid, { assigned_customers: current.filter(c => c !== invitation.email) });
+        } catch (e) {}
       }
 
       await createAuditLog(base44.asServiceRole, 'customer_deactivated',
@@ -229,17 +183,14 @@ Frontier Building Group`;
       const invitation = await base44.asServiceRole.entities.CustomerInvitation.get(invitation_id);
       await base44.asServiceRole.entities.CustomerInvitation.update(invitation_id, { status: 'Active' });
 
-      // Add back to projects
       for (const pid of invitation.project_ids || []) {
         try {
           const project = await base44.asServiceRole.entities.Project.get(pid);
           const current = project.assigned_customers || [];
           if (!current.includes(invitation.email)) {
-            await base44.asServiceRole.entities.Project.update(pid, {
-              assigned_customers: [...current, invitation.email]
-            });
+            await base44.asServiceRole.entities.Project.update(pid, { assigned_customers: [...current, invitation.email] });
           }
-        } catch (e) { /* */ }
+        } catch (e) {}
       }
 
       await createAuditLog(base44.asServiceRole, 'customer_reactivated',
@@ -262,10 +213,8 @@ Frontier Building Group`;
       try {
         const project = await base44.asServiceRole.entities.Project.get(project_id);
         const current = project.assigned_customers || [];
-        await base44.asServiceRole.entities.Project.update(project_id, {
-          assigned_customers: current.filter(c => c !== invitation.email)
-        });
-      } catch (e) { /* */ }
+        await base44.asServiceRole.entities.Project.update(project_id, { assigned_customers: current.filter(c => c !== invitation.email) });
+      } catch (e) {}
 
       await createAuditLog(base44.asServiceRole, 'customer_removed_from_project',
         `${user.full_name || user.email} removed ${invitation.customer_name || invitation.email} from project`,

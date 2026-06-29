@@ -6,6 +6,7 @@ import CustomerManagement from "@/pages/admin/CustomerManagement";
 import RolesPermissions from "@/pages/admin/RolesPermissions";
 import InvitationManagement from "@/pages/admin/InvitationManagement";
 import AuditLogViewer from "@/pages/admin/AuditLogViewer";
+import EmailSettings from "@/pages/admin/EmailSettings";
 
 const TABS = [
   { id: 'staff', label: 'Staff Users', icon: Users },
@@ -13,6 +14,7 @@ const TABS = [
   { id: 'roles', label: 'Roles & Permissions', icon: Shield },
   { id: 'invitations', label: 'Invitations', icon: Mail },
   { id: 'audit', label: 'Audit Logs', icon: ScrollText },
+  { id: 'email', label: 'Email Settings', icon: Mail },
 ];
 
 export default function AdminPanel() {
@@ -67,6 +69,7 @@ export default function AdminPanel() {
         {activeTab === 'roles' && <RolesPermissions />}
         {activeTab === 'invitations' && <InvitationManagement />}
         {activeTab === 'audit' && <AuditLogViewer />}
+        {activeTab === 'email' && <EmailSettings />}
       </div>
     </div>
   );
