@@ -12,6 +12,12 @@ export const AREA_TYPES = [
   "Global", "Other"
 ];
 
+export const MOOD_BOARD_TAGS = [
+  "Kitchen", "Bathroom", "Ensuite", "Exterior", "Flooring", "Tile", "Vanity",
+  "Cabinets", "Countertop", "Lighting", "Paint", "Trim", "Modern",
+  "Traditional", "Warm", "Clean", "Rustic", "High priority", "Maybe", "Favourite"
+];
+
 export const PROJECT_STATUSES = [
   "Draft", "Active", "Waiting on Customer", "Waiting on Staff",
   "Selections Complete", "In Construction", "Completed", "Archived"

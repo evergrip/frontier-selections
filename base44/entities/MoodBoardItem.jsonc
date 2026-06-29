@@ -8,6 +8,9 @@
     "area_id": {
       "type": "string"
     },
+    "selection_category": {
+      "type": "string"
+    },
     "image_url": {
       "type": "string"
     },
@@ -37,6 +40,20 @@
         "High"
       ],
       "default": "Medium"
+    },
+    "is_favourite": {
+      "type": "boolean",
+      "default": false
+    },
+    "is_reviewed": {
+      "type": "boolean",
+      "default": false
+    },
+    "linked_requirement_id": {
+      "type": "string"
+    },
+    "internal_notes": {
+      "type": "string"
     }
   },
   "required": [

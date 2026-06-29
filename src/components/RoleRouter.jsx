@@ -20,6 +20,7 @@ import ChangeRequestDetail from "@/pages/ChangeRequestDetail";
 import Procurement from "@/pages/Procurement";
 import ProcurementDetail from "@/pages/ProcurementDetail";
 import SupplierOrderList from "@/pages/SupplierOrderList";
+import StaffMoodBoard from "@/pages/StaffMoodBoard";
 
 import CustomerDashboard from "@/pages/portal/CustomerDashboard";
 import CustomerAreaView from "@/pages/portal/CustomerAreaView";
@@ -63,6 +64,7 @@ export default function RoleRouter() {
           <Route path="/procurement" element={<Procurement />} />
           <Route path="/procurement/:procurementId" element={<ProcurementDetail />} />
           <Route path="/supplier-orders" element={<SupplierOrderList />} />
+          <Route path="/mood-board" element={<StaffMoodBoard />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

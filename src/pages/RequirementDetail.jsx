@@ -56,6 +56,9 @@ export default function RequirementDetail() {
   const [showReview, setShowReview] = useState(false);
   const [reviewAction, setReviewAction] = useState("Approved");
   const [showEditAllowance, setShowEditAllowance] = useState(false);
+  const [linkedMb, setLinkedMb] = useState([]);
+  const [linking, setLinking] = useState(false);
+  const [projectMb, setProjectMb] = useState([]);
 
   useEffect(() => { load(); }, [requirementId]);
 
@@ -82,7 +85,22 @@ export default function RequirementDetail() {
     } else {
       setAssembledItem(null);
     }
+    const linkedMbItems = await base44.entities.MoodBoardItem.filter({ linked_requirement_id: requirementId });
+    setLinkedMb(linkedMbItems);
     setLoading(false);
+  }
+
+  async function handleToggleLink() {
+    if (linking) { setLinking(false); return; }
+    const mb = await base44.entities.MoodBoardItem.filter({ project_id: projectId }, "-created_date", 300);
+    setProjectMb(mb.filter(m => !m.linked_requirement_id));
+    setLinking(true);
+  }
+
+  async function handleLinkItem(mbId) {
+    await base44.entities.MoodBoardItem.update(mbId, { linked_requirement_id: requirementId });
+    setLinking(false);
+    load();
   }
 
   const allowance = requirement?.allowance_amount || 0;
@@ -335,6 +353,34 @@ export default function RequirementDetail() {
           </div>
         </div>
       )}
+
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-gray-900 text-sm">Mood Board References</h2>
+          <Button variant="outline" size="sm" onClick={handleToggleLink}>{linking ? "Cancel" : "Link Item"}</Button>
+        </div>
+        {linkedMb.length > 0 ? (
+          <div className="flex gap-3 flex-wrap">
+            {linkedMb.map(m => (
+              <div key={m.id} className="w-20">
+                {m.image_url ? <img src={m.image_url} alt="" className="w-20 h-20 object-cover rounded-lg border" /> : <div className="w-20 h-20 bg-gray-100 rounded-lg border flex items-center justify-center text-gray-400 text-[10px] p-1 text-center">{m.notes || "No image"}</div>}
+                <p className="text-[10px] text-gray-500 mt-1 truncate">{(m.tags || []).join(", ")}</p>
+              </div>
+            ))}
+          </div>
+        ) : <p className="text-sm text-gray-400">No mood board items linked to this requirement.</p>}
+        {linking && (
+          <div className="mt-3">
+            <Select onValueChange={handleLinkItem}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Select a mood board item to link" /></SelectTrigger>
+              <SelectContent>
+                {projectMb.length === 0 && <SelectItem value={null} disabled>No unlinked items</SelectItem>}
+                {projectMb.map(m => <SelectItem key={m.id} value={m.id}>{m.notes || (m.tags || []).join(", ") || "Item"}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
 
       <ReviewDialog open={showReview} onClose={() => setShowReview(false)} initialAction={reviewAction} selection={selection} allowance={allowance} onSubmit={handleReview} />
       <EditAllowanceDialog open={showEditAllowance} onClose={() => setShowEditAllowance(false)} requirement={requirement} onUpdated={load} />
