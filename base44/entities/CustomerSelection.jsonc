@@ -84,6 +84,9 @@
     "staff_comments": {
       "type": "string"
     },
+    "internal_notes": {
+      "type": "string"
+    },
     "customer_notes": {
       "type": "string"
     },

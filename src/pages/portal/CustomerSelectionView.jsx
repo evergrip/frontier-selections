@@ -31,6 +31,7 @@ export default function CustomerSelectionView() {
   const navigate = useNavigate();
   const [requirement, setRequirement] = useState(null);
   const [project, setProject] = useState(null);
+  const [area, setArea] = useState(null);
   const [catalogueItems, setCatalogueItems] = useState([]);
   const [existingSelection, setExistingSelection] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -49,6 +50,9 @@ export default function CustomerSelectionView() {
       ]);
       setRequirement(req);
       setProject(proj);
+      if (areaId) {
+        try { setArea(await base44.entities.ProjectArea.get(areaId)); } catch {}
+      }
       const current = sels.find(s => s.is_current);
       setExistingSelection(current || null);
 
@@ -153,9 +157,19 @@ export default function CustomerSelectionView() {
   const canSubmit = selectedItem && missingRequired.length === 0 && invalidSelections.length === 0;
 
   const allowance = requirement?.allowance_amount || 0;
+  const areaAllowance = area?.allowance || 0;
+  const totalAllowance = project?.total_allowance || 0;
   const overAllowance = calculatedPrice > allowance ? calculatedPrice - allowance : 0;
   const underAllowance = calculatedPrice < allowance ? allowance - calculatedPrice : 0;
-  const showPricing = project?.pricing_visibility !== "hidden";
+  const pv = project?.pricing_visibility || "hidden";
+  const showItemPrices = pv === "show_item_prices";
+  const showTotalAllowance = pv === "show_total_allowance";
+  const showAreaAllowance = pv === "show_area_allowance";
+  const showItemAllowance = pv === "show_item_allowance";
+  const showRemainingOnly = pv === "show_remaining_only";
+  const showOverageOnly = pv === "show_overage_only";
+  const showPricing = pv !== "hidden";
+  const remaining = allowance - calculatedPrice;
 
   async function handleSubmit() {
     setSubmitting(true);
@@ -192,6 +206,13 @@ export default function CustomerSelectionView() {
       });
     }
 
+    await base44.entities.AllowanceLedger.create({
+      project_id: projectId, area_id: areaId, requirement_id: requirementId,
+      event_type: existingSelection ? "Selection Changed" : "Selection Submitted",
+      amount: calculatedPrice, running_balance: calculatedPrice - allowance,
+      description: `${selectedItem.name} submitted at $${calculatedPrice.toLocaleString()}`,
+      performed_by: "customer"
+    });
     await base44.entities.SelectionRequirement.update(requirementId, { status: "Submitted" });
     setSubmitting(false);
     navigate(`/portal/project/${projectId}/area/${areaId}`);
@@ -226,7 +247,7 @@ export default function CustomerSelectionView() {
       )}
 
       {isApproved && existingSelection && (
-        <ApprovedSelectionView selection={existingSelection} items={catalogueItems} showPricing={showPricing} />
+        <ApprovedSelectionView selection={existingSelection} items={catalogueItems} showItemPrices={showItemPrices} showItemAllowance={showItemAllowance} allowance={allowance} />
       )}
 
       {step === "browse" && canEdit && !isApproved && (
@@ -253,7 +274,7 @@ export default function CustomerSelectionView() {
                     <h3 className="font-semibold text-gray-900">{item.name}</h3>
                     {item.description && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.description}</p>}
                     <div className="flex items-center justify-between mt-3">
-                      {showPricing && <p className="font-bold text-gray-900">${(item.base_price || 0).toLocaleString()}</p>}
+                      {showItemPrices && <p className="font-bold text-gray-900">${(item.base_price || 0).toLocaleString()}</p>}
                       {item.option_groups?.length > 0 && (
                         <span className="text-xs text-blue-600">{item.option_groups.length} customization{item.option_groups.length > 1 ? "s" : ""}</span>
                       )}
@@ -276,7 +297,7 @@ export default function CustomerSelectionView() {
               <div>
                 <h2 className="font-bold text-gray-900">{selectedItem.name}</h2>
                 <p className="text-sm text-gray-500">{selectedItem.category}</p>
-                {showPricing && <p className="text-lg font-bold mt-1">From ${(selectedItem.base_price || 0).toLocaleString()}</p>}
+                {showItemPrices && <p className="text-lg font-bold mt-1">From ${(selectedItem.base_price || 0).toLocaleString()}</p>}
               </div>
             </div>
             <Button variant="outline" size="sm" onClick={() => { setStep("browse"); setSelectedItem(null); setSelectedOptions({}); }}>
@@ -309,7 +330,7 @@ export default function CustomerSelectionView() {
                         >
                           {opt.image && <img src={opt.image} alt={opt.name} className="w-full aspect-square object-cover rounded-lg mb-2" />}
                           <p className="font-medium text-sm text-gray-900">{opt.name}</p>
-                          {showPricing && opt.price_modifier !== 0 && (
+                          {showItemPrices && opt.price_modifier !== 0 && (
                             <p className={`text-xs mt-0.5 ${opt.price_modifier > 0 ? "text-red-600" : "text-green-600"}`}>
                               {opt.price_modifier > 0 ? "+" : ""}${opt.price_modifier.toLocaleString()}
                             </p>
@@ -351,46 +372,51 @@ export default function CustomerSelectionView() {
 
           {showPricing && (
             <div className="bg-gray-50 rounded-xl p-4 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Base Price</span>
-                <span className="font-medium">${(selectedItem.base_price || 0).toLocaleString()}</span>
-              </div>
-              {Object.entries(selectedOptions).map(([gId, oId]) => {
-                const group = selectedItem.option_groups.find(g => g.id === gId);
-                const opt = group?.options.find(o => o.id === oId);
-                if (!opt || !opt.price_modifier) return null;
-                return (
-                  <div key={gId} className="flex justify-between text-sm">
-                    <span className="text-gray-500">{group.name}: {opt.name}</span>
-                    <span className={opt.price_modifier > 0 ? "text-red-600" : "text-green-600"}>
-                      {opt.price_modifier > 0 ? "+" : ""}${opt.price_modifier.toLocaleString()}
-                    </span>
-                  </div>
-                );
-              })}
-              <div className="flex justify-between text-sm font-bold border-t border-gray-200 pt-2">
-                <span>Total</span>
-                <span>${calculatedPrice.toLocaleString()}</span>
-              </div>
-              {allowance > 0 && (
+              {showItemPrices && (
                 <>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Allowance</span>
-                    <span>${allowance.toLocaleString()}</span>
+                    <span className="text-gray-500">Base Price</span>
+                    <span className="font-medium">${(selectedItem.base_price || 0).toLocaleString()}</span>
                   </div>
-                  {overAllowance > 0 && (
-                    <div className="flex justify-between text-sm text-red-600 font-medium">
-                      <span>Over Allowance</span>
-                      <span>+${overAllowance.toLocaleString()}</span>
-                    </div>
-                  )}
-                  {underAllowance > 0 && (
-                    <div className="flex justify-between text-sm text-green-600 font-medium">
-                      <span>Under Allowance</span>
-                      <span>-${underAllowance.toLocaleString()}</span>
-                    </div>
-                  )}
+                  {Object.entries(selectedOptions).map(([gId, oId]) => {
+                    const group = selectedItem.option_groups.find(g => g.id === gId);
+                    const opt = group?.options.find(o => o.id === oId);
+                    if (!opt || !opt.price_modifier) return null;
+                    return (
+                      <div key={gId} className="flex justify-between text-sm">
+                        <span className="text-gray-500">{group.name}: {opt.name}</span>
+                        <span className={opt.price_modifier > 0 ? "text-red-600" : "text-green-600"}>
+                          {opt.price_modifier > 0 ? "+" : ""}${opt.price_modifier.toLocaleString()}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  <div className="flex justify-between text-sm font-bold border-t border-gray-200 pt-2">
+                    <span>Total</span>
+                    <span>${calculatedPrice.toLocaleString()}</span>
+                  </div>
                 </>
+              )}
+              {showTotalAllowance && totalAllowance > 0 && (
+                <div className="flex justify-between text-sm"><span className="text-gray-500">Project Allowance</span><span>${totalAllowance.toLocaleString()}</span></div>
+              )}
+              {showAreaAllowance && areaAllowance > 0 && (
+                <div className="flex justify-between text-sm"><span className="text-gray-500">Area Allowance</span><span>${areaAllowance.toLocaleString()}</span></div>
+              )}
+              {showItemAllowance && allowance > 0 && (
+                <div className="flex justify-between text-sm"><span className="text-gray-500">Item Allowance</span><span>${allowance.toLocaleString()}</span></div>
+              )}
+              {showRemainingOnly && allowance > 0 && (
+                <div className="flex justify-between text-sm font-bold">
+                  <span>Remaining Balance</span>
+                  <span className={remaining >= 0 ? "text-green-600" : "text-red-600"}>${Math.abs(remaining).toLocaleString()}{remaining < 0 ? " over" : " left"}</span>
+                </div>
+              )}
+              {showOverageOnly && (overAllowance > 0 || underAllowance > 0) && (
+                <div className={`flex justify-between text-sm font-bold ${overAllowance > 0 ? "text-red-600" : "text-green-600"}`}>
+                  <span>{overAllowance > 0 ? "Overage" : "Credit"}</span>
+                  <span>{overAllowance > 0 ? `+$${overAllowance.toLocaleString()}` : `-$${underAllowance.toLocaleString()}`}</span>
+                </div>
               )}
             </div>
           )}
@@ -404,7 +430,7 @@ export default function CustomerSelectionView() {
   );
 }
 
-function ApprovedSelectionView({ selection, items, showPricing }) {
+function ApprovedSelectionView({ selection, items, showItemPrices, showItemAllowance, allowance }) {
   const item = items.find(i => i.id === selection.catalogue_item_id);
   return (
     <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-5">
@@ -422,7 +448,8 @@ function ApprovedSelectionView({ selection, items, showPricing }) {
                 <p key={i} className="text-xs text-gray-500"><span className="text-gray-400">{o.group_name}:</span> {o.option_name}</p>
               ))}
             </div>
-            {showPricing && <p className="text-sm font-bold mt-2">${(selection.calculated_price || 0).toLocaleString()}</p>}
+            {showItemPrices && <p className="text-sm font-bold mt-2">${(selection.calculated_price || 0).toLocaleString()}</p>}
+            {showItemAllowance && allowance > 0 && <p className="text-xs text-gray-500 mt-1">Allowance: ${allowance.toLocaleString()}</p>}
           </div>
         </div>
       )}

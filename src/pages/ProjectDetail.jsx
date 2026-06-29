@@ -306,8 +306,10 @@ function EditProjectDialog({ open, onClose, project, onUpdated }) {
                   <SelectItem value="hidden">Hidden</SelectItem>
                   <SelectItem value="show_item_prices">Show Item Prices</SelectItem>
                   <SelectItem value="show_total_allowance">Show Total Allowance</SelectItem>
+                  <SelectItem value="show_area_allowance">Show Area Allowance</SelectItem>
+                  <SelectItem value="show_item_allowance">Show Item Allowance</SelectItem>
                   <SelectItem value="show_remaining_only">Show Remaining Only</SelectItem>
-                  <SelectItem value="show_overage_only">Show Overage Only</SelectItem>
+                  <SelectItem value="show_overage_only">Show Overage/Credit Only</SelectItem>
                 </SelectContent>
               </Select>
             </div>

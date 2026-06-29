@@ -18,6 +18,7 @@ export default function AreaDetail() {
   const [selections, setSelections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddReq, setShowAddReq] = useState(false);
+  const [showEditAllowance, setShowEditAllowance] = useState(false);
 
   useEffect(() => { load(); }, [areaId]);
 
@@ -46,6 +47,7 @@ export default function AreaDetail() {
           <p className="text-sm text-gray-500">{area.area_type} • {area.allowance ? `$${area.allowance.toLocaleString()} allowance` : "No allowance set"}</p>
         </div>
         <StatusBadge status={area.status} />
+        <Button variant="outline" size="sm" onClick={() => setShowEditAllowance(true)} className="gap-2"><Edit2 size={14} /> Edit Allowance</Button>
       </div>
 
       {area.customer_notes && (
@@ -89,6 +91,7 @@ export default function AreaDetail() {
       )}
 
       <AddRequirementDialog open={showAddReq} onClose={() => setShowAddReq(false)} projectId={projectId} areaId={areaId} onAdded={load} />
+      <EditAllowanceDialog open={showEditAllowance} onClose={() => setShowEditAllowance(false)} area={area} onUpdated={load} />
     </div>
   );
 }
@@ -132,6 +135,30 @@ function AddRequirementDialog({ open, onClose, projectId, areaId, onAdded }) {
             Approval required
           </label>
           <Button onClick={handleAdd} disabled={saving || !form.name.trim()} className="w-full">{saving ? "Adding..." : "Add Requirement"}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditAllowanceDialog({ open, onClose, area, onUpdated }) {
+  const [allowance, setAllowance] = useState(0);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { if (area) setAllowance(area.allowance || 0); }, [area]);
+  async function handleSave() {
+    setSaving(true);
+    await base44.entities.ProjectArea.update(area.id, { allowance: Number(allowance) || 0 });
+    setSaving(false);
+    onUpdated();
+    onClose();
+  }
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader><DialogTitle>Edit Area Allowance</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <div><Label>Allowance ($)</Label><Input type="number" value={allowance} onChange={e => setAllowance(e.target.value)} /></div>
+          <Button onClick={handleSave} disabled={saving} className="w-full">{saving ? "Saving..." : "Save"}</Button>
         </div>
       </DialogContent>
     </Dialog>
