@@ -3,17 +3,18 @@
   "type": "object",
   "properties": {
     "target_type": {
-      "type": "string",
-      "enum": [
-        "selection",
-        "change_request",
-        "requirement"
-      ]
+      "type": "string"
     },
     "target_id": {
       "type": "string"
     },
     "action": {
+      "type": "string"
+    },
+    "action_type": {
+      "type": "string"
+    },
+    "description": {
       "type": "string"
     },
     "field": {
@@ -25,11 +26,48 @@
     "new_value": {
       "type": "string"
     },
+    "before_value": {
+      "type": "string"
+    },
+    "after_value": {
+      "type": "string"
+    },
     "changed_by": {
+      "type": "string"
+    },
+    "actor_user_id": {
+      "type": "string"
+    },
+    "actor_name": {
+      "type": "string"
+    },
+    "acting_as_user_id": {
+      "type": "string"
+    },
+    "acting_as_name": {
+      "type": "string"
+    },
+    "actor_role": {
+      "type": "string"
+    },
+    "project_id": {
       "type": "string"
     },
     "reason": {
       "type": "string"
+    },
+    "ip_address": {
+      "type": "string"
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "sensitive"
+      ],
+      "default": "low"
     }
   },
   "required": [

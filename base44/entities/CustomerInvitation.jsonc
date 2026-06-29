@@ -1,0 +1,73 @@
+{
+  "name": "CustomerInvitation",
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string"
+    },
+    "customer_name": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "project_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "project_names": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Not invited",
+        "Invitation sent",
+        "Invitation opened",
+        "Account created",
+        "Active",
+        "Expired",
+        "Cancelled",
+        "Deactivated"
+      ],
+      "default": "Invitation sent"
+    },
+    "invited_by": {
+      "type": "string"
+    },
+    "invited_by_name": {
+      "type": "string"
+    },
+    "invited_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expiry_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_sent_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "user_id": {
+      "type": "string"
+    },
+    "last_login": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "email",
+    "project_ids"
+  ]
+}

@@ -98,7 +98,13 @@ export const STATUS_COLORS = {
   "Customer accepted": "bg-emerald-100 text-emerald-700",
   "Customer rejected": "bg-red-100 text-red-700",
   "Staff approved": "bg-green-100 text-green-700",
-  "Cancelled": "bg-gray-100 text-gray-500"
+  "Cancelled": "bg-gray-100 text-gray-500",
+  "Not invited": "bg-gray-100 text-gray-500",
+  "Invitation sent": "bg-amber-100 text-amber-700",
+  "Invitation opened": "bg-blue-100 text-blue-700",
+  "Account created": "bg-indigo-100 text-indigo-700",
+  "Expired": "bg-red-100 text-red-700",
+  "Deactivated": "bg-red-100 text-red-700"
 };
 
 export function customerDisplayStatus(req, sel, hasOpenChangeRequest) {
@@ -195,6 +201,129 @@ export const DEFAULT_TEMPLATES = {
   ]
 };
 
+export const STAFF_ROLES = [
+  "Owner/Admin",
+  "Operations Manager",
+  "Project Coordinator",
+  "Project Manager",
+  "Sales / Pre-Construction",
+  "Catalogue Manager",
+  "Read-Only Staff"
+];
+
+export const PERMISSIONS = [
+  "manage_users",
+  "manage_roles",
+  "manage_permissions",
+  "manage_customers",
+  "invite_customers",
+  "deactivate_users",
+  "view_audit_logs",
+  "create_projects",
+  "edit_projects",
+  "delete_archive_projects",
+  "view_all_projects",
+  "view_assigned_projects_only",
+  "manage_project_areas",
+  "manage_selection_requirements",
+  "manage_catalogue",
+  "manage_catalogue_rules",
+  "manage_allowances",
+  "view_hidden_pricing",
+  "override_pricing",
+  "approve_selections",
+  "reject_selections",
+  "request_revisions",
+  "lock_selections",
+  "unlock_selections",
+  "manage_change_requests",
+  "manage_procurement",
+  "generate_customer_reports",
+  "generate_internal_reports",
+  "view_internal_notes",
+  "add_internal_notes",
+  "add_customer_comments",
+  "view_as_customer",
+  "act_as_customer",
+  "act_as_customer_submit",
+  "act_as_customer_upload",
+  "act_as_customer_comment",
+  "act_as_customer_request_changes",
+  "manage_customer_access",
+  "resend_invites",
+  "deactivate_customer_access",
+  "manage_tutorial_content",
+  "view_training_progress"
+];
+
+export const ROLE_PERMISSIONS = {
+  "Owner/Admin": PERMISSIONS,
+  "Operations Manager": [
+    "create_projects", "edit_projects", "view_all_projects",
+    "manage_project_areas", "manage_selection_requirements",
+    "manage_customers", "invite_customers", "manage_customer_access", "resend_invites",
+    "manage_change_requests", "manage_procurement",
+    "generate_customer_reports", "generate_internal_reports",
+    "view_internal_notes", "add_internal_notes", "add_customer_comments",
+    "view_as_customer", "act_as_customer",
+    "manage_allowances", "view_hidden_pricing",
+    "approve_selections", "reject_selections", "request_revisions",
+    "lock_selections", "unlock_selections"
+  ],
+  "Project Coordinator": [
+    "view_assigned_projects_only", "edit_projects",
+    "manage_project_areas", "manage_selection_requirements",
+    "invite_customers", "resend_invites",
+    "approve_selections", "reject_selections", "request_revisions",
+    "manage_change_requests", "manage_procurement",
+    "generate_customer_reports",
+    "view_internal_notes", "add_internal_notes", "add_customer_comments",
+    "view_as_customer",
+    "manage_deadlines"
+  ],
+  "Project Manager": [
+    "view_assigned_projects_only",
+    "manage_procurement",
+    "add_internal_notes",
+    "generate_customer_reports"
+  ],
+  "Sales / Pre-Construction": [
+    "create_projects", "edit_projects",
+    "manage_project_areas",
+    "invite_customers",
+    "add_customer_comments",
+    "view_as_customer"
+  ],
+  "Catalogue Manager": [
+    "manage_catalogue", "manage_catalogue_rules"
+  ],
+  "Read-Only Staff": [
+    "view_assigned_projects_only",
+    "generate_customer_reports"
+  ]
+};
+
+export const INVITATION_STATUSES = [
+  "Not invited", "Invitation sent", "Invitation opened", "Account created",
+  "Active", "Expired", "Cancelled", "Deactivated"
+];
+
 export function isStaff(user) {
   return user?.role === 'admin' || user?.role === 'staff';
+}
+
+export function hasPermission(user, permission) {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  if (user.role !== 'staff') return false;
+  const perms = user.permissions || ROLE_PERMISSIONS[user.staff_role] || [];
+  return perms.includes(permission);
+}
+
+export function hasAnyPermission(user, permissions) {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  if (user.role !== 'staff') return false;
+  const perms = user.permissions || ROLE_PERMISSIONS[user.staff_role] || [];
+  return permissions.some(p => perms.includes(p));
 }

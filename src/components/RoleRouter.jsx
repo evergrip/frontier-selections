@@ -37,6 +37,7 @@ import TutorialManager from "@/pages/training/admin/TutorialManager";
 import HelpArticleManager from "@/pages/training/admin/HelpArticleManager";
 import FeatureRegistryManager from "@/pages/training/admin/FeatureRegistryManager";
 import KnowledgeCheckManager from "@/pages/training/admin/KnowledgeCheckManager";
+import AdminPanel from "@/pages/admin/AdminPanel";
 
 import CustomerDashboard from "@/pages/portal/CustomerDashboard";
 import CustomerAreaView from "@/pages/portal/CustomerAreaView";
@@ -51,7 +52,19 @@ export default function RoleRouter() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    base44.auth.me().then(u => { setUser(u); setLoading(false); }).catch(() => setLoading(false));
+    base44.auth.me().then(u => {
+      setUser(u);
+      setLoading(false);
+      // Check if user is deactivated
+      if (u && u.active === false) {
+        base44.auth.logout("/login");
+        return;
+      }
+      // Update last login for staff users
+      if (u && (u.role === 'admin' || u.role === 'staff')) {
+        base44.functions.invoke("userManagement", { action: "updateLastLogin" }).catch(() => {});
+      }
+    }).catch(() => setLoading(false));
   }, []);
 
   if (loading) {
@@ -98,6 +111,17 @@ export default function RoleRouter() {
           <Route path="/training/admin/articles" element={<HelpArticleManager />} />
           <Route path="/training/admin/features" element={<FeatureRegistryManager />} />
           <Route path="/training/admin/knowledge-checks" element={<KnowledgeCheckManager />} />
+          <Route path="/admin" element={<AdminPanel />} />
+        </Route>
+        {/* Portal routes for impersonation — separate from StaffLayout to avoid double-layout */}
+        <Route element={<CustomerLayout />}>
+          <Route path="/portal" element={<CustomerDashboard />} />
+          <Route path="/portal/project/:projectId" element={<CustomerProjectView />} />
+          <Route path="/portal/project/:projectId/final-package" element={<CustomerFinalPackage />} />
+          <Route path="/portal/project/:projectId/area/:areaId" element={<CustomerAreaView />} />
+          <Route path="/portal/project/:projectId/area/:areaId/selection/:requirementId" element={<CustomerSelectionView />} />
+          <Route path="/portal/mood-board" element={<CustomerMoodBoard />} />
+          <Route path="/portal/notifications" element={<CustomerNotifications />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

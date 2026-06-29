@@ -15,6 +15,7 @@ import ProjectTimeline from "@/components/comments/ProjectTimeline";
 import { PROJECT_STATUSES, AREA_TYPES, DEFAULT_TEMPLATES } from "@/lib/constants";
 import AreaCard from "@/components/staff/AreaCard";
 import ContextualHelpLink from "@/components/training/ContextualHelpLink";
+import ProjectCustomerAccess from "@/components/ProjectCustomerAccess";
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -88,6 +89,7 @@ export default function ProjectDetail() {
           <TabsTrigger value="selections">All Selections</TabsTrigger>
           <TabsTrigger value="details">Project Details</TabsTrigger>
           <TabsTrigger value="communication">Communication</TabsTrigger>
+          <TabsTrigger value="customers">Customer Access</TabsTrigger>
         </TabsList>
 
         <TabsContent value="areas" className="mt-6 space-y-4">
@@ -125,6 +127,10 @@ export default function ProjectDetail() {
         <TabsContent value="communication" className="mt-6 space-y-4">
           <ProjectTimeline projectId={projectId} staff={true} />
           <CommentThread projectId={projectId} targetType="project" targetId={projectId} staff={true} title="Project Comments" />
+        </TabsContent>
+
+        <TabsContent value="customers" className="mt-6">
+          <ProjectCustomerAccess project={project} onUpdated={load} />
         </TabsContent>
       </Tabs>
 

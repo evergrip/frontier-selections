@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, FolderKanban, BookOpen, Package, Bell, RefreshCw, Truck, ClipboardList, Palette, FileText,
-  ChevronLeft, ChevronRight, LogOut, Menu, X, Settings, FlaskConical, GraduationCap
+  ChevronLeft, ChevronRight, LogOut, Menu, X, Settings, FlaskConical, GraduationCap, Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import WalkthroughManager from "@/components/training/WalkthroughManager";
@@ -28,10 +28,20 @@ export default function StaffLayout() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    base44.auth.me().then(u => setUser(u)).catch(() => {});
+  }, []);
 
   const handleLogout = () => {
     base44.auth.logout("/login");
   };
+
+  const navItems = [...NAV_ITEMS];
+  if (user?.role === 'admin') {
+    navItems.push({ label: "Admin Panel", path: "/admin", icon: Shield, navId: "admin" });
+  }
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -64,7 +74,7 @@ export default function StaffLayout() {
         </div>
 
         <nav className="flex-1 py-4 overflow-y-auto">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const isActive = item.path === "/" ? location.pathname === "/" : location.pathname.startsWith(item.path);
             const Icon = item.icon;
             return (

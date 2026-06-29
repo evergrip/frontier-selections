@@ -65,8 +65,15 @@ export default function RequirementDetail() {
   const [proc, setProc] = useState(null);
   const [audit, setAudit] = useState([]);
   const [substitutions, setSubstitutions] = useState([]);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => {});
+  }, []);
 
   useEffect(() => { load(); }, [requirementId]);
+
+  const selfApprovalWarning = selection && user && selection.created_by_id === user.id && selection.status === "Pending";
 
   async function load() {
     setLoading(true);
@@ -307,6 +314,15 @@ export default function RequirementDetail() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {selfApprovalWarning && (
+              <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 flex items-start gap-2">
+                <AlertTriangle size={16} className="text-amber-600 mt-0.5 shrink-0" />
+                <p className="text-sm text-amber-800">
+                  You submitted this selection on behalf of the customer. Approval by another staff member is recommended.
+                </p>
               </div>
             )}
 

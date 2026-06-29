@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Home, FolderKanban, Image, Bell, LogOut, Menu, X } from "lucide-react";
+import ImpersonationBanner from "@/components/ImpersonationBanner";
+import { isViewAsCustomer } from "@/lib/impersonation";
 
 const NAV_ITEMS = [
   { label: "My Projects", path: "/portal", icon: Home },
@@ -15,6 +17,7 @@ export default function CustomerLayout() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <ImpersonationBanner />
       <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -70,7 +73,7 @@ export default function CustomerLayout() {
           </div>
         )}
       </header>
-      <main className="max-w-6xl mx-auto px-4 py-6">
+      <main className={`max-w-6xl mx-auto px-4 py-6 ${isViewAsCustomer() ? 'pointer-events-none' : ''}`}>
         <Outlet />
       </main>
     </div>

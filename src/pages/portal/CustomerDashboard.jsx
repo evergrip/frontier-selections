@@ -14,6 +14,8 @@ export default function CustomerDashboard() {
   useEffect(() => {
     async function load() {
       const user = await base44.auth.me();
+      // Link user to any pending invitations
+      base44.functions.invoke("customerInvitations", { action: "linkUser" }).catch(() => {});
       const allProjects = await base44.entities.Project.list("-updated_date", 50);
       const myProjects = allProjects.filter(p =>
         (p.assigned_customers || []).includes(user.id) ||

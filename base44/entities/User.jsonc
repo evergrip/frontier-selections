@@ -11,6 +11,24 @@
       ],
       "default": "customer"
     },
+    "staff_role": {
+      "type": "string",
+      "enum": [
+        "Owner/Admin",
+        "Operations Manager",
+        "Project Coordinator",
+        "Project Manager",
+        "Sales / Pre-Construction",
+        "Catalogue Manager",
+        "Read-Only Staff"
+      ]
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "company": {
       "type": "string"
     },
@@ -22,6 +40,21 @@
       "items": {
         "type": "string"
       }
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    },
+    "last_login": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "deactivated_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "deactivated_by": {
+      "type": "string"
     }
   }
 }
