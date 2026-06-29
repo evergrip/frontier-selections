@@ -1,0 +1,27 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "staff",
+        "customer"
+      ],
+      "default": "customer"
+    },
+    "company": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "assigned_projects": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

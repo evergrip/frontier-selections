@@ -1,0 +1,223 @@
+{
+  "name": "CatalogueItem",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "Vanity",
+        "Cabinet",
+        "Countertop",
+        "Tile",
+        "Flooring",
+        "Faucet",
+        "Sink",
+        "Toilet",
+        "Shower System",
+        "Tub",
+        "Mirror",
+        "Lighting",
+        "Paint",
+        "Trim",
+        "Door",
+        "Door Hardware",
+        "Exterior Siding",
+        "Roofing",
+        "Decking",
+        "Railing",
+        "Appliance",
+        "Fireplace",
+        "Other"
+      ]
+    },
+    "supplier": {
+      "type": "string"
+    },
+    "brand": {
+      "type": "string"
+    },
+    "collection": {
+      "type": "string"
+    },
+    "sku": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "base_price": {
+      "type": "number",
+      "default": 0
+    },
+    "unit_of_measure": {
+      "type": "string"
+    },
+    "default_image": {
+      "type": "string"
+    },
+    "gallery_images": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "spec_sheet_url": {
+      "type": "string"
+    },
+    "supplier_link": {
+      "type": "string"
+    },
+    "lead_time": {
+      "type": "string"
+    },
+    "warranty_info": {
+      "type": "string"
+    },
+    "installation_notes": {
+      "type": "string"
+    },
+    "customer_notes": {
+      "type": "string"
+    },
+    "internal_notes": {
+      "type": "string"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "taxable": {
+      "type": "boolean",
+      "default": true
+    },
+    "markup_rule": {
+      "type": "string"
+    },
+    "labour_included": {
+      "type": "boolean",
+      "default": false
+    },
+    "install_complexity": {
+      "type": "string"
+    },
+    "option_groups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "display_order": {
+            "type": "number"
+          },
+          "is_required": {
+            "type": "boolean"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "image": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "price_modifier": {
+                  "type": "number"
+                },
+                "customer_note": {
+                  "type": "string"
+                },
+                "internal_note": {
+                  "type": "string"
+                },
+                "is_active": {
+                  "type": "boolean"
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "requires_approval": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "option_rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "rule_type": {
+            "type": "string",
+            "enum": [
+              "availability",
+              "price_override",
+              "warning",
+              "requires_approval"
+            ]
+          },
+          "condition_group_id": {
+            "type": "string"
+          },
+          "condition_option_id": {
+            "type": "string"
+          },
+          "target_group_id": {
+            "type": "string"
+          },
+          "target_option_id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "show",
+              "hide",
+              "set_price",
+              "add_warning",
+              "require_approval"
+            ]
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "name",
+    "category"
+  ]
+}

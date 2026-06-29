@@ -1,0 +1,66 @@
+{
+  "name": "ProjectArea",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "area_type": {
+      "type": "string",
+      "enum": [
+        "Kitchen",
+        "Main Bathroom",
+        "Ensuite",
+        "Powder Room",
+        "Living Room",
+        "Basement",
+        "Laundry Room",
+        "Flooring",
+        "Doors and Trim",
+        "Lighting",
+        "Plumbing Fixtures",
+        "Paint",
+        "Deck",
+        "Addition",
+        "Garage",
+        "Exterior",
+        "Global",
+        "Other"
+      ]
+    },
+    "description": {
+      "type": "string"
+    },
+    "display_order": {
+      "type": "number",
+      "default": 0
+    },
+    "allowance": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Not Started",
+        "In Progress",
+        "Complete",
+        "Locked"
+      ],
+      "default": "Not Started"
+    },
+    "internal_notes": {
+      "type": "string"
+    },
+    "customer_notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id",
+    "name"
+  ]
+}

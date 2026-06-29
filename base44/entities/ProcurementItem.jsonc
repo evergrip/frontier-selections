@@ -1,0 +1,71 @@
+{
+  "name": "ProcurementItem",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "selection_id": {
+      "type": "string"
+    },
+    "requirement_id": {
+      "type": "string"
+    },
+    "area_id": {
+      "type": "string"
+    },
+    "item_name": {
+      "type": "string"
+    },
+    "supplier": {
+      "type": "string"
+    },
+    "sku": {
+      "type": "string"
+    },
+    "quantity": {
+      "type": "number",
+      "default": 1
+    },
+    "order_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "expected_delivery_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "actual_received_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "purchase_order_number": {
+      "type": "string"
+    },
+    "procurement_notes": {
+      "type": "string"
+    },
+    "site_notes": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Not Ready to Order",
+        "Ready to Order",
+        "Ordered",
+        "Backordered",
+        "Received",
+        "Delivered to Site",
+        "Installed",
+        "Cancelled",
+        "Returned"
+      ],
+      "default": "Not Ready to Order"
+    }
+  },
+  "required": [
+    "project_id",
+    "item_name"
+  ]
+}

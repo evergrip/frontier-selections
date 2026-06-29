@@ -1,0 +1,105 @@
+{
+  "name": "CustomerSelection",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "area_id": {
+      "type": "string"
+    },
+    "requirement_id": {
+      "type": "string"
+    },
+    "catalogue_item_id": {
+      "type": "string"
+    },
+    "selected_options": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string"
+          },
+          "group_name": {
+            "type": "string"
+          },
+          "option_id": {
+            "type": "string"
+          },
+          "option_name": {
+            "type": "string"
+          },
+          "price_modifier": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "calculated_price": {
+      "type": "number",
+      "default": 0
+    },
+    "staff_price_override": {
+      "type": "number"
+    },
+    "allowance_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "over_allowance": {
+      "type": "number",
+      "default": 0
+    },
+    "under_allowance": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Pending",
+        "Approved",
+        "Rejected",
+        "Revision Requested",
+        "Superseded"
+      ],
+      "default": "Pending"
+    },
+    "submitted_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reviewed_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reviewed_by": {
+      "type": "string"
+    },
+    "rejection_reason": {
+      "type": "string"
+    },
+    "staff_comments": {
+      "type": "string"
+    },
+    "customer_notes": {
+      "type": "string"
+    },
+    "version": {
+      "type": "number",
+      "default": 1
+    },
+    "is_current": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "project_id",
+    "area_id",
+    "requirement_id",
+    "catalogue_item_id"
+  ]
+}

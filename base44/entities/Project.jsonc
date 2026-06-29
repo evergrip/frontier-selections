@@ -1,0 +1,97 @@
+{
+  "name": "Project",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "client_name": {
+      "type": "string"
+    },
+    "address": {
+      "type": "string"
+    },
+    "project_type": {
+      "type": "string",
+      "enum": [
+        "Renovation",
+        "New Build",
+        "Addition",
+        "Commercial",
+        "Other"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Draft",
+        "Active",
+        "Waiting on Customer",
+        "Waiting on Staff",
+        "Selections Complete",
+        "In Construction",
+        "Completed",
+        "Archived"
+      ],
+      "default": "Draft"
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "target_completion_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "assigned_staff": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "assigned_customers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "total_allowance": {
+      "type": "number",
+      "default": 0
+    },
+    "pricing_visibility": {
+      "type": "string",
+      "enum": [
+        "hidden",
+        "show_item_prices",
+        "show_total_allowance",
+        "show_area_allowance",
+        "show_item_allowance",
+        "show_remaining_only",
+        "show_overage_only"
+      ],
+      "default": "hidden"
+    },
+    "allowance_visibility": {
+      "type": "string",
+      "enum": [
+        "hidden",
+        "show_total",
+        "show_by_area",
+        "show_by_item",
+        "show_remaining",
+        "show_overage"
+      ],
+      "default": "hidden"
+    },
+    "internal_notes": {
+      "type": "string"
+    },
+    "customer_notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

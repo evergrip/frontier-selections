@@ -1,0 +1,81 @@
+{
+  "name": "ChangeRequest",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "selection_id": {
+      "type": "string"
+    },
+    "requirement_id": {
+      "type": "string"
+    },
+    "original_item_name": {
+      "type": "string"
+    },
+    "requested_item_id": {
+      "type": "string"
+    },
+    "requested_options": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string"
+          },
+          "group_name": {
+            "type": "string"
+          },
+          "option_id": {
+            "type": "string"
+          },
+          "option_name": {
+            "type": "string"
+          },
+          "price_modifier": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "reason": {
+      "type": "string"
+    },
+    "price_impact": {
+      "type": "number"
+    },
+    "allowance_impact": {
+      "type": "number"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Requested",
+        "Under Review",
+        "Approved",
+        "Rejected",
+        "Cancelled",
+        "Price Adjustment Required",
+        "Ordered Item Conflict"
+      ],
+      "default": "Requested"
+    },
+    "staff_response": {
+      "type": "string"
+    },
+    "reviewed_by": {
+      "type": "string"
+    },
+    "reviewed_date": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "project_id",
+    "selection_id",
+    "requirement_id"
+  ]
+}

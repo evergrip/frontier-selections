@@ -1,0 +1,42 @@
+{
+  "name": "Comment",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "target_type": {
+      "type": "string",
+      "enum": [
+        "project",
+        "area",
+        "requirement",
+        "selection",
+        "change_request",
+        "mood_board"
+      ]
+    },
+    "target_id": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "is_internal": {
+      "type": "boolean",
+      "default": false
+    },
+    "author_name": {
+      "type": "string"
+    },
+    "author_role": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id",
+    "target_type",
+    "target_id",
+    "content"
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "name": "SelectionRequirement",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "area_id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "Vanity",
+        "Cabinet",
+        "Countertop",
+        "Tile",
+        "Flooring",
+        "Faucet",
+        "Sink",
+        "Toilet",
+        "Shower System",
+        "Tub",
+        "Mirror",
+        "Lighting",
+        "Paint",
+        "Trim",
+        "Door",
+        "Door Hardware",
+        "Exterior Siding",
+        "Roofing",
+        "Decking",
+        "Railing",
+        "Appliance",
+        "Fireplace",
+        "Other"
+      ]
+    },
+    "is_required": {
+      "type": "boolean",
+      "default": true
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "allowance_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "pricing_visible": {
+      "type": "boolean",
+      "default": false
+    },
+    "approval_required": {
+      "type": "boolean",
+      "default": true
+    },
+    "can_revise_before_approval": {
+      "type": "boolean",
+      "default": true
+    },
+    "can_request_change_after_approval": {
+      "type": "boolean",
+      "default": true
+    },
+    "lock_after_approval": {
+      "type": "boolean",
+      "default": false
+    },
+    "allow_request_other": {
+      "type": "boolean",
+      "default": false
+    },
+    "customer_instructions": {
+      "type": "string"
+    },
+    "staff_notes": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Not Started",
+        "Viewed",
+        "In Progress",
+        "Submitted",
+        "Revision Requested",
+        "Approved",
+        "Rejected",
+        "Change Requested",
+        "Changed After Approval",
+        "Locked",
+        "Ready to Order",
+        "Ordered",
+        "Received",
+        "Installed"
+      ],
+      "default": "Not Started"
+    }
+  },
+  "required": [
+    "project_id",
+    "area_id",
+    "name"
+  ]
+}

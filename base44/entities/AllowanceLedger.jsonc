@@ -1,0 +1,45 @@
+{
+  "name": "AllowanceLedger",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "area_id": {
+      "type": "string"
+    },
+    "requirement_id": {
+      "type": "string"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "Original Allowance",
+        "Selection Submitted",
+        "Selection Approved",
+        "Selection Changed",
+        "Overage Added",
+        "Credit Created",
+        "Staff Override",
+        "Manual Adjustment"
+      ]
+    },
+    "amount": {
+      "type": "number"
+    },
+    "running_balance": {
+      "type": "number"
+    },
+    "description": {
+      "type": "string"
+    },
+    "performed_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id",
+    "event_type",
+    "amount"
+  ]
+}
