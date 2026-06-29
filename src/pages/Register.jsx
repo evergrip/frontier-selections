@@ -1,16 +1,18 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { UserPlus, Mail, Lock, Loader2 } from "lucide-react";
+import { UserPlus, Mail, Lock, Loader2, CheckCircle } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 import { toast } from "@/components/ui/use-toast";
 
 export default function Register() {
+  const [searchParams] = useSearchParams();
+  const inviteId = searchParams.get("invite");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -44,6 +46,14 @@ export default function Register() {
       const result = await base44.auth.verifyOtp({ email, otpCode });
       if (result?.access_token) {
         base44.auth.setToken(result.access_token);
+        // Link user to invited projects if coming from invite link
+        if (inviteId) {
+          try {
+            await base44.functions.invoke("customerInvitations", { action: "linkUser" });
+          } catch (e) {
+            console.error("Failed to link user:", e);
+          }
+        }
       }
       window.location.href = "/";
     } catch (err) {
@@ -127,17 +137,30 @@ export default function Register() {
   return (
     <AuthLayout
       icon={UserPlus}
-      title="Create your account"
-      subtitle="Sign up to get started"
+      title={inviteId ? "You're invited!" : "Create your account"}
+      subtitle={inviteId ? "Join the project" : "Sign up to get started"}
       footer={
         <>
           Already have an account?{" "}
-          <Link to="/login" className="text-primary font-medium hover:underline">
+          <Link to={inviteId ? `/login?invite=${inviteId}` : "/login"} className="text-primary font-medium hover:underline">
             Log in
           </Link>
         </>
       }
     >
+      {inviteId && (
+        <div className="mb-6 p-4 rounded-lg bg-green-50 border border-green-200">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-green-900">Invitation Received</p>
+              <p className="text-sm text-green-700 mt-1">
+                Create an account using this email to access your project.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       <Button
         variant="outline"
         className="w-full h-12 text-sm font-medium mb-6"
