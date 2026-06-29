@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
-import { Image } from "lucide-react";
+import { useOutletContext } from "react-router-dom";
+import { Image, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import MoodBoardCard from "@/components/moodboard/MoodBoardCard";
 import MoodBoardComments from "@/components/moodboard/MoodBoardComments";
 import { CATEGORIES } from "@/lib/constants";
 
 export default function StaffMoodBoard() {
+  const { selectedProject } = useOutletContext() || {};
   const [projects, setProjects] = useState([]);
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(selectedProject?.id || "");
   const [items, setItems] = useState([]);
   const [areas, setAreas] = useState({});
   const [requirements, setRequirements] = useState({});
@@ -64,14 +66,26 @@ export default function StaffMoodBoard() {
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Mood Board Review</h1>
-        {projects.length > 0 && (
-          <Select value={projectId} onValueChange={setProjectId}>
-            <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
-            <SelectContent>{projects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
-          </Select>
-        )}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Mood Board Review</h1>
+          {selectedProject && (
+            <p className="text-sm text-gray-500 mt-1">Viewing: <span className="font-medium">{selectedProject.name}</span></p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {selectedProject && (
+            <button onClick={() => setProjectId("")} className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+              Clear filter <X size={14} />
+            </button>
+          )}
+          {projects.length > 0 && (
+            <Select value={projectId} onValueChange={setProjectId}>
+              <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
+              <SelectContent>{projects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+            </Select>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

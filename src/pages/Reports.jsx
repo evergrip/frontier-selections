@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { FileText, Download, Filter } from "lucide-react";
+import { useOutletContext } from "react-router-dom";
+import { FileText, Download, Filter, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,10 +26,11 @@ const REPORT_TYPES = [
 const PACKAGE_TYPES = ["final_customer", "final_internal"];
 
 export default function Reports() {
+  const { selectedProject } = useOutletContext() || {};
   const [reportType, setReportType] = useState("summary");
   const [projects, setProjects] = useState([]);
   const [areas, setAreas] = useState([]);
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(selectedProject?.id || "");
   const [areaId, setAreaId] = useState("");
   const [category, setCategory] = useState("");
   const [status, setStatus] = useState("");
@@ -91,9 +93,31 @@ export default function Reports() {
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><FileText size={22} /> Reports & Exports</h1>
-        <p className="text-sm text-gray-500 mt-1">View and export project selection information</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center justify-between w-full">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><FileText size={22} /> Reports & Exports</h1>
+              <p className="text-sm text-gray-500 mt-1">View and export project selection information</p>
+              {selectedProject && (
+                <p className="text-xs text-gray-400 mt-1">Viewing: <span className="font-medium">{selectedProject.name}</span></p>
+              )}
+            </div>
+            {selectedProject && (
+              <button onClick={() => setProjectId("")} className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                Clear filter <X size={14} />
+              </button>
+            )}
+          </div>
+          {selectedProject && (
+            <p className="text-xs text-gray-400 mt-1">Viewing: <span className="font-medium">{selectedProject.name}</span></p>
+          )}
+        </div>
+        {selectedProject && (
+          <button onClick={() => setProjectId("")} className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+            Clear filter <X size={14} />
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">

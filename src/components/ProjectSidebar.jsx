@@ -100,8 +100,12 @@ export default function ProjectSidebar({ selectedProject, onProjectSelect, colla
     }
 
     // Filter by permissions
-    if (!hasPermission(user, "view_all_projects")) {
-      // For now, show all - actual filtering would need assigned_projects logic
+    if (user && user.role === 'staff' && !hasPermission(user, "view_all_projects")) {
+      // Staff with view_assigned_projects_only can only see projects where they are assigned
+      filtered = filtered.filter(p => {
+        const assigned = p.assigned_staff || [];
+        return assigned.includes(user.id) || assigned.includes(user.email);
+      });
     }
 
     return filtered;

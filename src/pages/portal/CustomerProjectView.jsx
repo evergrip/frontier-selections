@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, AlertCircle, CheckCircle, MessageSquare, Package } from "lucide-react";
+import { ArrowLeft, AlertCircle, CheckCircle, MessageSquare, Package, ArrowRight } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
 import CommentThread from "@/components/comments/CommentThread";
 import ProjectTimeline from "@/components/comments/ProjectTimeline";
@@ -51,6 +51,26 @@ export default function CustomerProjectView() {
     return requirements.filter(r => DONE.includes(r.status));
   }, [requirements]);
 
+  const nextStep = useMemo(() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const notDone = requirements.filter(r => !DONE.includes(r.status));
+    if (notDone.length === 0) return null;
+    
+    const revision = notDone.find(r => ["Revision Requested", "Rejected"].includes(r.status));
+    if (revision) return { req: revision, type: "revision", label: "Needs your review" };
+    
+    const overdue = notDone.find(r => r.due_date && new Date(r.due_date + "T00:00:00") < today);
+    if (overdue) return { req: overdue, type: "overdue", label: "Overdue" };
+    
+    const withDueDate = notDone.filter(r => r.due_date).sort((a, b) => new Date(a.due_date) - new Date(b.dueDate));
+    if (withDueDate.length > 0) return { req: withDueDate[0], type: "upcoming", label: "Up next" };
+    
+    const required = notDone.find(r => r.is_required);
+    if (required) return { req: required, type: "required", label: "Required choice" };
+    
+    return { req: notDone[0], type: "optional", label: "Optional choice" };
+  }, [requirements]);
+
   if (loading || accessLoading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
   if (!hasAccess) return <div className="p-8 text-center text-gray-400">You don't have access to this project.</div>;
   if (!project) return <div className="p-8 text-center text-gray-400">Project not found</div>;
@@ -68,6 +88,26 @@ export default function CustomerProjectView() {
 
       {project.customer_notes && (
         <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-800">{project.customer_notes}</div>
+      )}
+
+      {nextStep && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Next Step</p>
+              <h3 className="font-bold text-gray-900 text-lg">{nextStep.req.name}</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                {nextStep.req.area_id && areas.find(a => a.id === nextStep.req.area_id)?.name} • {nextStep.label}
+              </p>
+              {nextStep.req.due_date && (
+                <p className="text-xs text-gray-500 mt-2">Due: {new Date(nextStep.req.due_date).toLocaleDateString()}</p>
+              )}
+            </div>
+            <Link to={`/portal/project/${projectId}/area/${nextStep.req.area_id}/selection/${nextStep.req.id}`} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+              Make this choice <ArrowRight size={14} />
+            </Link>
+          </div>
+        </div>
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

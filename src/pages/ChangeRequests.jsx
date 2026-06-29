@@ -1,25 +1,30 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { Link } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { Input } from "@/components/ui/input";
+import { X } from "lucide-react";
 
 export default function ChangeRequests() {
+  const { selectedProject } = useOutletContext() || {};
   const [requests, setRequests] = useState([]);
   const [projects, setProjects] = useState({});
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
+  const [filterProject, setFilterProject] = useState(selectedProject?.id || "");
 
   useEffect(() => {
     base44.entities.ChangeRequest.list("-created_date", 200).then(async rs => {
-      setRequests(rs);
-      const pIds = [...new Set(rs.map(r => r.project_id))];
+      let filtered = rs;
+      if (filterProject) filtered = rs.filter(r => r.project_id === filterProject);
+      setRequests(filtered);
+      const pIds = [...new Set(filtered.map(r => r.project_id))];
       const p = {};
       for (const id of pIds) { try { p[id] = await base44.entities.Project.get(id); } catch {} }
       setProjects(p);
       setLoading(false);
     });
-  }, []);
+  }, [filterProject]);
 
   const filtered = requests.filter(r => {
     if (!filter) return true;
@@ -31,8 +36,22 @@ export default function ChangeRequests() {
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Change Requests</h1>
-      <Input placeholder="Search by item..." value={filter} onChange={e => setFilter(e.target.value)} className="max-w-sm" />
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Change Requests</h1>
+          {selectedProject && (
+            <p className="text-sm text-gray-500 mt-1">Viewing: <span className="font-medium">{selectedProject.name}</span></p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {selectedProject && (
+            <button onClick={() => setFilterProject("")} className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+              Clear filter <X size={14} />
+            </button>
+          )}
+          <Input placeholder="Search by item..." value={filter} onChange={e => setFilter(e.target.value)} className="max-w-sm" />
+        </div>
+      </div>
       {filtered.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200 text-gray-400 text-sm">No change requests</div>
       ) : (

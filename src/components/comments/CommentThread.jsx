@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Upload, Paperclip, AlertTriangle, Eye, Lock } from "lucide-react";
 
-export default function CommentThread({ projectId, targetType, targetId, staff, title = "Comments" }) {
+export default function CommentThread({ projectId, targetType, targetId, staff, title = "Comments", readOnly = false }) {
   const [comments, setComments] = useState([]);
   const [content, setContent] = useState("");
   const [attachments, setAttachments] = useState([]);
@@ -22,6 +22,7 @@ export default function CommentThread({ projectId, targetType, targetId, staff, 
   }
 
   async function handleUpload(e) {
+    if (readOnly) return;
     const file = e.target.files[0]; if (!file) return;
     setUploading(true);
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
@@ -50,7 +51,7 @@ export default function CommentThread({ projectId, targetType, targetId, staff, 
   }
 
   async function doPost() {
-    if (!content.trim()) return;
+    if (readOnly || !content.trim()) return;
     const c = await base44.entities.Comment.create({
       project_id: projectId, target_type: targetType, target_id: targetId,
       content, is_internal: staff ? isInternal : false,
@@ -65,6 +66,7 @@ export default function CommentThread({ projectId, targetType, targetId, staff, 
   }
 
   function handlePost() {
+    if (readOnly) return;
     if (staff && !isInternal) { setConfirmVisible(true); return; }
     doPost();
   }
@@ -95,8 +97,8 @@ export default function CommentThread({ projectId, targetType, targetId, staff, 
         ))}
       </div>
       <div className="space-y-2 pt-2 border-t border-gray-50">
-        <Textarea value={content} onChange={e => setContent(e.target.value)} placeholder="Write a comment..." rows={2} />
-        {staff && (
+        <Textarea value={content} onChange={e => setContent(e.target.value)} placeholder={readOnly ? "Preview mode - comments disabled" : "Write a comment..."} rows={2} disabled={readOnly} />
+        {staff && !readOnly && (
           <div className="flex items-center gap-4">
             <label className="flex items-center gap-1 text-xs cursor-pointer">
               <input type="radio" checked={isInternal} onChange={() => setIsInternal(true)} /> <Lock size={10} /> Internal note
@@ -106,13 +108,15 @@ export default function CommentThread({ projectId, targetType, targetId, staff, 
             </label>
           </div>
         )}
-        <div className="flex items-center gap-2 flex-wrap">
-          <label className="text-xs text-gray-500 cursor-pointer flex items-center gap-1">
-            <Upload size={12} /> {uploading ? "Uploading..." : "Attach file"}
-            <input type="file" className="hidden" onChange={handleUpload} disabled={uploading} />
-          </label>
-          {attachments.map((url, i) => <span key={i} className="text-xs text-gray-500 flex items-center gap-1"><Paperclip size={10} /> {url.split("/").pop()}</span>)}
-        </div>
+        {!readOnly && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="text-xs text-gray-500 cursor-pointer flex items-center gap-1">
+              <Upload size={12} /> {uploading ? "Uploading..." : "Attach file"}
+              <input type="file" className="hidden" onChange={handleUpload} disabled={uploading} />
+            </label>
+            {attachments.map((url, i) => <span key={i} className="text-xs text-gray-500 flex items-center gap-1"><Paperclip size={10} /> {url.split("/").pop()}</span>)}
+          </div>
+        )}
         {confirmVisible && (
           <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 text-xs text-amber-800 space-y-2">
             <div className="flex items-center gap-1"><AlertTriangle size={12} /> This comment will be visible to the customer. Post it?</div>
@@ -122,7 +126,13 @@ export default function CommentThread({ projectId, targetType, targetId, staff, 
             </div>
           </div>
         )}
-        {!confirmVisible && <Button size="sm" onClick={handlePost} disabled={!content.trim()}>Post Comment</Button>}
+        {!confirmVisible && (
+          readOnly ? (
+            <p className="text-xs text-gray-400">Preview mode - comments disabled.</p>
+          ) : (
+            <Button size="sm" onClick={handlePost} disabled={!content.trim()}>Post Comment</Button>
+          )
+        )}
       </div>
     </div>
   );

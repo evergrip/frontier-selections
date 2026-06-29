@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Plus, Settings, MapPin, Calendar, DollarSign, Edit2, Eye, EyeOff, Users } from "lucide-react";
+import { ArrowLeft, Plus, Settings, MapPin, Calendar, DollarSign, Edit2, Eye, EyeOff, Users, AlertTriangle, ClipboardList, Star, Clock, Package, FileSignature } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -102,6 +102,8 @@ export default function ProjectDetail() {
         </div>
       </div>
 
+      <NextBestAction project={project} areas={areas} requirements={requirements} selections={selections} suggestedOptions={suggestedOptions} />
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <MiniStat label="Areas" value={areas.length} />
         <MiniStat label="Selections" value={`${completedReqs}/${totalReqs}`} />
@@ -167,6 +169,58 @@ export default function ProjectDetail() {
         open={showViewPortal} 
         onOpenChange={setShowViewPortal} 
       />
+    </div>
+  );
+}
+
+function NextBestAction({ project, areas, requirements, selections, suggestedOptions }) {
+  const DONE = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
+  const currentSels = selections.filter(s => s.is_current);
+  
+  const hasCustomer = (project.assigned_customers || []).length > 0;
+  const hasAreas = areas.length > 0;
+  const hasRequirements = requirements.length > 0;
+  const missingSuggested = requirements.filter(r => !DONE.includes(r.status) && (r.customer_catalogue_access_mode || "suggested_only") === "suggested_only" && !suggestedOptions.some(s => s.requirement_id === r.id)).length;
+  const pendingSubmissions = currentSels.filter(s => s.status === "Pending").length;
+  const overdueReqs = requirements.filter(r => r.due_date && !DONE.includes(r.status) && new Date(r.due_date) < new Date()).length;
+  const allComplete = requirements.filter(r => r.is_required).every(r => DONE.includes(r.status));
+  const readyToOrder = requirements.filter(r => r.status === "Approved" && !DONE.slice(1).includes(r.status)).length;
+
+  let action = null;
+  if (!hasCustomer) action = { icon: Users, label: "Invite customer", desc: "No customer assigned yet" };
+  else if (!hasAreas) action = { icon: MapPin, label: "Add areas", desc: "No areas/rooms added" };
+  else if (!hasRequirements) action = { icon: ClipboardList, label: "Add selection requirements", desc: "No requirements in areas" };
+  else if (missingSuggested > 0) action = { icon: Star, label: "Add suggested options", desc: `${missingSuggested} requirement(s) missing suggestions` };
+  else if (pendingSubmissions > 0) action = { icon: Clock, label: "Review pending submissions", desc: `${pendingSubmissions} awaiting approval` };
+  else if (overdueReqs > 0) action = { icon: AlertTriangle, label: "Send reminders", desc: `${overdueReqs} overdue selection(s)` };
+  else if (allComplete) action = { icon: FileSignature, label: "Generate final package", desc: "All selections approved" };
+  else if (readyToOrder > 0) action = { icon: Package, label: "Mark ready to order", desc: `${readyToOrder} can be ordered` };
+
+  if (!action) return null;
+
+  const Icon = action.icon;
+  const handleClick = () => {
+    if (action.label === "Invite customer") alert("Open the Customer Access tab to invite a customer");
+    else if (action.label === "Add areas") alert("Click 'Add Area' in the Areas & Rooms tab");
+    else if (action.label === "Add suggested options") alert("Open a requirement to add suggested options");
+    else if (action.label === "Review pending submissions") alert("Open the Selections tab and filter by 'Pending Approval'");
+    else if (action.label === "Send reminders") alert("Use the deadline reminders function");
+    else if (action.label === "Generate final package") window.location.href = "/final-package";
+    else if (action.label === "Mark ready to order") alert("Open approved selections and update procurement status");
+  };
+
+  return (
+    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+          <Icon size={20} className="text-white" />
+        </div>
+        <div>
+          <p className="font-semibold text-gray-900 text-sm">Next Best Action</p>
+          <p className="text-xs text-gray-600">{action.label} — {action.desc}</p>
+        </div>
+      </div>
+      <Button size="sm" onClick={handleClick}>Take Action →</Button>
     </div>
   );
 }

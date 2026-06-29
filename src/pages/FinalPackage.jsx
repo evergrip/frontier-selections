@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { FileText, Download, Share2, RefreshCw, AlertTriangle, FileSignature } from "lucide-react";
+import { useOutletContext } from "react-router-dom";
+import { FileText, Download, Share2, RefreshCw, AlertTriangle, FileSignature, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -9,8 +10,9 @@ import PackagePreview from "@/components/finalpackage/PackagePreview";
 const DONE = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
 
 export default function FinalPackage() {
+  const { selectedProject } = useOutletContext() || {};
   const [projects, setProjects] = useState([]);
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(selectedProject?.id || "");
   const [project, setProject] = useState(null);
   const [requirements, setRequirements] = useState([]);
   const [items, setItems] = useState([]);
@@ -85,11 +87,21 @@ export default function FinalPackage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><FileText size={22} /> Final Selections Package</h1>
           <p className="text-sm text-gray-500 mt-1">Generate the final approved selections package for a project</p>
+          {selectedProject && (
+            <p className="text-xs text-gray-400 mt-1">Viewing: <span className="font-medium">{selectedProject.name}</span></p>
+          )}
         </div>
-        <Select value={projectId} onValueChange={setProjectId}>
-          <SelectTrigger className="w-64"><SelectValue placeholder="Select project" /></SelectTrigger>
-          <SelectContent>{projects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          {selectedProject && (
+            <button onClick={() => setProjectId("")} className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+              Clear filter <X size={14} />
+            </button>
+          )}
+          <Select value={projectId} onValueChange={setProjectId}>
+            <SelectTrigger className="w-64"><SelectValue placeholder="Select project" /></SelectTrigger>
+            <SelectContent>{projects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
       </div>
 
       {!projectId ? (

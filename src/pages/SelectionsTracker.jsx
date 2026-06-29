@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useOutletContext } from "react-router-dom";
 import { Search, X, Download, ExternalLink, Eye, Star, AlertTriangle, Clock, CheckCircle, Package, Loader2, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,6 +11,7 @@ const DONE_STATUSES = ["Approved", "Locked", "Ready to Order", "Ordered", "Recei
 const TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
 
 export default function SelectionsTracker() {
+  const { selectedProject } = useOutletContext() || {};
   const [projects, setProjects] = useState([]);
   const [areas, setAreas] = useState([]);
   const [requirements, setRequirements] = useState([]);
@@ -22,7 +23,7 @@ export default function SelectionsTracker() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const [filterProject, setFilterProject] = useState("");
+  const [filterProject, setFilterProject] = useState(selectedProject?.id || "");
   const [filterArea, setFilterArea] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -213,9 +214,19 @@ export default function SelectionsTracker() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Selections Tracker</h1>
-        <p className="text-sm text-gray-500 mt-1">All selection requirements across all projects</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Selections Tracker</h1>
+          <p className="text-sm text-gray-500 mt-1">All selection requirements across all projects</p>
+        </div>
+        {selectedProject && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Viewing: <span className="font-medium">{selectedProject.name}</span></span>
+            <button onClick={() => setFilterProject("")} className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+              Clear filter <X size={14} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Summary Cards */}

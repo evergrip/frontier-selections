@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
-import { Link } from "react-router-dom";
-import { AlertTriangle, Clock, PackageX, Search } from "lucide-react";
+import { Link, useOutletContext } from "react-router-dom";
+import { AlertTriangle, Clock, PackageX, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -18,12 +18,13 @@ function missingInfo(p) {
 }
 
 export default function Procurement() {
+  const { selectedProject } = useOutletContext() || {};
   const [items, setItems] = useState([]);
   const [projects, setProjects] = useState({});
   const [areas, setAreas] = useState({});
   const [catItems, setCatItems] = useState({});
   const [loading, setLoading] = useState(true);
-  const [fProject, setFProject] = useState("all");
+  const [fProject, setFProject] = useState(selectedProject?.id || "all");
   const [fSupplier, setFSupplier] = useState("all");
   const [fStatus, setFStatus] = useState("all");
   const [fArea, setFArea] = useState("all");
@@ -91,8 +92,20 @@ export default function Procurement() {
   return (
     <div className="p-6 lg:p-8 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Procurement</h1>
-        <Link to="/supplier-orders" className="text-sm text-blue-600 hover:underline">Supplier Order Report →</Link>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Procurement</h1>
+          {selectedProject && (
+            <p className="text-sm text-gray-500 mt-1">Viewing: <span className="font-medium">{selectedProject.name}</span></p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {selectedProject && (
+            <button onClick={() => setFProject("all")} className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+              Clear filter <X size={14} />
+            </button>
+          )}
+          <Link to="/supplier-orders" className="text-sm text-blue-600 hover:underline">Supplier Order Report →</Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">

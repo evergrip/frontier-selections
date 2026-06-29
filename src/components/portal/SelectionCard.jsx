@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { AlertCircle, CheckCircle, Calendar } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { customerDisplayStatus } from "@/lib/constants";
 
 const DONE = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
 
@@ -11,6 +12,7 @@ export default function SelectionCard({ requirement, selection, catalogueItem, p
   const needsAction = ["Revision Requested", "Rejected"].includes(requirement.status);
   const isApproved = DONE.includes(requirement.status);
   const thumbnail = catalogueItem?.default_image;
+  const displayStatus = customerDisplayStatus(requirement, selection, false);
 
   return (
     <Link
@@ -49,7 +51,7 @@ export default function SelectionCard({ requirement, selection, catalogueItem, p
         <h3 className="font-semibold text-gray-900 text-sm truncate">{requirement.name}</h3>
         <p className="text-xs text-gray-400 mb-2">{requirement.category}</p>
         <div className="flex items-center justify-between gap-2">
-          <StatusBadge status={requirement.status} />
+          <StatusBadge status={displayStatus} />
           {isOverdue ? (
             <span className="inline-flex items-center gap-1 text-[10px] text-red-600 font-medium shrink-0">
               <AlertCircle size={10} /> Overdue
