@@ -81,17 +81,8 @@ export default function ViewCustomerPortalDialog({ project, open, onOpenChange }
             ) : customers.length === 0 ? (
               <div className="text-center py-8">
                 <AlertCircle className="mx-auto h-12 w-12 text-gray-300 mb-3" />
-                <p className="text-gray-700 font-medium mb-2">No customers assigned yet</p>
-                <p className="text-sm text-gray-500 mb-4">You can still preview the portal without a customer account.</p>
-                <Button
-                  onClick={() => {
-                    setSelectedCustomer(null);
-                    setShowModeSelect(true);
-                  }}
-                  disabled={!canPreview}
-                >
-                  Preview Portal Anyway
-                </Button>
+                <p className="text-gray-700 font-medium mb-2">No customer has been invited yet</p>
+                <p className="text-sm text-gray-500 mb-4">Invite a customer first to preview the real customer portal.</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -146,7 +137,7 @@ export default function ViewCustomerPortalDialog({ project, open, onOpenChange }
             </Button>
             <Button 
               onClick={() => setShowModeSelect(true)}
-              disabled={!selectedCustomer || !canPreview}
+              disabled={!selectedCustomer || !canPreview || customers.length === 0}
             >
               Continue
             </Button>
@@ -165,7 +156,7 @@ export default function ViewCustomerPortalDialog({ project, open, onOpenChange }
           <DialogHeader>
             <DialogTitle>Choose Portal Mode</DialogTitle>
             <DialogDescription>
-              How would you like to access {selectedCustomer?.customer_name}'s portal?
+              {selectedCustomer ? `How would you like to access ${selectedCustomer.customer_name}'s portal?` : "Preview the customer portal in read-only mode."}
             </DialogDescription>
           </DialogHeader>
 
@@ -182,9 +173,7 @@ export default function ViewCustomerPortalDialog({ project, open, onOpenChange }
                 Preview Customer Portal
               </h4>
               <p className="text-sm text-gray-600">
-                {selectedCustomer 
-                  ? "Read-only view. See exactly what the customer sees without making any changes."
-                  : "Preview the portal layout and features without a specific customer context."}
+                Read-only view. See exactly what the customer sees without making any changes.
               </p>
               <div className="mt-3 text-xs text-gray-500 bg-gray-50 p-2 rounded">
                 ✓ View selections, rooms, and pricing (if visible to customer)<br/>

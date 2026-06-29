@@ -89,6 +89,15 @@ export const STATUS_COLORS = {
   "Signed off": "bg-violet-100 text-violet-700",
   "Pending approval": "bg-amber-100 text-amber-700",
   "Change request required": "bg-orange-100 text-orange-700",
+  "Change request sent": "bg-orange-100 text-orange-700",
+  "Needs your choice": "bg-gray-100 text-gray-600",
+  "Waiting for Frontier review": "bg-blue-100 text-blue-700",
+  "Frontier needs more info": "bg-amber-100 text-amber-700",
+  "Please choose again": "bg-red-100 text-red-700",
+  "Replaced": "bg-gray-100 text-gray-500",
+  "Started": "bg-sky-100 text-sky-700",
+  "Sent to Frontier": "bg-indigo-100 text-indigo-700",
+  "Approved and ready to order": "bg-cyan-100 text-cyan-700",
   "Inactive": "bg-gray-100 text-gray-600",
   "Temporarily Unavailable": "bg-orange-100 text-orange-700",
   "Special Order Only": "bg-purple-100 text-purple-700",
@@ -107,12 +116,39 @@ export const STATUS_COLORS = {
   "Deactivated": "bg-red-100 text-red-700"
 };
 
+const CUSTOMER_STATUS_LABELS = {
+  "Not Started": "Needs your choice",
+  "Viewed": "Started",
+  "In Progress": "In progress",
+  "Submitted": "Sent to Frontier",
+  "Pending": "Waiting for Frontier review",
+  "Revision Requested": "Frontier needs more info",
+  "Rejected": "Please choose again",
+  "Approved": "Approved",
+  "Change Requested": "Change request sent",
+  "Locked": "Locked",
+  "Signed off": "Signed off",
+  "Ready to Order": "Approved and ready to order",
+  "Ordered": "Ordered",
+  "Received": "Received",
+  "Installed": "Installed"
+};
+
 export function customerDisplayStatus(req, sel, hasOpenChangeRequest) {
   if (sel?.locked || req?.status === "Locked") return "Locked";
   if (sel?.signed_off) return "Signed off";
   if (sel?.status === "Approved" || req?.status === "Approved") return "Approved";
-  if (hasOpenChangeRequest || req?.status === "Change Requested") return "Change request required";
-  return "Pending approval";
+  if (hasOpenChangeRequest || req?.status === "Change Requested") return "Change request sent";
+  if (!sel) {
+    if (req?.status === "Not Started" || req?.status === "Viewed") return "Needs your choice";
+    if (req?.status === "Submitted") return "Sent to Frontier";
+    return "Needs your choice";
+  }
+  if (sel.status === "Pending") return "Waiting for Frontier review";
+  if (sel.status === "Revision Requested" || req?.status === "Revision Requested") return "Frontier needs more info";
+  if (sel.status === "Rejected") return "Please choose again";
+  if (sel.status === "Superseded") return "Replaced";
+  return CUSTOMER_STATUS_LABELS[sel.status] || CUSTOMER_STATUS_LABELS[req?.status] || sel.status;
 }
 
 export const DEFAULT_TEMPLATES = {

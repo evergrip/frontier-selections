@@ -12,6 +12,7 @@ import { customerDisplayStatus } from "@/lib/constants";
 import CustomerSubstitution from "@/components/selection/CustomerSubstitution";
 import StepIndicator from "@/components/portal/StepIndicator";
 import { useProjectAccess } from "@/hooks/useProjectAccess";
+import { useCustomerPortal } from "@/components/CustomerPortalContext";
 
 function assembleItem(item, groups, values, rules) {
   const itemGroups = (groups || [])
@@ -59,6 +60,7 @@ export default function CustomerSelectionView() {
   const [filterBrand, setFilterBrand] = useState("");
   const [suggestedOptions, setSuggestedOptions] = useState([]);
   const { loading: accessLoading, hasAccess } = useProjectAccess(projectId);
+  const { isPreviewMode } = useCustomerPortal();
 
   useEffect(() => {
     async function load() {
@@ -353,7 +355,7 @@ export default function CustomerSelectionView() {
         <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 space-y-3">
           <div className="flex items-center gap-2 text-violet-800 font-medium text-sm"><FileSignature size={16} /> Sign-off Requested</div>
           <p className="text-sm text-violet-700">Please review and sign off on this approved selection to confirm your final choice.</p>
-          <Button className="gap-2" onClick={() => setShowSignOff(true)}><Check size={14} /> Sign Off Now</Button>
+          <Button className="gap-2" onClick={() => setShowSignOff(true)} disabled={isPreviewMode}><Check size={14} /> {isPreviewMode ? "Preview mode" : "Sign Off Now"}</Button>
         </div>
       )}
       {existingSelection?.signed_off && (
@@ -386,8 +388,11 @@ export default function CustomerSelectionView() {
       {isApproved && existingSelection && !changeMode && (
         <>
           <ApprovedSelectionView selection={existingSelection} items={catalogueItems} showItemPrices={showItemPrices} showItemAllowance={showItemAllowance} allowance={allowance} />
-          {canRequestChange && (
+          {canRequestChange && !isPreviewMode && (
             <Button variant="outline" onClick={startChangeRequest} className="gap-2 w-fit"><RefreshCw size={14} /> Request a Change</Button>
+          )}
+          {canRequestChange && isPreviewMode && (
+            <Button variant="outline" disabled className="gap-2 w-fit"><RefreshCw size={14} /> Request a Change (Preview)</Button>
           )}
           <RevisionHistory selections={allSelections} />
         </>
@@ -641,8 +646,8 @@ export default function CustomerSelectionView() {
             </div>
           )}
 
-          <Button onClick={changeMode ? handleRequestChange : handleSubmit} disabled={(changeMode ? (!changeReason.trim() || !canSubmit) : !canSubmit) || submitting} className="w-full h-12 text-base" size="lg">
-            {submitting ? "Submitting..." : changeMode ? (canSubmit ? "Submit Change Request" : "Complete all required options") : canSubmit ? "Submit Selection" : "Complete all required options to submit"}
+          <Button onClick={changeMode ? handleRequestChange : handleSubmit} disabled={(changeMode ? (!changeReason.trim() || !canSubmit) : !canSubmit) || submitting || isPreviewMode} className="w-full h-12 text-base" size="lg">
+            {isPreviewMode ? "Preview mode - changes disabled" : submitting ? "Submitting..." : changeMode ? (canSubmit ? "Submit Change Request" : "Complete all required options") : canSubmit ? "Submit Selection" : "Complete all required options to submit"}
           </Button>
         </div>
       )}
@@ -653,7 +658,7 @@ export default function CustomerSelectionView() {
           <div className="space-y-3">
             <p className="text-sm text-gray-500">Confirm this approved selection as your final choice.</p>
             <div><Label>Sign-off Note (optional)</Label><Textarea value={signOffNote} onChange={e => setSignOffNote(e.target.value)} rows={3} placeholder="Any final comments..." /></div>
-            <Button className="w-full" disabled={submitting} onClick={handleSignOff}>{submitting ? "Signing off..." : "Confirm Sign-off"}</Button>
+            <Button className="w-full" disabled={submitting || isPreviewMode} onClick={handleSignOff}>{isPreviewMode ? "Preview mode - changes disabled" : submitting ? "Signing off..." : "Confirm Sign-off"}</Button>
           </div>
         </DialogContent>
       </Dialog>

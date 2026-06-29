@@ -93,12 +93,17 @@ export function CustomerPortalProvider({ children }) {
     setPreviousLocation(null);
   }, [previousLocation, customerPortalContext, navigate]);
 
+  const isPreviewMode = customerPortalMode === 'preview';
+  const isActMode = customerPortalMode === 'act';
+  const isInCustomerPortal = !!customerPortalMode;
+  
   const value = {
     customerPortalMode,
     customerPortalContext,
-    isPreviewMode: customerPortalMode === 'preview',
-    isActMode: customerPortalMode === 'act',
-    isInCustomerPortal: !!customerPortalMode,
+    isPreviewMode,
+    isActMode,
+    isInCustomerPortal,
+    isReadOnly: isPreviewMode,
     enterPreviewMode,
     enterActMode,
     exitCustomerPortal,

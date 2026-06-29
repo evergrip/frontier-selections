@@ -7,6 +7,26 @@ import { useProjectAccess } from "@/hooks/useProjectAccess";
 
 const DONE = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
 
+function assembleItem(item, groups, values, rules) {
+  const itemGroups = (groups || [])
+    .filter(g => g.catalogue_item_id === item.id)
+    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+    .map(g => ({
+      id: g.id, name: g.name, is_required: g.is_required !== false,
+      options: (values || [])
+        .filter(v => v.option_group_id === g.id)
+        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+    }));
+  const itemRules = (rules || [])
+    .filter(r => r.catalogue_item_id === item.id)
+    .map(r => ({
+      ...r,
+      condition_option_id: r.condition_option_value_id,
+      target_option_id: r.target_option_value_id
+    }));
+  return { ...item, option_groups: itemGroups, option_rules: itemRules };
+}
+
 export default function CustomerAreaView() {
   const { projectId, areaId } = useParams();
   const [area, setArea] = useState(null);
@@ -28,10 +48,18 @@ export default function CustomerAreaView() {
       setRequirements(r);
       const currentSels = s.filter(sel => sel.is_current);
       setSelections(currentSels);
-      const itemIds = currentSels.map(sel => sel.catalogue_item_id).filter(Boolean);
+      const itemIds = [...new Set(currentSels.map(sel => sel.catalogue_item_id).filter(Boolean))];
+      
       if (itemIds.length > 0) {
-        const items = await base44.entities.CatalogueItem.list(null, 100);
-        setCatalogueItems(items.filter(i => itemIds.includes(i.id)));
+        const [rawItems, groups, values, rules] = await Promise.all([
+          base44.entities.CatalogueItem.list(null, 100),
+          base44.entities.CatalogueOptionGroup.filter({ is_active: true }, null, 500),
+          base44.entities.CatalogueOptionValue.filter({ is_active: true }, null, 500),
+          base44.entities.CatalogueOptionRule.filter({ is_active: true }, null, 500)
+        ]);
+        const filteredItems = rawItems.filter(i => itemIds.includes(i.id) && i.status !== "Discontinued");
+        const assembled = filteredItems.map(item => assembleItem(item, groups, values, rules));
+        setCatalogueItems(assembled);
       }
       setLoading(false);
     }
@@ -57,7 +85,7 @@ export default function CustomerAreaView() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Link to="/portal" className="p-2 rounded-lg hover:bg-gray-100"><ArrowLeft size={18} /></Link>
+        <Link to={`/portal/project/${projectId}`} className="p-2 rounded-lg hover:bg-gray-100"><ArrowLeft size={18} /></Link>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">{area.name}</h1>
           <p className="text-sm text-gray-500">{area.area_type}</p>

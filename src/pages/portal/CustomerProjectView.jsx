@@ -1,21 +1,55 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, AlertCircle, CheckCircle, MessageSquare, Package } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
 import CommentThread from "@/components/comments/CommentThread";
 import ProjectTimeline from "@/components/comments/ProjectTimeline";
 import { useProjectAccess } from "@/hooks/useProjectAccess";
 
+const DONE = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
+
 export default function CustomerProjectView() {
   const { projectId } = useParams();
   const [project, setProject] = useState(null);
+  const [areas, setAreas] = useState([]);
+  const [requirements, setRequirements] = useState([]);
   const [loading, setLoading] = useState(true);
   const { loading: accessLoading, hasAccess } = useProjectAccess(projectId);
 
   useEffect(() => {
-    base44.entities.Project.get(projectId).then(p => { setProject(p); setLoading(false); }).catch(() => setLoading(false));
+    async function load() {
+      const [p, a, r] = await Promise.all([
+        base44.entities.Project.get(projectId),
+        base44.entities.ProjectArea.filter({ project_id: projectId }),
+        base44.entities.SelectionRequirement.filter({ project_id: projectId })
+      ]);
+      setProject(p);
+      setAreas(a);
+      setRequirements(r);
+      setLoading(false);
+    }
+    load();
   }, [projectId]);
+
+  const reqByArea = useMemo(() => {
+    const map = {};
+    areas.forEach(area => { map[area.id] = requirements.filter(r => r.area_id === area.id); });
+    return map;
+  }, [areas, requirements]);
+
+  const overdue = useMemo(() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    return requirements.filter(r => r.due_date && !DONE.includes(r.status) && new Date(r.due_date + "T00:00:00") < today);
+  }, [requirements]);
+
+  const revisionRequested = useMemo(() => {
+    return requirements.filter(r => ["Revision Requested", "Rejected"].includes(r.status));
+  }, [requirements]);
+
+  const approved = useMemo(() => {
+    return requirements.filter(r => DONE.includes(r.status));
+  }, [requirements]);
 
   if (loading || accessLoading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
   if (!hasAccess) return <div className="p-8 text-center text-gray-400">You don't have access to this project.</div>;
@@ -27,7 +61,7 @@ export default function CustomerProjectView() {
         <Link to="/portal" className="p-2 rounded-lg hover:bg-gray-100"><ArrowLeft size={18} /></Link>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
-          <p className="text-sm text-gray-500">Project Communication</p>
+          <p className="text-sm text-gray-500">{project.address || project.project_type}</p>
         </div>
         <StatusBadge status={project.status} />
       </div>
@@ -36,19 +70,96 @@ export default function CustomerProjectView() {
         <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-800">{project.customer_notes}</div>
       )}
 
-      <ProjectTimeline projectId={projectId} staff={false} />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard icon={AlertCircle} label="Overdue" value={overdue.length} sub="Needs attention" color="red" />
+        <StatCard icon={AlertCircle} label="Action Needed" value={revisionRequested.length} sub="Review required" color="amber" />
+        <StatCard icon={Package} label="In Progress" value={requirements.filter(r => ["Submitted", "In Progress", "Viewed"].includes(r.status)).length} sub="Being reviewed" color="blue" />
+        <StatCard icon={CheckCircle} label="Approved" value={approved.length} sub="Ready to order" color="emerald" />
+      </div>
+
+      {(overdue.length > 0 || revisionRequested.length > 0) && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><AlertCircle size={18} className="text-red-500" /> Needs Your Attention</h2>
+          <div className="space-y-2">
+            {overdue.map(r => (
+              <Link key={r.id} to={`/portal/project/${projectId}/area/${r.area_id}/selection/${r.id}`} className="block p-3 rounded-lg bg-red-50 hover:bg-red-100 transition-colors">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-red-800 text-sm">{r.name}</span>
+                  <span className="text-xs text-red-600">Due {r.due_date}</span>
+                </div>
+              </Link>
+            ))}
+            {revisionRequested.map(r => (
+              <Link key={r.id} to={`/portal/project/${projectId}/area/${r.area_id}/selection/${r.id}`} className="block p-3 rounded-lg bg-amber-50 hover:bg-amber-100 transition-colors">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-amber-800 text-sm">{r.name}</span>
+                  <span className="text-xs text-amber-600">Action needed</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <h2 className="font-semibold text-gray-900 mb-4">Rooms & Areas</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {areas.map(area => {
+            const areaReqs = reqByArea[area.id] || [];
+            const areaCompleted = areaReqs.filter(r => DONE.includes(r.status)).length;
+            const areaProgress = areaReqs.length > 0 ? Math.round((areaCompleted / areaReqs.length) * 100) : 0;
+            return (
+              <Link key={area.id} to={`/portal/project/${projectId}/area/${area.id}`} className="block p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-gray-900 text-sm">{area.name}</h3>
+                  <span className="text-xs text-gray-500">{area.area_type}</span>
+                </div>
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${areaProgress}%` }} />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">{areaCompleted}/{areaReqs.length} complete</p>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
 
       <Link to={`/portal/project/${projectId}/final-package`} className="block bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-gray-900">Final Selections Package</h3>
-            <p className="text-sm text-gray-500 mt-0.5">View your approved selections</p>
+            <p className="text-sm text-gray-500 mt-0.5">View all your approved selections</p>
           </div>
           <span className="text-sm text-blue-600">View →</span>
         </div>
       </Link>
 
-      <CommentThread projectId={projectId} targetType="project" targetId={projectId} staff={false} title="Ask a Question" />
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><MessageSquare size={18} className="text-gray-500" /> Project Messages</h2>
+        <CommentThread projectId={projectId} targetType="project" targetId={projectId} staff={false} title="" />
+      </div>
+
+      <ProjectTimeline projectId={projectId} staff={false} />
+    </div>
+  );
+}
+
+function StatCard({ icon: Icon, label, value, sub, color = "blue" }) {
+  const colors = {
+    blue: "text-blue-700",
+    red: "text-red-700",
+    green: "text-emerald-700",
+    amber: "text-amber-700",
+    emerald: "text-emerald-700"
+  };
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <Icon size={18} className={colors[color]} />
+        <span className="text-xs text-gray-500">{label}</span>
+      </div>
+      <p className="text-2xl font-bold text-gray-900">{value}</p>
+      <p className={`text-xs mt-1 ${colors[color]}`}>{sub}</p>
     </div>
   );
 }

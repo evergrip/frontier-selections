@@ -77,7 +77,7 @@ export default function CustomerLayout() {
           </div>
         )}
       </header>
-      <main className={`max-w-6xl mx-auto px-4 py-6 ${isReadOnly ? 'pointer-events-none' : ''}`}>
+      <main className="max-w-6xl mx-auto px-4 py-6">
         <Outlet />
       </main>
     </div>
