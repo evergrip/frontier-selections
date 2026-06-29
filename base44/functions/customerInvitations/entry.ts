@@ -224,6 +224,28 @@ Deno.serve(async (req) => {
       return Response.json({ message: 'Customer removed from project' });
     }
 
+    if (action === 'linkUser') {
+      const me = await base44.auth.me();
+      if (!me) return Response.json({ linked: false });
+      const invitations = await base44.entities.CustomerInvitation.filter({ email: me.email });
+      let linked = 0;
+      for (const inv of invitations) {
+        if (inv.status !== 'Cancelled' && inv.status !== 'Deactivated') {
+          for (const pid of inv.project_ids || []) {
+            try {
+              const project = await base44.entities.Project.get(pid);
+              const current = project.assigned_customers || [];
+              if (!current.includes(me.id) && !current.includes(me.email)) {
+                await base44.entities.Project.update(pid, { assigned_customers: [...current, me.id] });
+                linked++;
+              }
+            } catch (e) {}
+          }
+        }
+      }
+      return Response.json({ linked });
+    }
+
     if (action === 'list') {
       const invitations = await base44.asServiceRole.entities.CustomerInvitation.list('-invited_date', 200);
       return Response.json({ invitations });
