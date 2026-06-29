@@ -82,7 +82,7 @@ export default function RoleRouter() {
   if (staffUser) {
     return (
       <Routes>
-        <Route element={<StaffLayout />}>
+        <Route element={<CustomerPortalProvider><StaffLayout /></CustomerPortalProvider>}>
           <Route path="/" element={<StaffDashboard />} />
           <Route path="/selections-tracker" element={<SelectionsTracker />} />
           <Route path="/projects" element={<Projects />} />
