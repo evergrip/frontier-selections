@@ -233,7 +233,7 @@ export default function RequirementDetail() {
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-3xl">
       <div className="flex items-center gap-3">
-        <Link to={`/projects/${projectId}/area/${areaId}`} className="p-2 rounded-lg hover:bg-gray-100"><ArrowLeft size={18} /></Link>
+        <Link to={`/projects/${projectId}`} className="p-2 rounded-lg hover:bg-gray-100"><ArrowLeft size={18} /></Link>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">{requirement.name}</h1>
           <p className="text-sm text-gray-500">{requirement.category}{requirement.is_required ? " • Required" : " • Optional"}</p>
