@@ -3,23 +3,25 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, FolderKanban, BookOpen, Package, Bell, RefreshCw, Truck, ClipboardList, Palette, FileText,
-  ChevronLeft, ChevronRight, LogOut, Menu, X, Settings, FlaskConical
+  ChevronLeft, ChevronRight, LogOut, Menu, X, Settings, FlaskConical, GraduationCap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import WalkthroughManager from "@/components/training/WalkthroughManager";
 
 const NAV_ITEMS = [
-  { label: "Dashboard", path: "/", icon: LayoutDashboard },
-  { label: "Projects", path: "/projects", icon: FolderKanban },
-  { label: "Catalogue", path: "/catalogue", icon: Package },
-  { label: "Templates", path: "/templates", icon: BookOpen },
-  { label: "Notifications", path: "/notifications", icon: Bell },
-  { label: "Change Requests", path: "/change-requests", icon: RefreshCw },
-  { label: "Procurement", path: "/procurement", icon: Truck },
-  { label: "Supplier Orders", path: "/supplier-orders", icon: ClipboardList },
-  { label: "Mood Board", path: "/mood-board", icon: Palette },
-  { label: "Reports", path: "/reports", icon: FileText },
-  { label: "Final Package", path: "/final-package", icon: Package },
-  { label: "Test Scenarios", path: "/test-scenarios", icon: FlaskConical },
+  { label: "Dashboard", path: "/", icon: LayoutDashboard, navId: "dashboard" },
+  { label: "Projects", path: "/projects", icon: FolderKanban, navId: "projects" },
+  { label: "Catalogue", path: "/catalogue", icon: Package, navId: "catalogue" },
+  { label: "Templates", path: "/templates", icon: BookOpen, navId: "templates" },
+  { label: "Notifications", path: "/notifications", icon: Bell, navId: "notifications" },
+  { label: "Change Requests", path: "/change-requests", icon: RefreshCw, navId: "change-requests" },
+  { label: "Procurement", path: "/procurement", icon: Truck, navId: "procurement" },
+  { label: "Supplier Orders", path: "/supplier-orders", icon: ClipboardList, navId: "supplier-orders" },
+  { label: "Mood Board", path: "/mood-board", icon: Palette, navId: "mood-board" },
+  { label: "Reports", path: "/reports", icon: FileText, navId: "reports" },
+  { label: "Final Package", path: "/final-package", icon: Package, navId: "final-package" },
+  { label: "Test Scenarios", path: "/test-scenarios", icon: FlaskConical, navId: "test-scenarios" },
+  { label: "Help & Training", path: "/training", icon: GraduationCap, navId: "training" },
   ];
 
 export default function StaffLayout() {
@@ -69,6 +71,7 @@ export default function StaffLayout() {
               <Link
                 key={item.path}
                 to={item.path}
+                data-nav={item.navId}
                 onClick={() => setMobileOpen(false)}
                 className={`
                   flex items-center gap-3 mx-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
@@ -116,6 +119,7 @@ export default function StaffLayout() {
           <Outlet />
         </main>
       </div>
+      <WalkthroughManager />
     </div>
   );
 }

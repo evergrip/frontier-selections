@@ -1,0 +1,38 @@
+{
+  "name": "KnowledgeCheck",
+  "type": "object",
+  "properties": {
+    "question": {
+      "type": "string"
+    },
+    "answer_choices": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "correct_answer": {
+      "type": "string"
+    },
+    "explanation": {
+      "type": "string"
+    },
+    "related_article_id": {
+      "type": "string"
+    },
+    "required_for_roles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "category": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "question",
+    "answer_choices",
+    "correct_answer"
+  ]
+}

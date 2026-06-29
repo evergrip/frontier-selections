@@ -1,0 +1,59 @@
+{
+  "name": "TrainingProgress",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string"
+    },
+    "user_name": {
+      "type": "string"
+    },
+    "role": {
+      "type": "string"
+    },
+    "item_type": {
+      "type": "string",
+      "enum": [
+        "tutorial",
+        "checklist_item",
+        "knowledge_check"
+      ]
+    },
+    "item_id": {
+      "type": "string"
+    },
+    "item_name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Not Started",
+        "In Progress",
+        "Completed",
+        "Skipped"
+      ],
+      "default": "Not Started"
+    },
+    "current_step": {
+      "type": "number",
+      "default": 0
+    },
+    "score": {
+      "type": "number"
+    },
+    "completed_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_activity": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "user_id",
+    "item_type",
+    "item_id"
+  ]
+}

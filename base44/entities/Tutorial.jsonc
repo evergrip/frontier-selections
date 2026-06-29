@@ -1,0 +1,137 @@
+{
+  "name": "Tutorial",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "Getting Started",
+        "Projects",
+        "Customers",
+        "Rooms and Areas",
+        "Selection Requirements",
+        "Catalogue",
+        "Product Configurator",
+        "Allowances",
+        "Approvals",
+        "Change Requests",
+        "Procurement",
+        "Mood Board",
+        "Reports",
+        "Final Selections Packages",
+        "Security and Permissions",
+        "Troubleshooting"
+      ]
+    },
+    "applies_to_roles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "estimated_minutes": {
+      "type": "number",
+      "default": 5
+    },
+    "target_page": {
+      "type": "string"
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "instruction": {
+            "type": "string"
+          },
+          "target_element": {
+            "type": "string"
+          },
+          "completion_trigger": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "video_url": {
+      "type": "string"
+    },
+    "thumbnail": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Draft",
+        "Published",
+        "Needs Review",
+        "Archived"
+      ],
+      "default": "Published"
+    },
+    "review_status": {
+      "type": "string",
+      "enum": [
+        "Current",
+        "Needs Review",
+        "In Review",
+        "Updated",
+        "Archived"
+      ],
+      "default": "Current"
+    },
+    "required": {
+      "type": "boolean",
+      "default": false
+    },
+    "feature_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "assigned_user_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "author": {
+      "type": "string"
+    },
+    "last_updated": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "app_version": {
+      "type": "string"
+    },
+    "assigned_reviewer": {
+      "type": "string"
+    },
+    "review_reason": {
+      "type": "string"
+    },
+    "last_feature_change_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "display_order": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "title",
+    "category"
+  ]
+}

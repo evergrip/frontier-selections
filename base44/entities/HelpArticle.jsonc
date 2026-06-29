@@ -1,0 +1,114 @@
+{
+  "name": "HelpArticle",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "Getting Started",
+        "Projects",
+        "Customers",
+        "Rooms and Areas",
+        "Selection Requirements",
+        "Catalogue",
+        "Product Configurator",
+        "Allowances",
+        "Approvals",
+        "Change Requests",
+        "Procurement",
+        "Mood Board",
+        "Reports",
+        "Final Selections Packages",
+        "Security and Permissions",
+        "Troubleshooting"
+      ]
+    },
+    "applies_to_roles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "related_module": {
+      "type": "string"
+    },
+    "body": {
+      "type": "string"
+    },
+    "screenshots": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "video_url": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Draft",
+        "Published",
+        "Needs Review",
+        "Archived"
+      ],
+      "default": "Published"
+    },
+    "review_status": {
+      "type": "string",
+      "enum": [
+        "Current",
+        "Needs Review",
+        "In Review",
+        "Updated",
+        "Archived"
+      ],
+      "default": "Current"
+    },
+    "author": {
+      "type": "string"
+    },
+    "last_updated": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "app_version": {
+      "type": "string"
+    },
+    "feature_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "is_customer_facing": {
+      "type": "boolean",
+      "default": false
+    },
+    "assigned_reviewer": {
+      "type": "string"
+    },
+    "review_reason": {
+      "type": "string"
+    },
+    "last_feature_change_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "view_count": {
+      "type": "number",
+      "default": 0
+    },
+    "display_order": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "title",
+    "category"
+  ]
+}

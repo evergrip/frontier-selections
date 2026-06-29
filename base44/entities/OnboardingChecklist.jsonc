@@ -1,0 +1,44 @@
+{
+  "name": "OnboardingChecklist",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean",
+            "default": true
+          },
+          "related_tutorial_id": {
+            "type": "string"
+          },
+          "related_article_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "role",
+    "title"
+  ]
+}

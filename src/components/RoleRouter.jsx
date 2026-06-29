@@ -26,6 +26,18 @@ import FinalPackage from "@/pages/FinalPackage";
 import SubstitutionDetail from "@/pages/SubstitutionDetail";
 import TestScenarios from "@/pages/TestScenarios";
 
+import HelpCenter from "@/pages/training/HelpCenter";
+import TutorialWalkthrough from "@/pages/training/TutorialWalkthrough";
+import HelpArticleView from "@/pages/training/HelpArticleView";
+import OnboardingChecklistView from "@/pages/training/OnboardingChecklistView";
+import KnowledgeCheckPage from "@/pages/training/KnowledgeCheckPage";
+import PracticeMode from "@/pages/training/PracticeMode";
+import TrainingDashboard from "@/pages/training/admin/TrainingDashboard";
+import TutorialManager from "@/pages/training/admin/TutorialManager";
+import HelpArticleManager from "@/pages/training/admin/HelpArticleManager";
+import FeatureRegistryManager from "@/pages/training/admin/FeatureRegistryManager";
+import KnowledgeCheckManager from "@/pages/training/admin/KnowledgeCheckManager";
+
 import CustomerDashboard from "@/pages/portal/CustomerDashboard";
 import CustomerAreaView from "@/pages/portal/CustomerAreaView";
 import CustomerProjectView from "@/pages/portal/CustomerProjectView";
@@ -75,6 +87,17 @@ export default function RoleRouter() {
           <Route path="/final-package" element={<FinalPackage />} />
           <Route path="/substitution/:id" element={<SubstitutionDetail />} />
           <Route path="/test-scenarios" element={<TestScenarios />} />
+          <Route path="/training" element={<HelpCenter />} />
+          <Route path="/training/walkthrough/:tutorialId" element={<TutorialWalkthrough />} />
+          <Route path="/training/article/:articleId" element={<HelpArticleView />} />
+          <Route path="/training/checklist" element={<OnboardingChecklistView />} />
+          <Route path="/training/knowledge-check" element={<KnowledgeCheckPage />} />
+          <Route path="/training/practice" element={<PracticeMode />} />
+          <Route path="/training/admin/dashboard" element={<TrainingDashboard />} />
+          <Route path="/training/admin/tutorials" element={<TutorialManager />} />
+          <Route path="/training/admin/articles" element={<HelpArticleManager />} />
+          <Route path="/training/admin/features" element={<FeatureRegistryManager />} />
+          <Route path="/training/admin/knowledge-checks" element={<KnowledgeCheckManager />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

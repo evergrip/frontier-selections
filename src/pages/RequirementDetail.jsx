@@ -12,6 +12,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import CommentThread from "@/components/comments/CommentThread";
 import SignOffControls from "@/components/selection/SignOffControls";
 import { SELECTION_STATUSES } from "@/lib/constants";
+import ContextualHelpLink from "@/components/training/ContextualHelpLink";
 
 function assembleItem(item, groups, values, rules) {
   const itemGroups = (groups || [])
@@ -209,6 +210,7 @@ export default function RequirementDetail() {
           <p className="text-sm text-gray-500">{requirement.category}{requirement.is_required ? " • Required" : " • Optional"}</p>
         </div>
         <StatusBadge status={requirement.status} />
+        <ContextualHelpLink category="Approvals" relatedModule="Selections" label="How to approve or reject selections" />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">

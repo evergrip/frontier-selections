@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import StatusBadge from "@/components/ui/StatusBadge";
 import CommentThread from "@/components/comments/CommentThread";
 import { PROCUREMENT_STATUSES } from "@/lib/constants";
+import ContextualHelpLink from "@/components/training/ContextualHelpLink";
 
 const today = new Date().toISOString().slice(0, 10);
 const DONE_STATUSES = ["Received", "Delivered to Site", "Installed", "Cancelled", "Returned"];
@@ -112,6 +113,7 @@ export default function ProcurementDetail() {
           <p className="text-sm text-gray-500">{project?.name || ""} {area ? `• ${area.name}` : ""}</p>
         </div>
         <StatusBadge status={item.status} />
+        <ContextualHelpLink category="Procurement" label="How to track ordered and received items" />
       </div>
 
       {warnings.length > 0 && (

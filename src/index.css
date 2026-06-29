@@ -90,3 +90,12 @@
     @apply bg-background text-foreground font-body;
   }
 }
+
+.walkthrough-highlight {
+  outline: 3px solid #3b82f6 !important;
+  outline-offset: 2px !important;
+  border-radius: 6px !important;
+  position: relative !important;
+  z-index: 101 !important;
+  transition: outline 0.2s ease !important;
+}

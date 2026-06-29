@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CATEGORIES, ITEM_STATUSES } from "@/lib/constants";
 import OptionValueEditor from "@/components/catalogue/OptionValueEditor";
+import ContextualHelpLink from "@/components/training/ContextualHelpLink";
 
 const emptyItem = {
   name: "", category: "Other", supplier: "", brand: "", collection: "", sku: "",
@@ -242,6 +243,7 @@ export default function CatalogueItemEditor() {
       <div className="flex items-center gap-3">
         <button onClick={() => navigate("/catalogue")} className="p-2 rounded-lg hover:bg-gray-100"><ArrowLeft size={18} /></button>
         <h1 className="text-2xl font-bold text-gray-900">{isNew ? "New Catalogue Item" : "Edit Item"}</h1>
+        <ContextualHelpLink category="Product Configurator" relatedModule="Catalogue" label="How to create a configurable catalogue item" />
       </div>
 
       <Tabs defaultValue="details">

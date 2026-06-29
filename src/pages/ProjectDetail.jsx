@@ -14,6 +14,7 @@ import CommentThread from "@/components/comments/CommentThread";
 import ProjectTimeline from "@/components/comments/ProjectTimeline";
 import { PROJECT_STATUSES, AREA_TYPES, DEFAULT_TEMPLATES } from "@/lib/constants";
 import AreaCard from "@/components/staff/AreaCard";
+import ContextualHelpLink from "@/components/training/ContextualHelpLink";
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -66,9 +67,12 @@ export default function ProjectDetail() {
           </div>
           <p className="text-sm text-gray-500 mt-0.5">{project.client_name}{project.address ? ` • ${project.address}` : ""}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setShowEditProject(true)} className="gap-2">
-          <Settings size={14} /> Settings
-        </Button>
+        <div className="flex items-center gap-3">
+          <ContextualHelpLink category="Allowances" label="How allowances and overages are calculated" />
+          <Button variant="outline" size="sm" onClick={() => setShowEditProject(true)} className="gap-2">
+            <Settings size={14} /> Settings
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
