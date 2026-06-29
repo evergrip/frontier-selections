@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Plus, Edit2, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Edit2, Trash2, FileSignature, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,8 +20,19 @@ export default function AreaDetail() {
   const [loading, setLoading] = useState(true);
   const [showAddReq, setShowAddReq] = useState(false);
   const [showEditAllowance, setShowEditAllowance] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => { load(); }, [areaId]);
+
+  async function bulkAction(action) {
+    setBulkBusy(true);
+    try {
+      const res = await base44.functions.invoke("selectionWorkflow", { action, project_id: projectId, area_id: areaId });
+      alert(`${action === "request_signoff" ? "Sign-off requested" : "Locked"} for ${res.data.count || 0} selection(s)`);
+      load();
+    } catch (e) { alert("Action failed"); }
+    setBulkBusy(false);
+  }
 
   async function load() {
     setLoading(true);
@@ -55,9 +66,13 @@ export default function AreaDetail() {
         <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-800">{area.customer_notes}</div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="font-semibold text-gray-900">Selection Requirements ({requirements.length})</h2>
-        <Button size="sm" onClick={() => setShowAddReq(true)} className="gap-2"><Plus size={14} /> Add Requirement</Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => bulkAction("request_signoff")} className="gap-2"><FileSignature size={14} /> Request Sign-off (All)</Button>
+          <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => bulkAction("lock")} className="gap-2"><Lock size={14} /> Lock Signed-off (All)</Button>
+          <Button size="sm" onClick={() => setShowAddReq(true)} className="gap-2"><Plus size={14} /> Add Requirement</Button>
+        </div>
       </div>
 
       {requirements.length === 0 ? (

@@ -2,10 +2,13 @@ import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import CommentThread from "@/components/comments/CommentThread";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, Package, CheckCircle, AlertTriangle, RefreshCw, History } from "lucide-react";
+import { ArrowLeft, Check, Package, CheckCircle, AlertTriangle, RefreshCw, History, FileSignature, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { customerDisplayStatus } from "@/lib/constants";
 
 function assembleItem(item, groups, values, rules) {
   const itemGroups = (groups || [])
@@ -46,13 +49,17 @@ export default function CustomerSelectionView() {
   const [changeMode, setChangeMode] = useState(false);
   const [changeReason, setChangeReason] = useState("");
   const [allSelections, setAllSelections] = useState([]);
+  const [changeRequests, setChangeRequests] = useState([]);
+  const [showSignOff, setShowSignOff] = useState(false);
+  const [signOffNote, setSignOffNote] = useState("");
 
   useEffect(() => {
     async function load() {
-      const [req, proj, sels] = await Promise.all([
+      const [req, proj, sels, crs] = await Promise.all([
         base44.entities.SelectionRequirement.get(requirementId),
         base44.entities.Project.get(projectId),
-        base44.entities.CustomerSelection.filter({ requirement_id: requirementId })
+        base44.entities.CustomerSelection.filter({ requirement_id: requirementId }),
+        base44.entities.ChangeRequest.filter({ requirement_id: requirementId })
       ]);
       setRequirement(req);
       setProject(proj);
@@ -60,6 +67,7 @@ export default function CustomerSelectionView() {
         try { setArea(await base44.entities.ProjectArea.get(areaId)); } catch {}
       }
       setAllSelections(sels);
+      setChangeRequests(crs);
       const current = sels.find(s => s.is_current);
       setExistingSelection(current || null);
 
@@ -271,8 +279,24 @@ export default function CustomerSelectionView() {
   if (!requirement) return <div className="text-center py-20 text-gray-400">Selection not found</div>;
 
   const isApproved = existingSelection?.status === "Approved" || requirement.status === "Approved";
-  const isLocked = requirement.status === "Locked";
+  const isLocked = existingSelection?.locked || requirement.status === "Locked";
   const canEdit = !isLocked && (!isApproved || requirement.can_request_change_after_approval);
+  const canRequestChange = isApproved && !!existingSelection && (canEdit || isLocked);
+  const hasOpenChangeRequest = changeRequests.some(c => !["Approved", "Rejected", "Cancelled"].includes(c.status));
+  const displayStatus = customerDisplayStatus(requirement, existingSelection, hasOpenChangeRequest);
+
+  async function handleSignOff() {
+    setSubmitting(true);
+    try {
+      await base44.functions.invoke("selectionWorkflow", { action: "sign_off", selection_id: existingSelection.id, note: signOffNote });
+      const sels = await base44.entities.CustomerSelection.filter({ requirement_id: requirementId });
+      setAllSelections(sels);
+      setExistingSelection(sels.find(s => s.is_current) || null);
+      setShowSignOff(false);
+      setSignOffNote("");
+    } catch (e) { alert("Sign-off failed"); }
+    setSubmitting(false);
+  }
 
   return (
     <div className="space-y-6">
@@ -282,8 +306,26 @@ export default function CustomerSelectionView() {
           <h1 className="text-xl font-bold text-gray-900">{requirement.name}</h1>
           <p className="text-sm text-gray-500">{requirement.category}{requirement.is_required ? " • Required" : ""}</p>
         </div>
-        <StatusBadge status={requirement.status} />
+        <StatusBadge status={displayStatus} />
       </div>
+
+      {existingSelection?.sign_off_requested && !existingSelection?.signed_off && !isLocked && isApproved && (
+        <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 space-y-3">
+          <div className="flex items-center gap-2 text-violet-800 font-medium text-sm"><FileSignature size={16} /> Sign-off Requested</div>
+          <p className="text-sm text-violet-700">Please review and sign off on this approved selection to confirm your final choice.</p>
+          <Button className="gap-2" onClick={() => setShowSignOff(true)}><Check size={14} /> Sign Off Now</Button>
+        </div>
+      )}
+      {existingSelection?.signed_off && (
+        <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 text-sm text-violet-800 flex items-center gap-2">
+          <CheckCircle size={16} /> Signed off by {existingSelection.signed_off_by || "customer"}{existingSelection.signed_off_date ? ` on ${new Date(existingSelection.signed_off_date).toLocaleDateString()}` : ""}
+        </div>
+      )}
+      {isLocked && (
+        <div className="bg-gray-100 border border-gray-300 rounded-xl p-4 text-sm text-gray-700 flex items-start gap-2">
+          <Lock size={16} className="mt-0.5 shrink-0" /> This selection is locked. To make changes, please submit a change request.
+        </div>
+      )}
 
       {requirement.customer_instructions && (
         <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-800">{requirement.customer_instructions}</div>
@@ -304,7 +346,7 @@ export default function CustomerSelectionView() {
       {isApproved && existingSelection && !changeMode && (
         <>
           <ApprovedSelectionView selection={existingSelection} items={catalogueItems} showItemPrices={showItemPrices} showItemAllowance={showItemAllowance} allowance={allowance} />
-          {canEdit && (
+          {canRequestChange && (
             <Button variant="outline" onClick={startChangeRequest} className="gap-2 w-fit"><RefreshCw size={14} /> Request a Change</Button>
           )}
           <RevisionHistory selections={allSelections} />
@@ -315,7 +357,7 @@ export default function CustomerSelectionView() {
         <CommentThread projectId={projectId} targetType="selection" targetId={existingSelection.id} staff={false} title="Comments" />
       )}
 
-      {step === "browse" && canEdit && (!isApproved || changeMode) && (
+      {step === "browse" && (changeMode || (canEdit && !isApproved)) && (
         <div>
           <h2 className="font-semibold text-gray-900 mb-4">Choose an Option</h2>
           {catalogueItems.length === 0 ? (
@@ -352,7 +394,7 @@ export default function CustomerSelectionView() {
         </div>
       )}
 
-      {step === "configure" && selectedItem && canEdit && (!isApproved || changeMode) && (
+      {step === "configure" && selectedItem && (changeMode || (canEdit && !isApproved)) && (
         <div className="space-y-6">
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <div className="flex gap-4 mb-4">
@@ -505,6 +547,17 @@ export default function CustomerSelectionView() {
           </Button>
         </div>
       )}
+
+      <Dialog open={showSignOff} onOpenChange={setShowSignOff}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>Sign Off on Selection</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-gray-500">Confirm this approved selection as your final choice.</p>
+            <div><Label>Sign-off Note (optional)</Label><Textarea value={signOffNote} onChange={e => setSignOffNote(e.target.value)} rows={3} placeholder="Any final comments..." /></div>
+            <Button className="w-full" disabled={submitting} onClick={handleSignOff}>{submitting ? "Signing off..." : "Confirm Sign-off"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

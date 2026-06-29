@@ -70,8 +70,19 @@ export const STATUS_COLORS = {
   "Returned": "bg-rose-100 text-rose-700",
   "Superseded": "bg-gray-100 text-gray-500",
   "Price Adjustment Required": "bg-orange-100 text-orange-700",
-  "Ordered Item Conflict": "bg-red-100 text-red-700"
+  "Ordered Item Conflict": "bg-red-100 text-red-700",
+  "Signed off": "bg-violet-100 text-violet-700",
+  "Pending approval": "bg-amber-100 text-amber-700",
+  "Change request required": "bg-orange-100 text-orange-700"
 };
+
+export function customerDisplayStatus(req, sel, hasOpenChangeRequest) {
+  if (sel?.locked || req?.status === "Locked") return "Locked";
+  if (sel?.signed_off) return "Signed off";
+  if (sel?.status === "Approved" || req?.status === "Approved") return "Approved";
+  if (hasOpenChangeRequest || req?.status === "Change Requested") return "Change request required";
+  return "Pending approval";
+}
 
 export const DEFAULT_TEMPLATES = {
   "Main Bathroom": [

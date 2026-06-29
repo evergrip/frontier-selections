@@ -97,6 +97,41 @@
     "is_current": {
       "type": "boolean",
       "default": true
+    },
+    "sign_off_requested": {
+      "type": "boolean",
+      "default": false
+    },
+    "signed_off": {
+      "type": "boolean",
+      "default": false
+    },
+    "signed_off_by": {
+      "type": "string"
+    },
+    "signed_off_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sign_off_note": {
+      "type": "string"
+    },
+    "locked": {
+      "type": "boolean",
+      "default": false
+    },
+    "locked_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "locked_by": {
+      "type": "string"
+    },
+    "locked_reason": {
+      "type": "string"
+    },
+    "unlock_reason": {
+      "type": "string"
     }
   },
   "required": [

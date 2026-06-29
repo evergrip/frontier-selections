@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { FileText, Download, Share2, RefreshCw, AlertTriangle } from "lucide-react";
+import { FileText, Download, Share2, RefreshCw, AlertTriangle, FileSignature } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -68,6 +68,15 @@ export default function FinalPackage() {
     setBusy(false);
   }
 
+  async function requestSignoffAll() {
+    setBusy(true);
+    try {
+      const res = await base44.functions.invoke("selectionWorkflow", { action: "request_signoff", project_id: projectId });
+      alert(`Sign-off requested for ${res.data.count || 0} selection(s)`);
+    } catch (e) { alert("Failed to request sign-off"); }
+    setBusy(false);
+  }
+
   if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
 
   return (
@@ -113,6 +122,7 @@ export default function FinalPackage() {
               <Button variant="outline" onClick={() => exportPdf("customer")} disabled={busy} className="gap-2"><Download size={14} /> Customer PDF</Button>
               <Button variant="outline" onClick={() => exportPdf("internal")} disabled={busy} className="gap-2"><Download size={14} /> Internal PDF</Button>
               <Button variant="outline" onClick={shareCustomer} disabled={busy} className="gap-2"><Share2 size={14} /> Share with Customer</Button>
+              <Button variant="outline" onClick={requestSignoffAll} disabled={busy} className="gap-2"><FileSignature size={14} /> Request Sign-off (All)</Button>
               <Button variant="outline" onClick={() => loadData(projectId)} disabled={busy} className="gap-2"><RefreshCw size={14} /> Regenerate</Button>
             </div>
           </div>

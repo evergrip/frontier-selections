@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import StatusBadge from "@/components/ui/StatusBadge";
 import CommentThread from "@/components/comments/CommentThread";
+import SignOffControls from "@/components/selection/SignOffControls";
 import { SELECTION_STATUSES } from "@/lib/constants";
 
 function assembleItem(item, groups, values, rules) {
@@ -60,6 +61,8 @@ export default function RequirementDetail() {
   const [linkedMb, setLinkedMb] = useState([]);
   const [linking, setLinking] = useState(false);
   const [projectMb, setProjectMb] = useState([]);
+  const [proc, setProc] = useState(null);
+  const [audit, setAudit] = useState([]);
 
   useEffect(() => { load(); }, [requirementId]);
 
@@ -86,6 +89,14 @@ export default function RequirementDetail() {
     } else {
       setAssembledItem(null);
     }
+    if (current) {
+      const [procItems, auditEntries] = await Promise.all([
+        base44.entities.ProcurementItem.filter({ selection_id: current.id }),
+        base44.entities.AuditLog.filter({ target_type: "selection", target_id: current.id })
+      ]);
+      setProc(procItems[0] || null);
+      setAudit(auditEntries);
+    } else { setProc(null); setAudit([]); }
     const linkedMbItems = await base44.entities.MoodBoardItem.filter({ linked_requirement_id: requirementId });
     setLinkedMb(linkedMbItems);
     setLoading(false);
@@ -331,6 +342,8 @@ export default function RequirementDetail() {
           <p className="text-gray-400 text-sm">No selection submitted yet</p>
         </div>
       )}
+
+      <SignOffControls selection={selection} procurement={proc} audit={audit} onDone={load} />
 
       {ledger.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-5">
