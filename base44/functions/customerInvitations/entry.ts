@@ -228,29 +228,42 @@ Deno.serve(async (req) => {
 
     if (action === 'linkUser') {
       const me = await base44.auth.me();
-      if (!me) return Response.json({ linked: false });
+      if (!me) {
+        console.log("linkUser: no authenticated user");
+        return Response.json({ linked: 0 });
+      }
+      console.log("linkUser: checking invitations for", me.email);
       const invitations = await base44.entities.CustomerInvitation.filter({ email: me.email });
+      console.log("linkUser: found", invitations.length, "invitations");
       let linked = 0;
       const now = new Date().toISOString();
       
       for (const inv of invitations) {
-        if (inv.status !== 'Cancelled' && inv.status !== 'Deactivated') {
-          // Update invitation status to show account was created
+        console.log("linkUser: processing invitation", inv.id, "status:", inv.status);
+        if (inv.status !== 'Cancelled' && inv.status !== 'Deactivated' && inv.status !== 'Active') {
+          // Update invitation status to Active
           await base44.entities.CustomerInvitation.update(inv.id, {
             user_id: me.id,
             status: 'Active',
-            last_login: now
+            last_login: now,
+            last_opened_date: now,
+            opened_count: (inv.opened_count || 0) + 1
           });
+          console.log("linkUser: updated invitation", inv.id, "to Active");
           
           for (const pid of inv.project_ids || []) {
             try {
               const project = await base44.entities.Project.get(pid);
               const current = project.assigned_customers || [];
-              if (!current.includes(me.id) && !current.includes(me.email)) {
+              // Add user ID to assigned_customers (not email)
+              if (!current.includes(me.id)) {
                 await base44.entities.Project.update(pid, { assigned_customers: [...current, me.id] });
                 linked++;
+                console.log("linkUser: linked to project", pid);
               }
-            } catch (e) {}
+            } catch (e) {
+              console.error("Failed to link project:", pid, e);
+            }
           }
           
           // Log account creation/linking
@@ -261,9 +274,55 @@ Deno.serve(async (req) => {
               user_id: me.id,
               severity: 'high' 
             });
+        } else {
+          console.log("linkUser: skipping invitation", inv.id, "status:", inv.status);
         }
       }
-      return Response.json({ linked });
+      console.log("linkUser complete:", { linked, email: me.email, invitationsCount: invitations.length });
+      return Response.json({ linked, email: me.email, invitationsCount: invitations.length });
+    }
+
+    if (action === 'sendLoginLink') {
+      const { invitation_id } = body;
+      const invitation = await base44.asServiceRole.entities.CustomerInvitation.get(invitation_id);
+      
+      if (!invitation || invitation.status === 'Cancelled' || invitation.status === 'Deactivated') {
+        return Response.json({ error: 'Invalid invitation' }, { status: 400 });
+      }
+      
+      const loginLink = `${appBaseUrl}/login`;
+      const projectList = invitation.project_names && invitation.project_names.length > 0
+        ? `Projects:\n${invitation.project_names.map(n => `• ${n}`).join('\n')}`
+        : `Project: your project`;
+      
+      const emailBody = `Hello ${invitation.customer_name || ''},\n\nWelcome back to Frontier Selections!\n\n${projectList}\n\nLogin here: ${loginLink}\n\nThank you,\nFrontier Building Group`;
+      
+      let emailResult = null, emailError = null;
+      try {
+        emailResult = await base44.functions.invoke("sendNotifications", {
+          action: "sendEmail",
+          to: invitation.email,
+          subject: "Login to Frontier Selections",
+          body: emailBody,
+          from_name: "Frontier Building Group"
+        });
+        if (emailResult && !emailResult.email_sent) emailError = emailResult.reason || emailResult.error;
+      } catch (e) { emailError = e.message; }
+      
+      await createAuditLog(base44.asServiceRole, 'login_link_sent',
+        `${user.full_name || user.email} sent login link to ${invitation.customer_name || invitation.email}`,
+        (invitation.project_ids || [])[0], { 
+          invitation_id, 
+          email_sent: emailResult?.email_sent || false,
+          email_error: emailError 
+        });
+      
+      return Response.json({ 
+        message: emailResult?.email_sent ? 'Login link sent' : 'Login link generated (email not sent)',
+        login_link: loginLink,
+        email_sent: emailResult?.email_sent || false,
+        email_error: emailError 
+      });
     }
 
     if (action === 'list') {
