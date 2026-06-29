@@ -5,6 +5,7 @@ import { isStaff } from "@/lib/constants";
 
 import StaffLayout from "@/components/StaffLayout";
 import CustomerLayout from "@/components/CustomerLayout";
+import { CustomerPortalProvider } from "@/components/CustomerPortalContext";
 
 import StaffDashboard from "@/pages/StaffDashboard";
 import SelectionsTracker from "@/pages/SelectionsTracker";
@@ -116,7 +117,7 @@ export default function RoleRouter() {
           <Route path="/admin" element={<AdminPanel />} />
         </Route>
         {/* Portal routes for impersonation — separate from StaffLayout to avoid double-layout */}
-        <Route element={<CustomerLayout />}>
+        <Route element={<CustomerPortalProvider><CustomerLayout /></CustomerPortalProvider>}>
           <Route path="/portal" element={<CustomerDashboard />} />
           <Route path="/portal/project/:projectId" element={<CustomerProjectView />} />
           <Route path="/portal/project/:projectId/final-package" element={<CustomerFinalPackage />} />

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Plus, Settings, MapPin, Calendar, DollarSign, Edit2, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Plus, Settings, MapPin, Calendar, DollarSign, Edit2, Eye, EyeOff, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,10 +12,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StatusBadge from "@/components/ui/StatusBadge";
 import CommentThread from "@/components/comments/CommentThread";
 import ProjectTimeline from "@/components/comments/ProjectTimeline";
-import { PROJECT_STATUSES, AREA_TYPES, DEFAULT_TEMPLATES } from "@/lib/constants";
+import { PROJECT_STATUSES, AREA_TYPES, DEFAULT_TEMPLATES, hasPermission } from "@/lib/constants";
 import AreaCard from "@/components/staff/AreaCard";
 import ContextualHelpLink from "@/components/training/ContextualHelpLink";
 import ProjectCustomerAccess from "@/components/ProjectCustomerAccess";
+import ViewCustomerPortalDialog from "@/components/ViewCustomerPortalDialog";
+import { useCustomerPortal } from "@/components/CustomerPortalContext";
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -29,8 +31,13 @@ export default function ProjectDetail() {
   const [loading, setLoading] = useState(true);
   const [showAddArea, setShowAddArea] = useState(false);
   const [showEditProject, setShowEditProject] = useState(false);
+  const [showViewPortal, setShowViewPortal] = useState(false);
+  const [user, setUser] = useState(null);
 
-  useEffect(() => { load(); }, [projectId]);
+  useEffect(() => { 
+    base44.auth.me().then(u => setUser(u)).catch(() => {});
+    load(); 
+  }, [projectId]);
 
   async function load() {
     setLoading(true);
@@ -77,7 +84,17 @@ export default function ProjectDetail() {
           </div>
           <p className="text-sm text-gray-500 mt-0.5">{project.client_name}{project.address ? ` • ${project.address}` : ""}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {(hasPermission(user, "preview_customer_view") || hasPermission(user, "act_as_customer")) && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowViewPortal(true)} 
+              className="gap-2"
+            >
+              <Users size={14} /> View Customer Portal
+            </Button>
+          )}
           <ContextualHelpLink category="Allowances" label="How allowances and overages are calculated" />
           <Button variant="outline" size="sm" onClick={() => setShowEditProject(true)} className="gap-2">
             <Settings size={14} /> Settings
@@ -145,6 +162,11 @@ export default function ProjectDetail() {
 
       <AddAreaDialog open={showAddArea} onClose={() => setShowAddArea(false)} projectId={projectId} onAdded={load} />
       <EditProjectDialog open={showEditProject} onClose={() => setShowEditProject(false)} project={project} onUpdated={load} />
+      <ViewCustomerPortalDialog 
+        project={project} 
+        open={showViewPortal} 
+        onOpenChange={setShowViewPortal} 
+      />
     </div>
   );
 }

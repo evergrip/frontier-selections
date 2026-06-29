@@ -106,6 +106,52 @@ Deno.serve(async (req) => {
       return Response.json({ message: 'Action logged' });
     }
 
+    if (action === 'log_customer_portal_entry') {
+      const { mode, project_id, customer_user_id, customer_name, reason } = body;
+      if (!project_id || !customer_user_id) {
+        return Response.json({ error: 'project_id and customer_user_id are required' }, { status: 400 });
+      }
+      if (mode === 'act' && !hasPermission('act_as_customer')) {
+        return Response.json({ error: 'Permission denied' }, { status: 403 });
+      }
+
+      const sessionId = crypto.randomUUID();
+      await base44.asServiceRole.entities.AuditLog.create({
+        target_type: 'customer_portal_session',
+        target_id: sessionId,
+        action: mode === 'preview' ? 'customer_portal_preview_started' : 'customer_portal_act_started',
+        action_type: mode === 'preview' ? 'customer_portal_preview_started' : 'customer_portal_act_started',
+        description: `${user.full_name || user.email} started ${mode === 'preview' ? 'Preview Customer Portal' : 'Act as Customer'} mode for ${customer_name} on project ${project_id}${reason ? '. Reason: ' + reason : ''}`,
+        actor_user_id: user.id,
+        actor_name: user.full_name || user.email,
+        acting_as_user_id: customer_user_id,
+        acting_as_name: customer_name,
+        actor_role: user.role,
+        project_id: project_id,
+        reason: reason || null,
+        severity: 'sensitive'
+      });
+
+      return Response.json({ session_id: sessionId, message: 'Customer portal session started' });
+    }
+
+    if (action === 'log_customer_portal_exit') {
+      const { mode, project_id, customer_user_id } = body;
+      await base44.asServiceRole.entities.AuditLog.create({
+        target_type: 'customer_portal_session',
+        target_id: `exit-${project_id}-${customer_user_id}`,
+        action: mode === 'preview' ? 'customer_portal_preview_ended' : 'customer_portal_act_ended',
+        action_type: mode === 'preview' ? 'customer_portal_preview_ended' : 'customer_portal_act_ended',
+        description: `${user.full_name || user.email} exited ${mode === 'preview' ? 'Preview Customer Portal' : 'Act as Customer'} mode`,
+        actor_user_id: user.id,
+        actor_name: user.full_name || user.email,
+        actor_role: user.role,
+        project_id: project_id || null,
+        severity: 'sensitive'
+      });
+      return Response.json({ message: 'Customer portal session ended' });
+    }
+
     return Response.json({ error: 'Unknown action' }, { status: 400 });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });

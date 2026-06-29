@@ -244,6 +244,7 @@ export const PERMISSIONS = [
   "add_internal_notes",
   "add_customer_comments",
   "view_as_customer",
+  "preview_customer_view",
   "act_as_customer",
   "act_as_customer_submit",
   "act_as_customer_upload",
@@ -278,13 +279,12 @@ export const ROLE_PERMISSIONS = {
     "manage_change_requests", "manage_procurement",
     "generate_customer_reports", "generate_internal_reports",
     "view_internal_notes", "add_internal_notes", "add_customer_comments",
-    "view_as_customer", "act_as_customer",
+    "view_as_customer", "act_as_customer", "preview_customer_view",
     "manage_allowances", "view_hidden_pricing",
     "approve_selections", "reject_selections", "request_revisions",
     "lock_selections", "unlock_selections",
     "view_selections_tracker", "manage_suggested_options",
-    "override_suggested_option_pricing", "set_catalogue_access_mode",
-    "preview_customer_view"
+    "override_suggested_option_pricing", "set_catalogue_access_mode"
   ],
   "Project Coordinator": [
     "view_assigned_projects_only", "edit_projects",
@@ -294,10 +294,10 @@ export const ROLE_PERMISSIONS = {
     "manage_change_requests", "manage_procurement",
     "generate_customer_reports",
     "view_internal_notes", "add_internal_notes", "add_customer_comments",
-    "view_as_customer",
+    "view_as_customer", "preview_customer_view",
     "manage_deadlines",
     "view_selections_tracker", "manage_suggested_options",
-    "set_catalogue_access_mode", "preview_customer_view"
+    "set_catalogue_access_mode"
   ],
   "Project Manager": [
     "view_assigned_projects_only",
@@ -310,14 +310,16 @@ export const ROLE_PERMISSIONS = {
     "manage_project_areas",
     "invite_customers",
     "add_customer_comments",
-    "view_as_customer"
+    "view_as_customer",
+    "preview_customer_view"
   ],
   "Catalogue Manager": [
     "manage_catalogue", "manage_catalogue_rules"
   ],
   "Read-Only Staff": [
     "view_assigned_projects_only",
-    "generate_customer_reports"
+    "generate_customer_reports",
+    "preview_customer_view"
   ]
 };
 
