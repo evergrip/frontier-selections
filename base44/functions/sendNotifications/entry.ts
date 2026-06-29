@@ -47,6 +47,7 @@ Deno.serve(async (req) => {
     if (!target_all_staff && (!user_ids || user_ids.length === 0)) {
       return Response.json({ sent: 0 });
     }
+    const apiKey = Deno.env.get("EMAIL_API_KEY");
     let sent = 0;
     for (const u of targets) {
       try {
@@ -59,11 +60,16 @@ Deno.serve(async (req) => {
           link: link || "",
           is_read: false
         });
-        if (u.email && !skip_email) {
-          await base44.asServiceRole.integrations.Core.SendEmail({
-            to: u.email,
-            subject: title || "Notification",
-            body: (message || "") + (link ? `\n\nOpen: ${link}` : "")
+        if (u.email && !skip_email && apiKey) {
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+            body: JSON.stringify({
+              from: "Frontier Building Group <onboarding@resend.dev>",
+              to: [u.email],
+              subject: title || "Notification",
+              html: ((message || "") + (link ? `\n\nOpen: ${link}` : "")).replace(/\n/g, "<br>")
+            })
           });
         }
         sent++;
