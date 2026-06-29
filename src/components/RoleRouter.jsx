@@ -24,6 +24,7 @@ import StaffMoodBoard from "@/pages/StaffMoodBoard";
 import Reports from "@/pages/Reports";
 import FinalPackage from "@/pages/FinalPackage";
 import SubstitutionDetail from "@/pages/SubstitutionDetail";
+import TestScenarios from "@/pages/TestScenarios";
 
 import CustomerDashboard from "@/pages/portal/CustomerDashboard";
 import CustomerAreaView from "@/pages/portal/CustomerAreaView";
@@ -73,6 +74,7 @@ export default function RoleRouter() {
           <Route path="/reports" element={<Reports />} />
           <Route path="/final-package" element={<FinalPackage />} />
           <Route path="/substitution/:id" element={<SubstitutionDetail />} />
+          <Route path="/test-scenarios" element={<TestScenarios />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

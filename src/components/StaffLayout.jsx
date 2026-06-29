@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, FolderKanban, BookOpen, Package, Bell, RefreshCw, Truck, ClipboardList, Palette, FileText,
-  ChevronLeft, ChevronRight, LogOut, Menu, X, Settings
+  ChevronLeft, ChevronRight, LogOut, Menu, X, Settings, FlaskConical
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -19,7 +19,8 @@ const NAV_ITEMS = [
   { label: "Mood Board", path: "/mood-board", icon: Palette },
   { label: "Reports", path: "/reports", icon: FileText },
   { label: "Final Package", path: "/final-package", icon: Package },
-];
+  { label: "Test Scenarios", path: "/test-scenarios", icon: FlaskConical },
+  ];
 
 export default function StaffLayout() {
   const location = useLocation();
