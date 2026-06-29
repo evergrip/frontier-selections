@@ -81,6 +81,9 @@
     "staff_notes": {
       "type": "string"
     },
+    "reminder_stage": {
+      "type": "string"
+    },
     "status": {
       "type": "string",
       "enum": [

@@ -61,6 +61,10 @@
     "allowance_impact": {
       "type": "number"
     },
+    "due_date": {
+      "type": "string",
+      "format": "date"
+    },
     "status": {
       "type": "string",
       "enum": [

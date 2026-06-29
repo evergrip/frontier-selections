@@ -48,7 +48,7 @@ export default function AreaDetail() {
           <p className="text-sm text-gray-500">{area.area_type} • {area.allowance ? `$${area.allowance.toLocaleString()} allowance` : "No allowance set"}</p>
         </div>
         <StatusBadge status={area.status} />
-        <Button variant="outline" size="sm" onClick={() => setShowEditAllowance(true)} className="gap-2"><Edit2 size={14} /> Edit Allowance</Button>
+        <Button variant="outline" size="sm" onClick={() => setShowEditAllowance(true)} className="gap-2"><Edit2 size={14} /> Edit Area</Button>
       </div>
 
       {area.customer_notes && (
@@ -100,7 +100,7 @@ export default function AreaDetail() {
 }
 
 function AddRequirementDialog({ open, onClose, projectId, areaId, onAdded }) {
-  const [form, setForm] = useState({ name: "", category: "Other", is_required: true, allowance_amount: 0, approval_required: true });
+  const [form, setForm] = useState({ name: "", category: "Other", is_required: true, allowance_amount: 0, approval_required: true, due_date: "" });
   const [saving, setSaving] = useState(false);
 
   async function handleAdd() {
@@ -111,7 +111,7 @@ function AddRequirementDialog({ open, onClose, projectId, areaId, onAdded }) {
       allowance_amount: Number(form.allowance_amount) || 0, status: "Not Started"
     });
     setSaving(false);
-    setForm({ name: "", category: "Other", is_required: true, allowance_amount: 0, approval_required: true });
+    setForm({ name: "", category: "Other", is_required: true, allowance_amount: 0, approval_required: true, due_date: "" });
     onAdded();
     onClose();
   }
@@ -129,6 +129,7 @@ function AddRequirementDialog({ open, onClose, projectId, areaId, onAdded }) {
             </Select>
           </div>
           <div><Label>Allowance ($)</Label><Input type="number" value={form.allowance_amount} onChange={e => setForm({...form, allowance_amount: e.target.value})} /></div>
+          <div><Label>Due Date</Label><Input type="date" value={form.due_date} onChange={e => setForm({...form, due_date: e.target.value})} /></div>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={form.is_required} onChange={e => setForm({...form, is_required: e.target.checked})} className="rounded" />
             Required selection
@@ -146,11 +147,12 @@ function AddRequirementDialog({ open, onClose, projectId, areaId, onAdded }) {
 
 function EditAllowanceDialog({ open, onClose, area, onUpdated }) {
   const [allowance, setAllowance] = useState(0);
+  const [dueDate, setDueDate] = useState("");
   const [saving, setSaving] = useState(false);
-  useEffect(() => { if (area) setAllowance(area.allowance || 0); }, [area]);
+  useEffect(() => { if (area) { setAllowance(area.allowance || 0); setDueDate(area.due_date || ""); } }, [area]);
   async function handleSave() {
     setSaving(true);
-    await base44.entities.ProjectArea.update(area.id, { allowance: Number(allowance) || 0 });
+    await base44.entities.ProjectArea.update(area.id, { allowance: Number(allowance) || 0, due_date: dueDate || null });
     setSaving(false);
     onUpdated();
     onClose();
@@ -158,9 +160,10 @@ function EditAllowanceDialog({ open, onClose, area, onUpdated }) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-sm">
-        <DialogHeader><DialogTitle>Edit Area Allowance</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Edit Area</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div><Label>Allowance ($)</Label><Input type="number" value={allowance} onChange={e => setAllowance(e.target.value)} /></div>
+          <div><Label>Selections Due Date</Label><Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
           <Button onClick={handleSave} disabled={saving} className="w-full">{saving ? "Saving..." : "Save"}</Button>
         </div>
       </DialogContent>

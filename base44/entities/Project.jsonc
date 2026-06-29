@@ -43,6 +43,10 @@
       "type": "string",
       "format": "date"
     },
+    "selections_due_date": {
+      "type": "string",
+      "format": "date"
+    },
     "assigned_staff": {
       "type": "array",
       "items": {
@@ -83,6 +87,9 @@
         "show_overage"
       ],
       "default": "hidden"
+    },
+    "reminder_stage": {
+      "type": "string"
     },
     "internal_notes": {
       "type": "string"

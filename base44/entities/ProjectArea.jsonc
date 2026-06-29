@@ -42,6 +42,13 @@
       "type": "number",
       "default": 0
     },
+    "due_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "reminder_stage": {
+      "type": "string"
+    },
     "status": {
       "type": "string",
       "enum": [

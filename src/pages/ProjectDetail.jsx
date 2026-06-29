@@ -271,6 +271,7 @@ function EditProjectDialog({ open, onClose, project, onUpdated }) {
       project_type: form.project_type, status: form.status,
       start_date: form.start_date, target_completion_date: form.target_completion_date,
       total_allowance: Number(form.total_allowance) || 0,
+      selections_due_date: form.selections_due_date || null,
       pricing_visibility: form.pricing_visibility, allowance_visibility: form.allowance_visibility,
       internal_notes: form.internal_notes, customer_notes: form.customer_notes
     });
@@ -305,6 +306,7 @@ function EditProjectDialog({ open, onClose, project, onUpdated }) {
             <div><Label>Target Completion</Label><Input type="date" value={form.target_completion_date || ""} onChange={e => setForm({...form, target_completion_date: e.target.value})} /></div>
           </div>
           <div><Label>Total Allowance ($)</Label><Input type="number" value={form.total_allowance || 0} onChange={e => setForm({...form, total_allowance: e.target.value})} /></div>
+          <div><Label>Selections Due Date</Label><Input type="date" value={form.selections_due_date || ""} onChange={e => setForm({...form, selections_due_date: e.target.value})} /></div>
           <div className="grid grid-cols-2 gap-4">
             <div><Label>Pricing Visibility</Label>
               <Select value={form.pricing_visibility || "hidden"} onValueChange={v => setForm({...form, pricing_visibility: v})}>

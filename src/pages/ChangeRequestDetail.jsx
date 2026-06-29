@@ -22,6 +22,7 @@ export default function ChangeRequestDetail() {
   const [internalNotes, setInternalNotes] = useState("");
   const [priceImpact, setPriceImpact] = useState("");
   const [allowanceImpact, setAllowanceImpact] = useState("");
+  const [dueDate, setDueDate] = useState("");
 
   useEffect(() => { load(); }, [changeRequestId]);
 
@@ -33,6 +34,7 @@ export default function ChangeRequestDetail() {
     setInternalNotes(c.internal_notes || "");
     setPriceImpact(c.price_impact != null ? String(c.price_impact) : "");
     setAllowanceImpact(c.allowance_impact != null ? String(c.allowance_impact) : "");
+    setDueDate(c.due_date || "");
     const [req, auditEntries] = await Promise.all([
       base44.entities.SelectionRequirement.get(c.requirement_id),
       base44.entities.AuditLog.filter({ target_id: changeRequestId })
@@ -54,6 +56,7 @@ export default function ChangeRequestDetail() {
       internal_notes: internalNotes,
       price_impact: priceImpact !== "" ? Number(priceImpact) : (cr.price_impact || 0),
       allowance_impact: allowanceImpact !== "" ? Number(allowanceImpact) : (cr.allowance_impact || 0),
+      due_date: dueDate || null,
       reviewed_by: "staff",
       reviewed_date: new Date().toISOString()
     };
@@ -166,6 +169,7 @@ export default function ChangeRequestDetail() {
             <div><Label>Adjust Price Impact ($)</Label><Input type="number" value={priceImpact} onChange={e => setPriceImpact(e.target.value)} /></div>
             <div><Label>Adjust Allowance Impact ($)</Label><Input type="number" value={allowanceImpact} onChange={e => setAllowanceImpact(e.target.value)} /></div>
           </div>
+          <div><Label>Due Date (optional)</Label><Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
           <div><Label>Customer-Facing Response</Label><Textarea value={staffResponse} onChange={e => setStaffResponse(e.target.value)} rows={2} /></div>
           <div><Label>Internal Notes</Label><Textarea value={internalNotes} onChange={e => setInternalNotes(e.target.value)} rows={2} /></div>
           <div className="flex flex-wrap gap-2">
