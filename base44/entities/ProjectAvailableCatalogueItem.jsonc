@@ -5,8 +5,34 @@
     "project_id": {
       "type": "string"
     },
+    "area_id": {
+      "type": "string"
+    },
+    "requirement_id": {
+      "type": "string"
+    },
     "catalogue_item_id": {
       "type": "string"
+    },
+    "display_order": {
+      "type": "number",
+      "default": 0
+    },
+    "is_recommended": {
+      "type": "boolean",
+      "default": false
+    },
+    "staff_note": {
+      "type": "string"
+    },
+    "customer_note": {
+      "type": "string"
+    },
+    "price_override": {
+      "type": "number"
+    },
+    "allowance_impact_override": {
+      "type": "number"
     },
     "is_available": {
       "type": "boolean",
@@ -15,11 +41,10 @@
     "custom_allowance": {
       "type": "number"
     },
-    "display_order": {
-      "type": "number",
-      "default": 0
-    },
     "notes": {
+      "type": "string"
+    },
+    "created_by": {
       "type": "string"
     }
   },

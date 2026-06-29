@@ -16,6 +16,8 @@ const REPORT_TYPES = [
   { value: "change_requests", label: "Change Request Report" },
   { value: "procurement", label: "Procurement Report" },
   { value: "supplier_orders", label: "Supplier Order List" },
+  { value: "outstanding_selections", label: "Outstanding Selections Report" },
+  { value: "suggested_options", label: "Suggested Options Report" },
   { value: "final_customer", label: "Final Selections Package (Customer)" },
   { value: "final_internal", label: "Final Selections Package (Internal)" },
 ];

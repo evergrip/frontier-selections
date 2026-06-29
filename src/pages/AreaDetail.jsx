@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import StatusBadge from "@/components/ui/StatusBadge";
 import CommentThread from "@/components/comments/CommentThread";
-import { CATEGORIES, SELECTION_STATUSES } from "@/lib/constants";
+import { CATEGORIES, SELECTION_STATUSES, CATALOGUE_ACCESS_MODES } from "@/lib/constants";
 
 export default function AreaDetail() {
   const { projectId, areaId } = useParams();
@@ -115,7 +115,7 @@ export default function AreaDetail() {
 }
 
 function AddRequirementDialog({ open, onClose, projectId, areaId, onAdded }) {
-  const [form, setForm] = useState({ name: "", category: "Other", is_required: true, allowance_amount: 0, approval_required: true, due_date: "" });
+  const [form, setForm] = useState({ name: "", category: "Other", is_required: true, allowance_amount: 0, approval_required: true, due_date: "", customer_catalogue_access_mode: "suggested_only" });
   const [saving, setSaving] = useState(false);
 
   async function handleAdd() {
@@ -126,7 +126,7 @@ function AddRequirementDialog({ open, onClose, projectId, areaId, onAdded }) {
       allowance_amount: Number(form.allowance_amount) || 0, status: "Not Started"
     });
     setSaving(false);
-    setForm({ name: "", category: "Other", is_required: true, allowance_amount: 0, approval_required: true, due_date: "" });
+    setForm({ name: "", category: "Other", is_required: true, allowance_amount: 0, approval_required: true, due_date: "", customer_catalogue_access_mode: "suggested_only" });
     onAdded();
     onClose();
   }
@@ -153,6 +153,12 @@ function AddRequirementDialog({ open, onClose, projectId, areaId, onAdded }) {
             <input type="checkbox" checked={form.approval_required} onChange={e => setForm({...form, approval_required: e.target.checked})} className="rounded" />
             Approval required
           </label>
+          <div><Label>Customer Catalogue Access Mode</Label>
+            <Select value={form.customer_catalogue_access_mode} onValueChange={v => setForm({...form, customer_catalogue_access_mode: v})}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{CATALOGUE_ACCESS_MODES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
           <Button onClick={handleAdd} disabled={saving || !form.name.trim()} className="w-full">{saving ? "Adding..." : "Add Requirement"}</Button>
         </div>
       </DialogContent>

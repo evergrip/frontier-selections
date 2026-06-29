@@ -49,18 +49,24 @@ function money(n) { return n != null ? `$${Number(n).toLocaleString()}` : ""; }
 async function buildReport(base44, p) {
   const projectId = p.project_id || null;
   const fetchProj = (e) => projectId ? base44.asServiceRole.entities[e].filter({ project_id: projectId }, null, 1000) : base44.asServiceRole.entities[e].list(null, 1000);
-  const [projects, areas, reqs, sels, procs, crs, items] = await Promise.all([
+  const [projects, areas, reqs, sels, procs, crs, items, paci] = await Promise.all([
     base44.asServiceRole.entities.Project.list(null, 200),
     base44.asServiceRole.entities.ProjectArea.list(null, 1000),
     fetchProj("SelectionRequirement"),
     fetchProj("CustomerSelection"),
     fetchProj("ProcurementItem"),
     fetchProj("ChangeRequest"),
-    base44.asServiceRole.entities.CatalogueItem.list(null, 1000)
+    base44.asServiceRole.entities.CatalogueItem.list(null, 1000),
+    fetchProj("ProjectAvailableCatalogueItem")
   ]);
   const projectMap = {}; projects.forEach(x => projectMap[x.id] = x);
   const areaMap = {}; areas.forEach(x => areaMap[x.id] = x);
   const itemMap = {}; items.forEach(x => itemMap[x.id] = x);
+  const suggestedByReq = {};
+  paci.forEach(s => {
+    if (!suggestedByReq[s.requirement_id]) suggestedByReq[s.requirement_id] = [];
+    suggestedByReq[s.requirement_id].push(s);
+  });
 
   const enriched = reqs.map(req => {
     const sel = sels.find(s => s.requirement_id === req.id && s.is_current);
@@ -130,6 +136,34 @@ async function buildReport(base44, p) {
     title = "Supplier Order List";
     columns = ["Supplier", "Project", "Area", "Item", "SKU", "Qty", "Options", "Notes", "Image"];
     rows = list.filter(e => e.sel?.status === "Approved").map(e => [e.proc?.supplier || e.item?.supplier || "", e.project?.name || "", e.area?.name || "", e.item?.name || "", e.proc?.sku || e.item?.sku || "", e.proc?.quantity || 1, e.options, e.proc?.procurement_notes || "", e.item?.default_image || ""]);
+  } else if (rt === "outstanding_selections") {
+    title = "Outstanding Selections Report";
+    columns = ["Project", "Area", "Selection", "Due Date", "Days Overdue", "Status", "Suggested Options Added", "Customer Viewed", "Customer Submitted", "Next Action"];
+    rows = list.filter(e => !DONE.includes(e.req.status)).map(e => {
+      const suggested = suggestedByReq[e.req.id] || [];
+      const daysOverdue = e.req.due_date && new Date(e.req.due_date + "T00:00:00") < today
+        ? String(Math.round((today - new Date(e.req.due_date + "T00:00:00")) / 86400000)) : "0";
+      const viewed = ["Viewed", "In Progress", "Submitted", "Revision Requested", "Approved", "Rejected"].includes(e.req.status);
+      const submitted = !!e.sel;
+      let nextAction = "Add suggested options";
+      if (suggested.length > 0) nextAction = submitted ? "Review submission" : "Send reminder to customer";
+      if (e.sel?.status === "Pending") nextAction = "Staff approval needed";
+      if (e.req.status === "Revision Requested") nextAction = "Customer revision needed";
+      return [e.project?.name || "", e.area?.name || "", e.req.name, e.req.due_date || "", daysOverdue, e.req.status, suggested.length > 0 ? "Yes" : "No", viewed ? "Yes" : "No", submitted ? "Yes" : "No", nextAction];
+    });
+  } else if (rt === "suggested_options") {
+    title = "Suggested Options Report";
+    columns = ["Project", "Area", "Selection", "Access Mode", "Suggested Count", "Recommended Item", "Missing Images", "Missing Prices", "Inactive/Backordered Items"];
+    rows = list.map(e => {
+      const suggested = suggestedByReq[e.req.id] || [];
+      const accessMode = (e.req.customer_catalogue_access_mode || "suggested_only").replace(/_/g, " ");
+      const recommended = suggested.find(s => s.is_recommended);
+      const recItem = recommended ? itemMap[recommended.catalogue_item_id] : null;
+      const missingImages = suggested.filter(s => { const it = itemMap[s.catalogue_item_id]; return it && !it.default_image; }).length;
+      const missingPrices = suggested.filter(s => { const it = itemMap[s.catalogue_item_id]; return it && !it.base_price && it.base_price !== 0 && s.price_override == null; }).length;
+      const inactive = suggested.filter(s => { const it = itemMap[s.catalogue_item_id]; return it && ["Discontinued", "Inactive", "Temporarily Unavailable", "Backordered"].includes(it.status); }).length;
+      return [e.project?.name || "", e.area?.name || "", e.req.name, accessMode, String(suggested.length), recItem?.name || "—", String(missingImages), String(missingPrices), String(inactive)];
+    });
   } else if (rt === "final_customer" || rt === "final_internal") {
     const internal = rt === "final_internal";
     title = internal ? "Internal Final Selections Package" : "Customer Final Selections Package";

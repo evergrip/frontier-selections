@@ -75,6 +75,17 @@
       "type": "boolean",
       "default": false
     },
+    "customer_catalogue_access_mode": {
+      "type": "string",
+      "enum": [
+        "suggested_only",
+        "suggested_plus_request",
+        "full_category",
+        "full_plus_request",
+        "staff_only"
+      ],
+      "default": "suggested_only"
+    },
     "customer_instructions": {
       "type": "string"
     },

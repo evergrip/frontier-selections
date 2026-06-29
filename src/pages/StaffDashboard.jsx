@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Link } from "react-router-dom";
-import { Clock, AlertTriangle, ArrowRight, Calendar, FileEdit, RefreshCw, Hourglass, PackageX, FolderKanban, TrendingUp } from "lucide-react";
+import { Clock, AlertTriangle, ArrowRight, Calendar, FileEdit, RefreshCw, Hourglass, PackageX, FolderKanban, TrendingUp, ClipboardCheck, Star, Eye } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
 
 const DONE = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
@@ -12,19 +12,21 @@ export default function StaffDashboard() {
   const [selections, setSelections] = useState([]);
   const [changeRequests, setChangeRequests] = useState([]);
   const [procurement, setProcurement] = useState([]);
+  const [suggestedOptions, setSuggestedOptions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const [p, r, s, cr, proc] = await Promise.all([
+        const [p, r, s, cr, proc, paci] = await Promise.all([
           base44.entities.Project.list("-updated_date", 100),
           base44.entities.SelectionRequirement.list(null, 500),
           base44.entities.CustomerSelection.list("-created_date", 500),
           base44.entities.ChangeRequest.list("-created_date", 100),
-          base44.entities.ProcurementItem.list(null, 200)
+          base44.entities.ProcurementItem.list(null, 200),
+          base44.entities.ProjectAvailableCatalogueItem.list(null, 1000)
         ]);
-        setProjects(p); setRequirements(r); setSelections(s); setChangeRequests(cr); setProcurement(proc);
+        setProjects(p); setRequirements(r); setSelections(s); setChangeRequests(cr); setProcurement(proc); setSuggestedOptions(paci);
       } catch (e) {}
       setLoading(false);
     }
@@ -50,6 +52,17 @@ export default function StaffDashboard() {
   const procurementWarnings = procurement.filter(p => ["Backordered", "Delayed", "Substitution Required"].includes(p.status));
   const backordered = procurement.filter(p => p.status === "Backordered");
 
+  const suggestedByReq = {};
+  suggestedOptions.forEach(s => {
+    if (!suggestedByReq[s.requirement_id]) suggestedByReq[s.requirement_id] = [];
+    suggestedByReq[s.requirement_id].push(s);
+  });
+  const missingSuggestedOptions = requirements.filter(r =>
+    (r.customer_catalogue_access_mode || "suggested_only") === "suggested_only" &&
+    !(suggestedByReq[r.id] || []).length &&
+    !DONE.includes(r.status)
+  );
+
   const projectIdsWithIssues = new Set([
     ...overdue.map(r => r.project_id),
     ...pendingApprovals.map(s => s.project_id),
@@ -72,7 +85,25 @@ export default function StaffDashboard() {
         <WidgetStat icon={Calendar} label="Due This Week" value={dueThisWeek.length} color="bg-amber-50 text-amber-600" />
         <WidgetStat icon={Hourglass} label="Pending Customer" value={pendingCustomerAction.length} color="bg-sky-50 text-sky-600" />
         <WidgetStat icon={TrendingUp} label="Over Allowance" value={overAllowanceSelections.length} color="bg-rose-50 text-rose-600" />
-        <WidgetStat icon={FolderKanban} label="Projects Need Attention" value={projectsNeedingAttention.length} color="bg-indigo-50 text-indigo-600" />
+        <WidgetStat icon={Star} label="Missing Suggested Options" value={missingSuggestedOptions.length} color="bg-violet-50 text-violet-600" />
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Link to="/selections-tracker" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800">
+          <ClipboardCheck size={14} /> View All Selections
+        </Link>
+        <Link to="/selections-tracker?filter=outstanding" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-gray-200 text-sm font-medium hover:bg-gray-50">
+          <Clock size={14} /> View Outstanding
+        </Link>
+        <Link to="/selections-tracker?filter=pending_approval" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-gray-200 text-sm font-medium hover:bg-gray-50">
+          <Eye size={14} /> View Pending Approvals
+        </Link>
+        <Link to="/selections-tracker?filter=missing_suggested" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-gray-200 text-sm font-medium hover:bg-gray-50">
+          <Star size={14} /> View Missing Suggested
+        </Link>
+        <Link to="/selections-tracker?filter=overdue" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-gray-200 text-sm font-medium hover:bg-gray-50">
+          <AlertTriangle size={14} /> View Overdue
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">

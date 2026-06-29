@@ -253,7 +253,20 @@ export const PERMISSIONS = [
   "resend_invites",
   "deactivate_customer_access",
   "manage_tutorial_content",
-  "view_training_progress"
+  "view_training_progress",
+  "view_selections_tracker",
+  "manage_suggested_options",
+  "override_suggested_option_pricing",
+  "set_catalogue_access_mode",
+  "preview_customer_view"
+];
+
+export const CATALOGUE_ACCESS_MODES = [
+  { value: "suggested_only", label: "Suggested options only" },
+  { value: "suggested_plus_request", label: "Suggested options plus request other" },
+  { value: "full_category", label: "Full category catalogue" },
+  { value: "full_plus_request", label: "Full category catalogue plus request other" },
+  { value: "staff_only", label: "Staff selection only / customer cannot choose" }
 ];
 
 export const ROLE_PERMISSIONS = {
@@ -268,7 +281,10 @@ export const ROLE_PERMISSIONS = {
     "view_as_customer", "act_as_customer",
     "manage_allowances", "view_hidden_pricing",
     "approve_selections", "reject_selections", "request_revisions",
-    "lock_selections", "unlock_selections"
+    "lock_selections", "unlock_selections",
+    "view_selections_tracker", "manage_suggested_options",
+    "override_suggested_option_pricing", "set_catalogue_access_mode",
+    "preview_customer_view"
   ],
   "Project Coordinator": [
     "view_assigned_projects_only", "edit_projects",
@@ -279,7 +295,9 @@ export const ROLE_PERMISSIONS = {
     "generate_customer_reports",
     "view_internal_notes", "add_internal_notes", "add_customer_comments",
     "view_as_customer",
-    "manage_deadlines"
+    "manage_deadlines",
+    "view_selections_tracker", "manage_suggested_options",
+    "set_catalogue_access_mode", "preview_customer_view"
   ],
   "Project Manager": [
     "view_assigned_projects_only",

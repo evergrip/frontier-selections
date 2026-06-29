@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import CommentThread from "@/components/comments/CommentThread";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, Package, CheckCircle, AlertTriangle, RefreshCw, History, FileSignature, Lock, Search, X } from "lucide-react";
+import { ArrowLeft, Check, Package, CheckCircle, AlertTriangle, RefreshCw, History, FileSignature, Lock, Search, X, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -57,6 +57,7 @@ export default function CustomerSelectionView() {
   const [signOffNote, setSignOffNote] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterBrand, setFilterBrand] = useState("");
+  const [suggestedOptions, setSuggestedOptions] = useState([]);
   const { loading: accessLoading, hasAccess } = useProjectAccess(projectId);
 
   useEffect(() => {
@@ -79,15 +80,29 @@ export default function CustomerSelectionView() {
       setExistingSelection(current || null);
 
       const itemFilter = req.category ? { category: req.category } : {};
-      const [rawItems, groups, values, rules] = await Promise.all([
+      const [rawItems, groups, values, rules, suggested] = await Promise.all([
         base44.entities.CatalogueItem.filter(itemFilter, "name", 100),
         base44.entities.CatalogueOptionGroup.filter({ is_active: true }, null, 500),
         base44.entities.CatalogueOptionValue.filter({ is_active: true }, null, 500),
-        base44.entities.CatalogueOptionRule.filter({ is_active: true }, null, 500)
+        base44.entities.CatalogueOptionRule.filter({ is_active: true }, null, 500),
+        base44.entities.ProjectAvailableCatalogueItem.filter({ requirement_id: requirementId })
       ]);
-      const items = rawItems
-        .filter(i => i.status !== "Discontinued" && i.status !== "Draft")
-        .map(item => assembleItem(item, groups, values, rules));
+      const suggestedSorted = suggested.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+      setSuggestedOptions(suggestedSorted);
+
+      const accessMode = req.customer_catalogue_access_mode || "suggested_only";
+      let visibleItems = rawItems.filter(i => i.status !== "Discontinued" && i.status !== "Draft");
+
+      if (accessMode === "suggested_only" || accessMode === "suggested_plus_request") {
+        const suggestedItemIds = suggestedSorted
+          .filter(s => s.is_available !== false)
+          .map(s => s.catalogue_item_id);
+        visibleItems = visibleItems.filter(i => suggestedItemIds.includes(i.id));
+      } else if (accessMode === "staff_only") {
+        visibleItems = [];
+      }
+
+      const items = visibleItems.map(item => assembleItem(item, groups, values, rules));
       setCatalogueItems(items);
 
       if (current && ["Revision Requested", "Rejected"].includes(current.status)) {
@@ -390,7 +405,14 @@ export default function CustomerSelectionView() {
         <div>
           <h2 className="font-semibold text-gray-900 mb-4">Choose a Product</h2>
           {catalogueItems.length === 0 ? (
-            <div className="text-center py-16 bg-white rounded-xl border text-gray-400 text-sm">No catalogue items available for this category</div>
+            <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
+              <Package size={32} className="mx-auto text-gray-300 mb-2" />
+              <p className="text-gray-500 text-sm">
+                {(requirement.customer_catalogue_access_mode || "suggested_only") === "staff_only"
+                  ? "Your project coordinator will select this item for you. Please contact them if you have questions."
+                  : "Frontier has not added options for this selection yet. Please check back or contact your project coordinator."}
+              </p>
+            </div>
           ) : (
             <>
               <div className="flex flex-col sm:flex-row gap-2 mb-4">
@@ -425,32 +447,45 @@ export default function CustomerSelectionView() {
                 <div className="text-center py-16 bg-white rounded-xl border text-gray-400 text-sm">No products match your search</div>
               ) : (
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                  {filteredItems.map(item => (
-                    <button
-                      key={item.id}
-                      onClick={() => { setSelectedItem(item); setSelectedOptions({}); setStep("configure"); }}
-                      className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-lg hover:border-gray-300 transition-all text-left"
-                    >
-                      <div className="aspect-square bg-gray-100 relative">
-                        {item.default_image ? (
-                          <img src={item.default_image} alt={item.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center"><Package size={32} className="text-gray-300" /></div>
-                        )}
-                      </div>
-                      <div className="p-3">
-                        <h3 className="font-semibold text-gray-900 text-sm line-clamp-1">{item.name}</h3>
-                        {item.brand && <p className="text-xs text-gray-400 line-clamp-1">{item.brand}</p>}
-                        {item.description && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.description}</p>}
-                        <div className="flex items-center justify-between mt-2">
-                          {showItemPrices && <p className="font-bold text-gray-900 text-sm">${(item.base_price || 0).toLocaleString()}</p>}
-                          {item.option_groups?.length > 0 && (
-                            <span className="text-[10px] text-blue-600 font-medium">{item.option_groups.length} option{item.option_groups.length > 1 ? "s" : ""}</span>
+                  {filteredItems.map(item => {
+                    const suggested = suggestedOptions.find(s => s.catalogue_item_id === item.id);
+                    const isRecommended = suggested?.is_recommended;
+                    const customerNote = suggested?.customer_note;
+                    const priceOverride = suggested?.price_override;
+                    const displayPrice = priceOverride != null ? priceOverride : (item.base_price || 0);
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => { setSelectedItem(item); setSelectedOptions({}); setStep("configure"); }}
+                        className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-lg hover:border-gray-300 transition-all text-left"
+                      >
+                        <div className="aspect-square bg-gray-100 relative">
+                          {item.default_image ? (
+                            <img src={item.default_image} alt={item.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center"><Package size={32} className="text-gray-300" /></div>
+                          )}
+                          {isRecommended && (
+                            <span className="absolute top-2 right-2 inline-flex items-center gap-1 text-[10px] bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium shadow-sm">
+                              <Star size={10} /> Recommended
+                            </span>
                           )}
                         </div>
-                      </div>
-                    </button>
-                  ))}
+                        <div className="p-3">
+                          <h3 className="font-semibold text-gray-900 text-sm line-clamp-1">{item.name}</h3>
+                          {item.brand && <p className="text-xs text-gray-400 line-clamp-1">{item.brand}</p>}
+                          {item.description && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.description}</p>}
+                          {customerNote && <p className="text-xs text-blue-600 mt-1 line-clamp-2">📝 {customerNote}</p>}
+                          <div className="flex items-center justify-between mt-2">
+                            {showItemPrices && <p className="font-bold text-gray-900 text-sm">${displayPrice.toLocaleString()}</p>}
+                            {item.option_groups?.length > 0 && (
+                              <span className="text-[10px] text-blue-600 font-medium">{item.option_groups.length} option{item.option_groups.length > 1 ? "s" : ""}</span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </>

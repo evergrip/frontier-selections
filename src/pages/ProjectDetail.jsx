@@ -23,6 +23,9 @@ export default function ProjectDetail() {
   const [areas, setAreas] = useState([]);
   const [requirements, setRequirements] = useState([]);
   const [selections, setSelections] = useState([]);
+  const [suggestedOptions, setSuggestedOptions] = useState([]);
+  const [procurement, setProcurement] = useState([]);
+  const [catalogueItems, setCatalogueItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddArea, setShowAddArea] = useState(false);
   const [showEditProject, setShowEditProject] = useState(false);
@@ -31,16 +34,22 @@ export default function ProjectDetail() {
 
   async function load() {
     setLoading(true);
-    const [p, a, r, s] = await Promise.all([
+    const [p, a, r, s, paci, proc, ci] = await Promise.all([
       base44.entities.Project.get(projectId),
       base44.entities.ProjectArea.filter({ project_id: projectId }),
       base44.entities.SelectionRequirement.filter({ project_id: projectId }),
-      base44.entities.CustomerSelection.filter({ project_id: projectId })
+      base44.entities.CustomerSelection.filter({ project_id: projectId }),
+      base44.entities.ProjectAvailableCatalogueItem.filter({ project_id: projectId }),
+      base44.entities.ProcurementItem.filter({ project_id: projectId }),
+      base44.entities.CatalogueItem.list("name", 500)
     ]);
     setProject(p);
     setAreas(a.sort((x, y) => (x.display_order || 0) - (y.display_order || 0)));
     setRequirements(r);
     setSelections(s);
+    setSuggestedOptions(paci);
+    setProcurement(proc);
+    setCatalogueItems(ci);
     setLoading(false);
   }
 
@@ -118,7 +127,7 @@ export default function ProjectDetail() {
         </TabsContent>
 
         <TabsContent value="selections" className="mt-6">
-          <SelectionsTable requirements={requirements} selections={selections} areas={areas} projectId={projectId} />
+          <SelectionsTable requirements={requirements} selections={selections} areas={areas} projectId={projectId} suggestedOptions={suggestedOptions} procurement={procurement} catalogueItems={catalogueItems} />
         </TabsContent>
 
         <TabsContent value="details" className="mt-6">
@@ -149,46 +158,136 @@ function MiniStat({ label, value }) {
   );
 }
 
-function SelectionsTable({ requirements, selections, areas, projectId }) {
+function SelectionsTable({ requirements, selections, areas, projectId, suggestedOptions, procurement, catalogueItems }) {
+  const [filter, setFilter] = useState("all");
+  const TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
+  const DONE = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
+
+  const catMap = {}; (catalogueItems || []).forEach(c => catMap[c.id] = c);
+  const procMap = {}; (procurement || []).forEach(p => procMap[p.requirement_id] = p);
+  const suggestedByReq = {}; (suggestedOptions || []).forEach(s => {
+    if (!suggestedByReq[s.requirement_id]) suggestedByReq[s.requirement_id] = [];
+    suggestedByReq[s.requirement_id].push(s);
+  });
+
   if (requirements.length === 0) {
     return <div className="text-center py-16 text-gray-400 text-sm">No selection requirements yet</div>;
   }
+
+  const rows = requirements.map(req => {
+    const area = areas.find(a => a.id === req.area_id);
+    const sel = selections.find(s => s.requirement_id === req.id && s.is_current);
+    const cat = sel ? catMap[sel.catalogue_item_id] : null;
+    const proc = procMap[req.id];
+    const suggested = suggestedByReq[req.id] || [];
+    const isOverdue = req.due_date && !DONE.includes(req.status) && new Date(req.due_date + "T00:00:00") < TODAY;
+    const overAllowance = sel && (sel.over_allowance || 0) > 0;
+    const missingSuggested = (req.customer_catalogue_access_mode || "suggested_only") === "suggested_only" && suggested.length === 0 && !DONE.includes(req.status);
+    return { req, area, sel, cat, proc, suggested, isOverdue, overAllowance, missingSuggested };
+  });
+
+  const filtered = rows.filter(row => {
+    if (filter === "all") return true;
+    if (filter === "outstanding") return !DONE.includes(row.req.status);
+    if (filter === "pending_customer") return ["Not Started", "Viewed", "In Progress", "Revision Requested"].includes(row.req.status);
+    if (filter === "pending_approval") return row.sel?.status === "Pending";
+    if (filter === "approved") return row.req.status === "Approved";
+    if (filter === "overdue") return row.isOverdue;
+    if (filter === "over_allowance") return row.overAllowance;
+    if (filter === "ready_to_order") return row.req.status === "Ready to Order";
+    if (filter === "ordered") return row.req.status === "Ordered";
+    if (filter === "installed") return row.req.status === "Installed";
+    if (filter === "missing_suggested") return row.missingSuggested;
+    return true;
+  });
+
+  const filters = [
+    { value: "all", label: "All" },
+    { value: "outstanding", label: "Outstanding" },
+    { value: "pending_customer", label: "Pending Customer" },
+    { value: "pending_approval", label: "Pending Approval" },
+    { value: "approved", label: "Approved" },
+    { value: "overdue", label: "Overdue" },
+    { value: "over_allowance", label: "Over Allowance" },
+    { value: "ready_to_order", label: "Ready to Order" },
+    { value: "ordered", label: "Ordered" },
+    { value: "installed", label: "Installed" },
+    { value: "missing_suggested", label: "Missing Suggested" }
+  ];
+
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Selection</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Area</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Category</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Due</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-500">Allowance</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {requirements.map(req => {
-              const area = areas.find(a => a.id === req.area_id);
-              const sel = selections.find(s => s.requirement_id === req.id && s.is_current);
-              return (
-                <tr key={req.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <Link to={`/projects/${projectId}/area/${req.area_id}/requirement/${req.id}`} className="font-medium text-gray-900 hover:text-blue-600">
-                      {req.name}
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-1.5">
+        {filters.map(f => (
+          <button key={f.value} onClick={() => setFilter(f.value)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filter === f.value ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-3 py-3 font-medium text-gray-500 whitespace-nowrap">Area</th>
+                <th className="text-left px-3 py-3 font-medium text-gray-500 whitespace-nowrap">Requirement</th>
+                <th className="text-left px-3 py-3 font-medium text-gray-500 whitespace-nowrap">Req.</th>
+                <th className="text-left px-3 py-3 font-medium text-gray-500 whitespace-nowrap">Due</th>
+                <th className="text-left px-3 py-3 font-medium text-gray-500 whitespace-nowrap">Status</th>
+                <th className="text-left px-3 py-3 font-medium text-gray-500 whitespace-nowrap">Selected Item</th>
+                <th className="text-left px-3 py-3 font-medium text-gray-500 whitespace-nowrap">Options</th>
+                <th className="text-right px-3 py-3 font-medium text-gray-500 whitespace-nowrap">Allowance</th>
+                <th className="text-right px-3 py-3 font-medium text-gray-500 whitespace-nowrap">Price</th>
+                <th className="text-right px-3 py-3 font-medium text-gray-500 whitespace-nowrap">Over/Credit</th>
+                <th className="text-left px-3 py-3 font-medium text-gray-500 whitespace-nowrap">Approval</th>
+                <th className="text-left px-3 py-3 font-medium text-gray-500 whitespace-nowrap">Procurement</th>
+                <th className="text-center px-3 py-3 font-medium text-gray-500 whitespace-nowrap">Suggested</th>
+                <th className="text-left px-3 py-3 font-medium text-gray-500 whitespace-nowrap">Updated</th>
+                <th className="text-center px-3 py-3 font-medium text-gray-500 whitespace-nowrap"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {filtered.length === 0 ? (
+                <tr><td colSpan={15} className="px-4 py-10 text-center text-gray-400">No selections match this filter</td></tr>
+              ) : filtered.map(row => (
+                <tr key={row.req.id} className={`hover:bg-gray-50 ${row.isOverdue ? "bg-red-50/30" : ""}`}>
+                  <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{row.area?.name || "—"}</td>
+                  <td className="px-3 py-2.5">
+                    <Link to={`/projects/${projectId}/area/${row.req.area_id}/requirement/${row.req.id}`} className="font-medium text-gray-900 hover:text-blue-600">
+                      {row.req.name}
                     </Link>
-                    {req.is_required && <span className="ml-2 text-[10px] text-red-500 font-medium">REQUIRED</span>}
                   </td>
-                  <td className="px-4 py-3 text-gray-500">{area?.name || "—"}</td>
-                  <td className="px-4 py-3 text-gray-500">{req.category || "—"}</td>
-                  <td className="px-4 py-3"><StatusBadge status={req.status} /></td>
-                  <td className="px-4 py-3 text-gray-500">{req.due_date || "—"}</td>
-                  <td className="px-4 py-3 text-right text-gray-500">{req.allowance_amount ? `$${req.allowance_amount.toLocaleString()}` : "—"}</td>
+                  <td className="px-3 py-2.5">{row.req.is_required ? <span className="text-[10px] text-red-500 font-medium">REQ</span> : <span className="text-[10px] text-gray-400">OPT</span>}</td>
+                  <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
+                    {row.req.due_date ? <span className={row.isOverdue ? "text-red-600 font-medium" : ""}>{row.req.due_date}</span> : "—"}
+                  </td>
+                  <td className="px-3 py-2.5"><StatusBadge status={row.req.status} /></td>
+                  <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{row.cat?.name || "—"}</td>
+                  <td className="px-3 py-2.5 text-gray-500 text-xs">
+                    {(row.sel?.selected_options || []).map(o => o.option_name).join(", ") || "—"}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-gray-500 whitespace-nowrap">{row.req.allowance_amount ? `$${row.req.allowance_amount.toLocaleString()}` : "—"}</td>
+                  <td className="px-3 py-2.5 text-right text-gray-700 whitespace-nowrap">{row.sel?.calculated_price ? `$${row.sel.calculated_price.toLocaleString()}` : "—"}</td>
+                  <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                    {row.sel?.over_allowance > 0 ? <span className="text-red-600">+$${row.sel.over_allowance.toLocaleString()}</span> :
+                     row.sel?.under_allowance > 0 ? <span className="text-green-600">-$${row.sel.under_allowance.toLocaleString()}</span> : "—"}
+                  </td>
+                  <td className="px-3 py-2.5">{row.sel ? <StatusBadge status={row.sel.status} /> : <span className="text-gray-400 text-xs">—</span>}</td>
+                  <td className="px-3 py-2.5">{row.proc ? <StatusBadge status={row.proc.status} /> : <span className="text-gray-400 text-xs">—</span>}</td>
+                  <td className="px-3 py-2.5 text-center">
+                    {row.suggested.length > 0 ? <span className="text-xs text-gray-600">{row.suggested.length}</span> :
+                     row.missingSuggested ? <span className="text-xs text-red-500">⚠</span> : <span className="text-gray-400 text-xs">—</span>}
+                  </td>
+                  <td className="px-3 py-2.5 text-gray-400 text-xs whitespace-nowrap">{row.sel?.updated_date ? new Date(row.sel.updated_date).toLocaleDateString() : row.req.updated_date ? new Date(row.req.updated_date).toLocaleDateString() : "—"}</td>
+                  <td className="px-3 py-2.5 text-center">
+                    <Link to={`/projects/${projectId}/area/${row.req.area_id}/requirement/${row.req.id}`} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Open →</Link>
+                  </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

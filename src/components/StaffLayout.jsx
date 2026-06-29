@@ -3,13 +3,14 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, FolderKanban, BookOpen, Package, Bell, RefreshCw, Truck, ClipboardList, Palette, FileText,
-  ChevronLeft, ChevronRight, LogOut, Menu, X, Settings, FlaskConical, GraduationCap, Shield
+  ChevronLeft, ChevronRight, LogOut, Menu, X, Settings, FlaskConical, GraduationCap, Shield, ClipboardCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import WalkthroughManager from "@/components/training/WalkthroughManager";
 
 const NAV_ITEMS = [
   { label: "Dashboard", path: "/", icon: LayoutDashboard, navId: "dashboard" },
+  { label: "Selections Tracker", path: "/selections-tracker", icon: ClipboardCheck, navId: "selections-tracker" },
   { label: "Projects", path: "/projects", icon: FolderKanban, navId: "projects" },
   { label: "Catalogue", path: "/catalogue", icon: Package, navId: "catalogue" },
   { label: "Templates", path: "/templates", icon: BookOpen, navId: "templates" },

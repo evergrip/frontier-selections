@@ -11,8 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import StatusBadge from "@/components/ui/StatusBadge";
 import CommentThread from "@/components/comments/CommentThread";
 import SignOffControls from "@/components/selection/SignOffControls";
-import { SELECTION_STATUSES } from "@/lib/constants";
+import { SELECTION_STATUSES, CATALOGUE_ACCESS_MODES, hasPermission } from "@/lib/constants";
 import ContextualHelpLink from "@/components/training/ContextualHelpLink";
+import SuggestedOptionsManager from "@/components/selection/SuggestedOptionsManager";
 
 function assembleItem(item, groups, values, rules) {
   const itemGroups = (groups || [])
@@ -205,6 +206,27 @@ export default function RequirementDetail() {
     load();
   }
 
+  async function handleAccessModeChange(newMode) {
+    const oldMode = requirement.customer_catalogue_access_mode || "suggested_only";
+    try {
+      await base44.entities.SelectionRequirement.update(requirementId, { customer_catalogue_access_mode: newMode });
+      await base44.entities.AuditLog.create({
+        target_type: "requirement",
+        target_id: requirementId,
+        action: "catalogue_access_mode_changed",
+        description: "Customer catalogue access mode changed",
+        actor_user_id: user?.id,
+        actor_name: user?.full_name || user?.email,
+        project_id: projectId,
+        field: "customer_catalogue_access_mode",
+        old_value: oldMode,
+        new_value: newMode,
+        severity: "medium"
+      });
+    } catch (e) { alert("Failed to change access mode"); }
+    load();
+  }
+
   if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
   if (!requirement) return <div className="p-8 text-center text-gray-400">Requirement not found</div>;
 
@@ -244,7 +266,23 @@ export default function RequirementDetail() {
             <SelectContent>{SELECTION_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
           </Select>
         </div>
+
+        <div className="border-t border-gray-100 pt-3">
+          <Label className="text-xs text-gray-500">Customer Catalogue Access Mode:</Label>
+          <Select
+            value={requirement.customer_catalogue_access_mode || "suggested_only"}
+            onValueChange={handleAccessModeChange}
+            disabled={!hasPermission(user, "set_catalogue_access_mode")}
+          >
+            <SelectTrigger className="w-full mt-1 text-xs h-8"><SelectValue /></SelectTrigger>
+            <SelectContent>{CATALOGUE_ACCESS_MODES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
       </div>
+
+      {hasPermission(user, "manage_suggested_options") || hasPermission(user, "preview_customer_view") ? (
+        <SuggestedOptionsManager requirement={requirement} projectId={projectId} areaId={areaId} user={user} onUpdated={load} />
+      ) : null}
 
       {selection ? (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

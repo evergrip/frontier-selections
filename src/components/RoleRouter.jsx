@@ -7,6 +7,7 @@ import StaffLayout from "@/components/StaffLayout";
 import CustomerLayout from "@/components/CustomerLayout";
 
 import StaffDashboard from "@/pages/StaffDashboard";
+import SelectionsTracker from "@/pages/SelectionsTracker";
 import Projects from "@/pages/Projects";
 import ProjectDetail from "@/pages/ProjectDetail";
 import AreaDetail from "@/pages/AreaDetail";
@@ -82,6 +83,7 @@ export default function RoleRouter() {
       <Routes>
         <Route element={<StaffLayout />}>
           <Route path="/" element={<StaffDashboard />} />
+          <Route path="/selections-tracker" element={<SelectionsTracker />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/projects/:projectId" element={<ProjectDetail />} />
           <Route path="/projects/:projectId/area/:areaId" element={<AreaDetail />} />
