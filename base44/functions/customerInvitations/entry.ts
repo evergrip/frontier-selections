@@ -21,14 +21,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    async function sendInviteEmail(email, customerName, projectNames) {
+    async function sendInviteEmail(email, customerName, projectNames, invitationId) {
       const projectList = projectNames.length > 1 
         ? `Projects:\n${projectNames.map(n => `• ${n}`).join('\n')}`
         : `Project: ${projectNames[0] || 'your project'}`;
-      const emailBody = `Hello ${customerName || ''},\n\nYou've been invited to access Frontier Selections.\n\n${projectList}\n\nNext Steps:\n1. Go to: ${portalUrl}\n2. Click "Register" and create your account using this email address\n3. Once logged in, you'll see your project(s) in the customer portal\n\nQuestions? Reply to this email.\n\nThank you,\nFrontier Building Group`;
+      const inviteLink = `${portalUrl}?invite=${invitationId}`;
+      const emailBody = `Hello ${customerName || ''},\n\nYou've been invited to Frontier Selections.\n\n${projectList}\n\nTo get started: ${inviteLink}\n\nThis invitation expires on ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.\n\nThank you,\nFrontier Building Group`;
       
       const emailRes = await base44.functions.invoke("sendNotifications", {
-        action: "sendEmail", to: email, subject: "Your Frontier Selections Portal Access",
+        action: "sendEmail", to: email, subject: "You've been invited to Frontier Selections",
         body: emailBody, from_name: "Frontier Building Group"
       });
       return emailRes.data;
@@ -77,7 +78,7 @@ Deno.serve(async (req) => {
 
       let emailResult = null, emailError = null;
       try {
-        emailResult = await sendInviteEmail(email, customer_name, project_names || []);
+        emailResult = await sendInviteEmail(email, customer_name, project_names || [], invitation.id);
         if (emailResult && !emailResult.email_sent) emailError = emailResult.reason || emailResult.error;
       } catch (e) { emailError = e.message; }
 
@@ -114,7 +115,7 @@ Deno.serve(async (req) => {
 
       let emailResult = null, emailError = null;
       try {
-        emailResult = await sendInviteEmail(invitation.email, invitation.customer_name, invitation.project_names || []);
+        emailResult = await sendInviteEmail(invitation.email, invitation.customer_name, invitation.project_names || [], invitation_id);
         if (emailResult && !emailResult.email_sent) emailError = emailResult.reason || emailResult.error;
       } catch (e) { emailError = e.message; }
 
