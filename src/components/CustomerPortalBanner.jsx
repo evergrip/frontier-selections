@@ -32,8 +32,10 @@ export default function CustomerPortalBanner() {
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm truncate">
               {isPreview 
-                ? `Previewing customer portal as ${customer.customer_name} - Read only. No changes will be saved.`
-                : `Acting as ${customer.customer_name}. Changes will be recorded as staff acting on behalf of customer.`
+                ? customer 
+                  ? `Previewing customer portal as ${customer.customer_name} - Read only. No changes will be saved.`
+                  : `Previewing customer portal - Read only. No changes will be saved.`
+                : `Acting as ${customer?.customer_name || 'customer'}. Changes will be recorded as staff acting on behalf of customer.`
               }
             </p>
             {isAct && reason && (
@@ -42,7 +44,7 @@ export default function CustomerPortalBanner() {
               </p>
             )}
             <p className="text-xs text-blue-100 mt-0.5">
-              Project: {project.name}
+              Project: {project?.name || 'N/A'}
             </p>
           </div>
         </div>
