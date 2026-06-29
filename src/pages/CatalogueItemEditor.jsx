@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CATEGORIES } from "@/lib/constants";
+import { CATEGORIES, ITEM_STATUSES } from "@/lib/constants";
 import OptionValueEditor from "@/components/catalogue/OptionValueEditor";
 
 const emptyItem = {
@@ -53,7 +53,7 @@ export default function CatalogueItemEditor() {
         .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
         .map(v => ({
           id: v.id, name: v.name, price_modifier: v.price_modifier || 0, is_active: v.is_active !== false,
-          image: v.image || "", customer_note: v.customer_note || "", internal_note: v.internal_note || "",
+          status: v.status || "Active", image: v.image || "", customer_note: v.customer_note || "", internal_note: v.internal_note || "",
           warnings: v.warnings || [], requires_approval: !!v.requires_approval, sku: v.sku || ""
         }))
     }));
@@ -141,7 +141,7 @@ export default function CatalogueItemEditor() {
         const vPayload = {
           option_group_id: groupId, catalogue_item_id: itemId, name: o.name,
           price_modifier: o.price_modifier || 0, display_order: oi,
-          is_active: o.is_active !== false, requires_approval: !!o.requires_approval,
+          is_active: o.is_active !== false, status: o.status || "Active", requires_approval: !!o.requires_approval,
           warnings: o.warnings || [], image: o.image || "",
           customer_note: o.customer_note || "", internal_note: o.internal_note || "",
           sku: o.sku || ""
@@ -208,7 +208,7 @@ export default function CatalogueItemEditor() {
   function addOption(groupId) {
     const optId = "new_opt_" + Date.now();
     update("option_groups", form.option_groups.map(g =>
-      g.id === groupId ? { ...g, options: [...g.options, { id: optId, name: "", price_modifier: 0, is_active: true, image: "", customer_note: "", internal_note: "", warnings: [], requires_approval: false, sku: "" }] } : g
+      g.id === groupId ? { ...g, options: [...g.options, { id: optId, name: "", price_modifier: 0, is_active: true, status: "Active", image: "", customer_note: "", internal_note: "", warnings: [], requires_approval: false, sku: "" }] } : g
     ));
   }
   function updateOption(groupId, optionId, field, value) {
@@ -271,11 +271,7 @@ export default function CatalogueItemEditor() {
               <div><Label>Status</Label>
                 <Select value={form.status} onValueChange={v => update("status", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Draft">Draft</SelectItem>
-                    <SelectItem value="Active">Active</SelectItem>
-                    <SelectItem value="Discontinued">Discontinued</SelectItem>
-                  </SelectContent>
+                  <SelectContent>{ITEM_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </div>
@@ -290,7 +286,6 @@ export default function CatalogueItemEditor() {
             <div><Label>Internal Staff Notes</Label><Textarea value={form.internal_notes} onChange={e => update("internal_notes", e.target.value)} rows={2} /></div>
             <div><Label>Install Complexity</Label><Input value={form.install_complexity} onChange={e => update("install_complexity", e.target.value)} /></div>
             <div className="flex flex-wrap gap-6">
-              <label className="flex items-center gap-2 text-sm"><Switch checked={form.status === "Active"} onCheckedChange={v => update("status", v ? "Active" : "Draft")} /> Active</label>
               <label className="flex items-center gap-2 text-sm"><Switch checked={form.taxable} onCheckedChange={v => update("taxable", v)} /> Taxable</label>
               <label className="flex items-center gap-2 text-sm"><Switch checked={form.labour_included} onCheckedChange={v => update("labour_included", v)} /> Labour Included</label>
             </div>

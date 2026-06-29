@@ -1,0 +1,132 @@
+{
+  "name": "SubstitutionRecommendation",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "area_id": {
+      "type": "string"
+    },
+    "requirement_id": {
+      "type": "string"
+    },
+    "selection_id": {
+      "type": "string"
+    },
+    "original_item_id": {
+      "type": "string"
+    },
+    "original_item_name": {
+      "type": "string"
+    },
+    "original_selected_options": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "group_name": {
+            "type": "string"
+          },
+          "option_name": {
+            "type": "string"
+          },
+          "price_modifier": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "recommended_item_id": {
+      "type": "string"
+    },
+    "recommended_item_name": {
+      "type": "string"
+    },
+    "recommended_options": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string"
+          },
+          "group_name": {
+            "type": "string"
+          },
+          "option_id": {
+            "type": "string"
+          },
+          "option_name": {
+            "type": "string"
+          },
+          "price_modifier": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "recommended_price": {
+      "type": "number",
+      "default": 0
+    },
+    "reason": {
+      "type": "string"
+    },
+    "price_impact": {
+      "type": "number",
+      "default": 0
+    },
+    "allowance_impact": {
+      "type": "number",
+      "default": 0
+    },
+    "schedule_impact": {
+      "type": "string"
+    },
+    "staff_note": {
+      "type": "string"
+    },
+    "customer_explanation": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Draft",
+        "Sent to customer",
+        "Customer accepted",
+        "Customer rejected",
+        "Staff approved",
+        "Cancelled"
+      ],
+      "default": "Draft"
+    },
+    "customer_note": {
+      "type": "string"
+    },
+    "sent_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "customer_decision_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "staff_approved_by": {
+      "type": "string"
+    },
+    "staff_approved_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "created_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id",
+    "requirement_id",
+    "selection_id"
+  ]
+}

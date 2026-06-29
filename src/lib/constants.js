@@ -35,6 +35,21 @@ export const PROCUREMENT_STATUSES = [
   "Substitution Required"
 ];
 
+export const ITEM_STATUSES = [
+  "Draft", "Active", "Inactive", "Discontinued", "Temporarily Unavailable",
+  "Backordered", "Special Order Only", "Substitution Recommended"
+];
+
+export const OPTION_STATUSES = [
+  "Active", "Inactive", "Discontinued", "Temporarily Unavailable",
+  "Backordered", "Special Order Only", "Substitution Recommended"
+];
+
+export const SUBSTITUTION_STATUSES = [
+  "Draft", "Sent to customer", "Customer accepted", "Customer rejected",
+  "Staff approved", "Cancelled"
+];
+
 export const STATUS_COLORS = {
   "Draft": "bg-gray-100 text-gray-700",
   "Active": "bg-emerald-100 text-emerald-700",
@@ -73,7 +88,17 @@ export const STATUS_COLORS = {
   "Ordered Item Conflict": "bg-red-100 text-red-700",
   "Signed off": "bg-violet-100 text-violet-700",
   "Pending approval": "bg-amber-100 text-amber-700",
-  "Change request required": "bg-orange-100 text-orange-700"
+  "Change request required": "bg-orange-100 text-orange-700",
+  "Inactive": "bg-gray-100 text-gray-600",
+  "Temporarily Unavailable": "bg-orange-100 text-orange-700",
+  "Special Order Only": "bg-purple-100 text-purple-700",
+  "Substitution Recommended": "bg-rose-100 text-rose-700",
+  "Draft": "bg-gray-100 text-gray-600",
+  "Sent to customer": "bg-blue-100 text-blue-700",
+  "Customer accepted": "bg-emerald-100 text-emerald-700",
+  "Customer rejected": "bg-red-100 text-red-700",
+  "Staff approved": "bg-green-100 text-green-700",
+  "Cancelled": "bg-gray-100 text-gray-500"
 };
 
 export function customerDisplayStatus(req, sel, hasOpenChangeRequest) {

@@ -47,6 +47,19 @@
     "is_active": {
       "type": "boolean",
       "default": true
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Active",
+        "Inactive",
+        "Discontinued",
+        "Temporarily Unavailable",
+        "Backordered",
+        "Special Order Only",
+        "Substitution Recommended"
+      ],
+      "default": "Active"
     }
   },
   "required": [

@@ -110,7 +110,12 @@
       "enum": [
         "Draft",
         "Active",
-        "Discontinued"
+        "Inactive",
+        "Discontinued",
+        "Temporarily Unavailable",
+        "Backordered",
+        "Special Order Only",
+        "Substitution Recommended"
       ],
       "default": "Active"
     }

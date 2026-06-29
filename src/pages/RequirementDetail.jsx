@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Check, X, RotateCcw, AlertTriangle, Clock, PackageX, Tag, Edit2, History } from "lucide-react";
+import { ArrowLeft, Check, X, RotateCcw, AlertTriangle, Clock, PackageX, Tag, Edit2, History, ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -63,6 +63,7 @@ export default function RequirementDetail() {
   const [projectMb, setProjectMb] = useState([]);
   const [proc, setProc] = useState(null);
   const [audit, setAudit] = useState([]);
+  const [substitutions, setSubstitutions] = useState([]);
 
   useEffect(() => { load(); }, [requirementId]);
 
@@ -90,13 +91,15 @@ export default function RequirementDetail() {
       setAssembledItem(null);
     }
     if (current) {
-      const [procItems, auditEntries] = await Promise.all([
+      const [procItems, auditEntries, subs] = await Promise.all([
         base44.entities.ProcurementItem.filter({ selection_id: current.id }),
-        base44.entities.AuditLog.filter({ target_type: "selection", target_id: current.id })
+        base44.entities.AuditLog.filter({ target_type: "selection", target_id: current.id }),
+        base44.entities.SubstitutionRecommendation.filter({ selection_id: current.id })
       ]);
       setProc(procItems[0] || null);
       setAudit(auditEntries);
-    } else { setProc(null); setAudit([]); }
+      setSubstitutions(subs);
+    } else { setProc(null); setAudit([]); setSubstitutions([]); }
     const linkedMbItems = await base44.entities.MoodBoardItem.filter({ linked_requirement_id: requirementId });
     setLinkedMb(linkedMbItems);
     setLoading(false);
@@ -145,9 +148,22 @@ export default function RequirementDetail() {
         }
       });
     }
-    if (catalogueItem.status && catalogueItem.status !== "Active") {
-      list.push({ icon: PackageX, tone: "red", text: `Catalogue item is ${catalogueItem.status}` });
+    const itemStatus = catalogueItem.status;
+    if (["Discontinued", "Inactive", "Temporarily Unavailable"].includes(itemStatus)) {
+      list.push({ icon: PackageX, tone: "red", text: `Catalogue item is ${itemStatus} — substitution recommended` });
+    } else if (["Backordered", "Special Order Only", "Substitution Recommended"].includes(itemStatus)) {
+      list.push({ icon: AlertTriangle, tone: "amber", text: `Catalogue item is ${itemStatus}` });
     }
+    (selection.selected_options || []).forEach(o => {
+      const group = assembledItem.option_groups.find(g => g.id === o.group_id);
+      const opt = group?.options.find(opt => opt.id === o.option_id);
+      const os = opt?.status;
+      if (os && ["Discontinued", "Inactive", "Temporarily Unavailable"].includes(os)) {
+        list.push({ icon: PackageX, tone: "red", text: `Option "${o.option_name}" is ${os}` });
+      } else if (os && ["Backordered", "Special Order Only", "Substitution Recommended"].includes(os)) {
+        list.push({ icon: AlertTriangle, tone: "amber", text: `Option "${o.option_name}" is ${os}` });
+      }
+    });
     if (catalogueItem.lead_time) {
       list.push({ icon: Clock, tone: "amber", text: `Lead time: ${catalogueItem.lead_time}` });
     }
@@ -344,6 +360,30 @@ export default function RequirementDetail() {
       )}
 
       <SignOffControls selection={selection} procurement={proc} audit={audit} onDone={load} />
+
+      {selection && selection.status === "Approved" && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900 text-sm">Substitutions</h2>
+            <Button size="sm" variant="outline" asChild><Link to={`/substitution/new?selection=${selection.id}`} className="gap-2"><ArrowLeftRight size={14} /> Recommend Substitution</Link></Button>
+          </div>
+          {substitutions.length === 0 ? (
+            <p className="text-sm text-gray-400">No substitution recommendations.</p>
+          ) : (
+            <div className="space-y-2">
+              {substitutions.map(s => (
+                <Link key={s.id} to={`/substitution/${s.id}`} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 hover:bg-gray-100">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{s.original_item_name} → {s.recommended_item_name}</p>
+                    <p className="text-xs text-gray-500">{s.reason}</p>
+                  </div>
+                  <StatusBadge status={s.status} />
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {ledger.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-5">

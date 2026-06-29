@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { customerDisplayStatus } from "@/lib/constants";
+import CustomerSubstitution from "@/components/selection/CustomerSubstitution";
 
 function assembleItem(item, groups, values, rules) {
   const itemGroups = (groups || [])
@@ -351,6 +352,10 @@ export default function CustomerSelectionView() {
           )}
           <RevisionHistory selections={allSelections} />
         </>
+      )}
+
+      {existingSelection && (
+        <CustomerSubstitution projectId={projectId} selectionId={existingSelection.id} showPricing={showPricing} />
       )}
 
       {existingSelection && (

@@ -14,7 +14,8 @@
         "selection",
         "change_request",
         "mood_board",
-        "procurement"
+        "procurement",
+        "substitution"
       ]
     },
     "target_id": {

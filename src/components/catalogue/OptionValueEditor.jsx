@@ -6,6 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { OPTION_STATUSES } from "@/lib/constants";
 
 export default function OptionValueEditor({ option, onUpdate, onRemove }) {
   const [expanded, setExpanded] = useState(false);
@@ -60,6 +62,13 @@ export default function OptionValueEditor({ option, onUpdate, onRemove }) {
           <div>
             <Label className="text-xs">Warning Messages (comma-separated)</Label>
             <Input value={(option.warnings || []).join(", ")} onChange={e => onUpdate("warnings", e.target.value.split(",").map(s => s.trim()).filter(Boolean))} className="bg-white mt-1" placeholder="e.g. Requires extra lead time, Special order" />
+          </div>
+          <div>
+            <Label className="text-xs">Availability Status</Label>
+            <Select value={option.status || "Active"} onValueChange={v => onUpdate("status", v)}>
+              <SelectTrigger className="bg-white mt-1 text-xs h-8"><SelectValue /></SelectTrigger>
+              <SelectContent>{OPTION_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+            </Select>
           </div>
           <label className="flex items-center gap-2 text-xs">
             <Switch checked={!!option.requires_approval} onCheckedChange={v => onUpdate("requires_approval", v)} /> Requires Staff Approval
