@@ -131,32 +131,30 @@ export default function RequirementDetail() {
 
   const warnings = useMemo(() => {
     const list = [];
-    if (!selection || !catalogueItem) return list;
+    if (!selection || !catalogueItem || !assembledItem) return list;
     const selMap = {};
     (selection.selected_options || []).forEach(o => { selMap[o.group_id] = o.option_id; });
     if ((selection.over_allowance || 0) > 0) {
       list.push({ icon: AlertTriangle, tone: "red", text: `Over allowance by $${selection.over_allowance.toLocaleString()}` });
     }
-    if (assembledItem) {
-      (assembledItem.option_groups || []).forEach(g => {
-        if (g.is_required && !selMap[g.id]) {
-          list.push({ icon: AlertTriangle, tone: "red", text: `Missing required option: ${g.name}` });
-        }
-      });
-      (selection.selected_options || []).forEach(o => {
-        const avail = getAvailableOptions(assembledItem, o.group_id, selMap);
-        if (!avail.some(opt => opt.id === o.option_id)) {
-          list.push({ icon: PackageX, tone: "red", text: `"${o.option_name}" is no longer available for this combination` });
-        }
-      });
-      (selection.selected_options || []).forEach(o => {
-        const group = assembledItem.option_groups.find(g => g.id === o.group_id);
-        const opt = group?.options.find(opt => opt.id === o.option_id);
-        if (opt?.requires_approval) {
-          list.push({ icon: Tag, tone: "amber", text: `"${o.option_name}" is a special-order item requiring approval` });
-        }
-      });
-    }
+    (assembledItem.option_groups || []).forEach(g => {
+      if (g.is_required && !selMap[g.id]) {
+        list.push({ icon: AlertTriangle, tone: "red", text: `Missing required option: ${g.name}` });
+      }
+    });
+    (selection.selected_options || []).forEach(o => {
+      const avail = getAvailableOptions(assembledItem, o.group_id, selMap);
+      if (!avail.some(opt => opt.id === o.option_id)) {
+        list.push({ icon: PackageX, tone: "red", text: `"${o.option_name}" is no longer available for this combination` });
+      }
+    });
+    (selection.selected_options || []).forEach(o => {
+      const group = assembledItem.option_groups.find(g => g.id === o.group_id);
+      const opt = group?.options.find(opt => opt.id === o.option_id);
+      if (opt?.requires_approval) {
+        list.push({ icon: Tag, tone: "amber", text: `"${o.option_name}" is a special-order item requiring approval` });
+      }
+    });
     const itemStatus = catalogueItem.status;
     if (["Discontinued", "Inactive", "Temporarily Unavailable"].includes(itemStatus)) {
       list.push({ icon: PackageX, tone: "red", text: `Catalogue item is ${itemStatus} — substitution recommended` });
@@ -164,7 +162,7 @@ export default function RequirementDetail() {
       list.push({ icon: AlertTriangle, tone: "amber", text: `Catalogue item is ${itemStatus}` });
     }
     (selection.selected_options || []).forEach(o => {
-      const group = assembledItem.option_groups.find(g => g.id === o.group_id);
+      const group = assembledItem?.option_groups?.find(g => g.id === o.group_id);
       const opt = group?.options.find(opt => opt.id === o.option_id);
       const os = opt?.status;
       if (os && ["Discontinued", "Inactive", "Temporarily Unavailable"].includes(os)) {
