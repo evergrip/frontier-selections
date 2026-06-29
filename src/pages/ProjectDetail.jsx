@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Plus, Settings, MapPin, Calendar, DollarSign, Edit2, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Plus, Settings, MapPin, Calendar, DollarSign, Edit2, Eye, EyeOff, GitBranch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,9 +66,14 @@ export default function ProjectDetail() {
           </div>
           <p className="text-sm text-gray-500 mt-0.5">{project.client_name}{project.address ? ` • ${project.address}` : ""}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setShowEditProject(true)} className="gap-2">
-          <Settings size={14} /> Settings
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild className="gap-2">
+            <Link to={`/projects/${projectId}/dependencies`}><GitBranch size={14} /> Dependencies</Link>
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowEditProject(true)} className="gap-2">
+            <Settings size={14} /> Settings
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import CommentThread from "@/components/comments/CommentThread";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, Package, CheckCircle, AlertTriangle, RefreshCw, History, FileSignature, Lock } from "lucide-react";
+import { ArrowLeft, Check, Package, CheckCircle, AlertTriangle, RefreshCw, History, FileSignature, Lock, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -53,6 +53,7 @@ export default function CustomerSelectionView() {
   const [changeRequests, setChangeRequests] = useState([]);
   const [showSignOff, setShowSignOff] = useState(false);
   const [signOffNote, setSignOffNote] = useState("");
+  const [dependencies, setDependencies] = useState([]);
 
   useEffect(() => {
     async function load() {
@@ -84,6 +85,14 @@ export default function CustomerSelectionView() {
         .map(item => assembleItem(item, groups, values, rules));
       setCatalogueItems(items);
 
+      const deps = await base44.entities.SelectionDependency.filter({ dependent_requirement_id: requirementId, is_active: true });
+      const resolved = await Promise.all(deps.map(async d => {
+        const parentReq = await base44.entities.SelectionRequirement.get(d.parent_requirement_id);
+        const parentSels = await base44.entities.CustomerSelection.filter({ requirement_id: d.parent_requirement_id });
+        return { dep: d, parentReq, parentSel: parentSels.find(s => s.is_current) || null };
+      }));
+      setDependencies(resolved);
+
       if (current && ["Revision Requested", "Rejected"].includes(current.status)) {
         const item = items.find(i => i.id === current.catalogue_item_id);
         if (item) {
@@ -99,6 +108,51 @@ export default function CustomerSelectionView() {
     }
     load();
   }, [requirementId]);
+
+  const allowedOptionIds = useMemo(() => {
+    const limitDeps = dependencies.filter(d => d.dep.dependency_type === "Limits available option values");
+    return limitDeps.length > 0 ? new Set(limitDeps.flatMap(d => d.dep.allowed_option_value_ids || [])) : null;
+  }, [dependencies]);
+
+  const allowedItemIds = useMemo(() => {
+    const limitDeps = dependencies.filter(d => d.dep.dependency_type === "Limits available catalogue items");
+    if (limitDeps.length === 0) return null;
+    let result = new Set(limitDeps[0].dep.allowed_catalogue_item_ids || []);
+    for (let i = 1; i < limitDeps.length; i++) {
+      const next = new Set(limitDeps[i].dep.allowed_catalogue_item_ids || []);
+      result = new Set([...result].filter(x => next.has(x)));
+    }
+    return result;
+  }, [dependencies]);
+
+  const dependencyInfo = useMemo(() => {
+    const messages = [];
+    let blocked = false;
+    for (const { dep, parentReq, parentSel } of dependencies) {
+      const parentSubmitted = !!parentSel && !["Rejected", "Superseded"].includes(parentSel.status);
+      const parentApproved = !!parentSel && ["Approved", "Ready to Order", "Ordered", "Received", "Delivered to Site", "Installed", "Locked"].includes(parentSel.status);
+      const type = dep.dependency_type;
+      const msg = dep.warning_message || `Please complete "${parentReq?.name || "a prerequisite selection"}" first.`;
+      if (type === "Requires parent selection first") {
+        if (!parentSubmitted) { messages.push({ severity: "block", message: msg }); blocked = true; }
+      } else if (type === "Blocks approval until parent approved") {
+        if (!parentApproved) messages.push({ severity: "warn", message: msg });
+      } else if (type === "Warning") {
+        messages.push({ severity: "warn", message: msg });
+      } else if (type === "Informational only") {
+        messages.push({ severity: "info", message: msg });
+      } else if (type === "Limits available catalogue items" || type === "Limits available option values") {
+        if (dep.blocks_submission && !parentSubmitted) { messages.push({ severity: "block", message: msg }); blocked = true; }
+        else if (dep.warning_message) messages.push({ severity: "info", message: msg });
+      }
+    }
+    return { messages, blocked };
+  }, [dependencies]);
+
+  const filteredCatalogueItems = useMemo(() => {
+    if (!allowedItemIds) return catalogueItems;
+    return catalogueItems.filter(i => allowedItemIds.has(i.id));
+  }, [catalogueItems, allowedItemIds]);
 
   function getAvailableOptions(item, groupId, selections = selectedOptions) {
     const group = item?.option_groups?.find(g => g.id === groupId);
@@ -116,6 +170,7 @@ export default function CustomerSelectionView() {
       const shownIds = new Set(showRules.map(r => r.target_option_id));
       available = available.filter(o => shownIds.has(o.id));
     }
+    if (allowedOptionIds) available = available.filter(o => allowedOptionIds.has(o.id));
     return available;
   }
 
@@ -170,7 +225,7 @@ export default function CustomerSelectionView() {
     const avail = getAvailableOptions(selectedItem, gId, selectedOptions);
     return !avail.some(o => o.id === selectedOptions[gId]);
   });
-  const canSubmit = selectedItem && missingRequired.length === 0 && invalidSelections.length === 0;
+  const canSubmit = selectedItem && missingRequired.length === 0 && invalidSelections.length === 0 && !dependencyInfo.blocked;
 
   const allowance = requirement?.allowance_amount || 0;
   const areaAllowance = area?.allowance || 0;
@@ -344,6 +399,21 @@ export default function CustomerSelectionView() {
         </div>
       )}
 
+      {dependencyInfo.messages.length > 0 && (
+        <div className="space-y-2">
+          {dependencyInfo.messages.map((m, i) => (
+            <div key={i} className={`rounded-xl p-4 text-sm flex items-start gap-2 ${
+              m.severity === "block" ? "bg-red-50 border border-red-200 text-red-800" :
+              m.severity === "warn" ? "bg-amber-50 border border-amber-200 text-amber-800" :
+              "bg-blue-50 border border-blue-200 text-blue-800"
+            }`}>
+              {m.severity === "block" ? <Lock size={16} className="mt-0.5 shrink-0" /> : m.severity === "warn" ? <AlertTriangle size={16} className="mt-0.5 shrink-0" /> : <Info size={16} className="mt-0.5 shrink-0" />}
+              <span>{m.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {isApproved && existingSelection && !changeMode && (
         <>
           <ApprovedSelectionView selection={existingSelection} items={catalogueItems} showItemPrices={showItemPrices} showItemAllowance={showItemAllowance} allowance={allowance} />
@@ -365,11 +435,11 @@ export default function CustomerSelectionView() {
       {step === "browse" && (changeMode || (canEdit && !isApproved)) && (
         <div>
           <h2 className="font-semibold text-gray-900 mb-4">Choose an Option</h2>
-          {catalogueItems.length === 0 ? (
+          {filteredCatalogueItems.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-xl border text-gray-400 text-sm">No catalogue items available for this category</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {catalogueItems.map(item => (
+              {filteredCatalogueItems.map(item => (
                 <button
                   key={item.id}
                   onClick={() => { setSelectedItem(item); setSelectedOptions({}); setStep("configure"); }}
@@ -548,7 +618,7 @@ export default function CustomerSelectionView() {
           )}
 
           <Button onClick={changeMode ? handleRequestChange : handleSubmit} disabled={(changeMode ? (!changeReason.trim() || !canSubmit) : !canSubmit) || submitting} className="w-full h-12 text-base" size="lg">
-            {submitting ? "Submitting..." : changeMode ? (canSubmit ? "Submit Change Request" : "Complete all required options") : canSubmit ? "Submit Selection" : "Complete all required options to submit"}
+            {submitting ? "Submitting..." : changeMode ? (canSubmit ? "Submit Change Request" : dependencyInfo.blocked ? "Complete prerequisite first" : "Complete all required options") : canSubmit ? "Submit Selection" : dependencyInfo.blocked ? "Complete prerequisite first" : "Complete all required options to submit"}
           </Button>
         </div>
       )}

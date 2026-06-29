@@ -50,6 +50,15 @@ export const SUBSTITUTION_STATUSES = [
   "Staff approved", "Cancelled"
 ];
 
+export const DEPENDENCY_TYPES = [
+  "Informational only",
+  "Warning",
+  "Requires parent selection first",
+  "Blocks approval until parent approved",
+  "Limits available catalogue items",
+  "Limits available option values"
+];
+
 export const STATUS_COLORS = {
   "Draft": "bg-gray-100 text-gray-700",
   "Active": "bg-emerald-100 text-emerald-700",
