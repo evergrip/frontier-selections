@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CATEGORIES } from "@/lib/constants";
+import OptionValueEditor from "@/components/catalogue/OptionValueEditor";
 
 const emptyItem = {
   name: "", category: "Other", supplier: "", brand: "", collection: "", sku: "",
@@ -50,7 +51,11 @@ export default function CatalogueItemEditor() {
       is_required: g.is_required !== false,
       options: (values || []).filter(v => v.option_group_id === g.id)
         .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-        .map(v => ({ id: v.id, name: v.name, price_modifier: v.price_modifier || 0, is_active: v.is_active !== false }))
+        .map(v => ({
+          id: v.id, name: v.name, price_modifier: v.price_modifier || 0, is_active: v.is_active !== false,
+          image: v.image || "", customer_note: v.customer_note || "", internal_note: v.internal_note || "",
+          warnings: v.warnings || [], requires_approval: !!v.requires_approval, sku: v.sku || ""
+        }))
     }));
     const optionRules = (rules || []).map(r => ({
       id: r.id,
@@ -136,7 +141,10 @@ export default function CatalogueItemEditor() {
         const vPayload = {
           option_group_id: groupId, catalogue_item_id: itemId, name: o.name,
           price_modifier: o.price_modifier || 0, display_order: oi,
-          is_active: o.is_active !== false, requires_approval: false, warnings: []
+          is_active: o.is_active !== false, requires_approval: !!o.requires_approval,
+          warnings: o.warnings || [], image: o.image || "",
+          customer_note: o.customer_note || "", internal_note: o.internal_note || "",
+          sku: o.sku || ""
         };
         let valueId = o.id;
         if (!o.id || String(o.id).startsWith("new_")) {
@@ -200,7 +208,7 @@ export default function CatalogueItemEditor() {
   function addOption(groupId) {
     const optId = "new_opt_" + Date.now();
     update("option_groups", form.option_groups.map(g =>
-      g.id === groupId ? { ...g, options: [...g.options, { id: optId, name: "", price_modifier: 0, is_active: true }] } : g
+      g.id === groupId ? { ...g, options: [...g.options, { id: optId, name: "", price_modifier: 0, is_active: true, image: "", customer_note: "", internal_note: "", warnings: [], requires_approval: false, sku: "" }] } : g
     ));
   }
   function updateOption(groupId, optionId, field, value) {
@@ -303,14 +311,12 @@ export default function CatalogueItemEditor() {
               </div>
               <div className="space-y-2">
                 {group.options.map(opt => (
-                  <div key={opt.id} className="flex items-center gap-2 bg-gray-50 rounded-lg p-3">
-                    <Input value={opt.name} onChange={e => updateOption(group.id, opt.id, "name", e.target.value)} placeholder="Option name" className="flex-1 bg-white" />
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-gray-400">$</span>
-                      <Input type="number" value={opt.price_modifier || 0} onChange={e => updateOption(group.id, opt.id, "price_modifier", Number(e.target.value))} className="w-24 bg-white" />
-                    </div>
-                    <Button variant="ghost" size="icon" onClick={() => removeOption(group.id, opt.id)} className="text-gray-400 hover:text-red-500 shrink-0"><Trash2 size={14} /></Button>
-                  </div>
+                  <OptionValueEditor
+                    key={opt.id}
+                    option={opt}
+                    onUpdate={(field, value) => updateOption(group.id, opt.id, field, value)}
+                    onRemove={() => removeOption(group.id, opt.id)}
+                  />
                 ))}
               </div>
               <Button variant="outline" size="sm" onClick={() => addOption(group.id)} className="gap-1"><Plus size={12} /> Add Option</Button>

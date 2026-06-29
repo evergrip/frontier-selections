@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, Package, CheckCircle } from "lucide-react";
+import { ArrowLeft, Check, Package, CheckCircle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -80,26 +80,39 @@ export default function CustomerSelectionView() {
     load();
   }, [requirementId]);
 
-  function getAvailableOptions(item, groupId) {
-    if (!item?.option_groups || !item?.option_rules) return null;
-    const group = item.option_groups.find(g => g.id === groupId);
+  function getAvailableOptions(item, groupId, selections = selectedOptions) {
+    const group = item?.option_groups?.find(g => g.id === groupId);
     if (!group) return [];
-
     let available = group.options.filter(o => o.is_active !== false);
     const rules = item.option_rules || [];
-
     for (const rule of rules) {
-      if (rule.target_group_id !== groupId) continue;
-      const conditionMet = selectedOptions[rule.condition_group_id] === rule.condition_option_id;
-      if (!conditionMet) continue;
-
-      if (rule.action === "hide" && rule.target_option_id) {
+      if (rule.target_group_id !== groupId || rule.action !== "hide" || !rule.target_option_id) continue;
+      if (selections[rule.condition_group_id] === rule.condition_option_id) {
         available = available.filter(o => o.id !== rule.target_option_id);
-      } else if (rule.action === "show" && rule.target_option_id) {
-        // show-only rule: keep only shown options that match
       }
     }
+    const showRules = rules.filter(r => r.target_group_id === groupId && r.action === "show" && r.target_option_id && selections[r.condition_group_id] === r.condition_option_id);
+    if (showRules.length > 0) {
+      const shownIds = new Set(showRules.map(r => r.target_option_id));
+      available = available.filter(o => shownIds.has(o.id));
+    }
     return available;
+  }
+
+  function selectOption(groupId, optionId) {
+    setSelectedOptions(prev => {
+      const next = { ...prev, [groupId]: optionId };
+      if (!selectedItem) return next;
+      for (const g of selectedItem.option_groups || []) {
+        if (g.id === groupId) continue;
+        const sel = next[g.id];
+        if (sel) {
+          const avail = getAvailableOptions(selectedItem, g.id, next);
+          if (!avail.some(o => o.id === sel)) delete next[g.id];
+        }
+      }
+      return next;
+    });
   }
 
   const calculatedPrice = useMemo(() => {
@@ -114,6 +127,30 @@ export default function CustomerSelectionView() {
     });
     return total;
   }, [selectedItem, selectedOptions]);
+
+  const activeWarnings = useMemo(() => {
+    if (!selectedItem) return [];
+    const warnings = [];
+    for (const [gId, oId] of Object.entries(selectedOptions)) {
+      const group = selectedItem.option_groups.find(g => g.id === gId);
+      const opt = group?.options.find(o => o.id === oId);
+      if (opt?.warnings?.length) warnings.push(...opt.warnings);
+    }
+    for (const rule of selectedItem.option_rules || []) {
+      if (rule.action !== "add_warning") continue;
+      if (selectedOptions[rule.condition_group_id] === rule.condition_option_id && rule.value) {
+        warnings.push(rule.value);
+      }
+    }
+    return [...new Set(warnings)];
+  }, [selectedItem, selectedOptions]);
+
+  const missingRequired = (selectedItem?.option_groups || []).filter(g => g.is_required && !selectedOptions[g.id]);
+  const invalidSelections = Object.entries(selectedOptions).filter(([gId]) => {
+    const avail = getAvailableOptions(selectedItem, gId, selectedOptions);
+    return !avail.some(o => o.id === selectedOptions[gId]);
+  });
+  const canSubmit = selectedItem && missingRequired.length === 0 && invalidSelections.length === 0;
 
   const allowance = requirement?.allowance_amount || 0;
   const overAllowance = calculatedPrice > allowance ? calculatedPrice - allowance : 0;
@@ -254,35 +291,58 @@ export default function CustomerSelectionView() {
                 <h3 className="font-semibold text-gray-900 text-sm">
                   {group.name} {group.is_required && <span className="text-red-500">*</span>}
                 </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {(availableOpts || []).map(opt => {
-                    const isSelected = selectedOptions[group.id] === opt.id;
-                    return (
-                      <button
-                        key={opt.id}
-                        onClick={() => setSelectedOptions(prev => ({ ...prev, [group.id]: opt.id }))}
-                        className={`rounded-xl border-2 p-3 text-left transition-all ${
-                          isSelected ? "border-gray-900 bg-gray-50 ring-1 ring-gray-900" : "border-gray-200 hover:border-gray-400"
-                        }`}
-                      >
-                        {opt.image && <img src={opt.image} alt={opt.name} className="w-full aspect-square object-cover rounded-lg mb-2" />}
-                        <p className="font-medium text-sm text-gray-900">{opt.name}</p>
-                        {showPricing && opt.price_modifier !== 0 && (
-                          <p className={`text-xs mt-0.5 ${opt.price_modifier > 0 ? "text-red-600" : "text-green-600"}`}>
-                            {opt.price_modifier > 0 ? "+" : ""}${opt.price_modifier.toLocaleString()}
-                          </p>
-                        )}
-                        {opt.customer_note && <p className="text-[10px] text-gray-400 mt-1">{opt.customer_note}</p>}
-                        {isSelected && (
-                          <div className="flex justify-end mt-1"><Check size={16} className="text-gray-900" /></div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+                {availableOpts.length === 0 ? (
+                  <div className="bg-gray-50 border border-dashed border-gray-200 rounded-xl p-4 text-sm text-gray-400">
+                    No options available for this combination.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {availableOpts.map(opt => {
+                      const isSelected = selectedOptions[group.id] === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          onClick={() => selectOption(group.id, opt.id)}
+                          className={`rounded-xl border-2 p-3 text-left transition-all ${
+                            isSelected ? "border-gray-900 bg-gray-50 ring-1 ring-gray-900" : "border-gray-200 hover:border-gray-400"
+                          }`}
+                        >
+                          {opt.image && <img src={opt.image} alt={opt.name} className="w-full aspect-square object-cover rounded-lg mb-2" />}
+                          <p className="font-medium text-sm text-gray-900">{opt.name}</p>
+                          {showPricing && opt.price_modifier !== 0 && (
+                            <p className={`text-xs mt-0.5 ${opt.price_modifier > 0 ? "text-red-600" : "text-green-600"}`}>
+                              {opt.price_modifier > 0 ? "+" : ""}${opt.price_modifier.toLocaleString()}
+                            </p>
+                          )}
+                          {opt.customer_note && <p className="text-[10px] text-gray-400 mt-1">{opt.customer_note}</p>}
+                          {opt.requires_approval && (
+                            <p className="text-[10px] text-amber-600 mt-1">Requires staff approval</p>
+                          )}
+                          {isSelected && (
+                            <div className="flex justify-end mt-1"><Check size={16} className="text-gray-900" /></div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
+
+          {activeWarnings.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-1">
+              {activeWarnings.map((w, i) => (
+                <p key={i} className="text-sm text-amber-800 flex items-start gap-2"><AlertTriangle size={14} className="mt-0.5 shrink-0" /> {w}</p>
+              ))}
+            </div>
+          )}
+
+          {missingRequired.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
+              Please select: {missingRequired.map(g => g.name).join(", ")}
+            </div>
+          )}
 
           <div>
             <h3 className="font-semibold text-gray-900 text-sm mb-2">Notes for Staff</h3>
@@ -335,8 +395,8 @@ export default function CustomerSelectionView() {
             </div>
           )}
 
-          <Button onClick={handleSubmit} disabled={submitting} className="w-full h-12 text-base" size="lg">
-            {submitting ? "Submitting..." : "Submit Selection"}
+          <Button onClick={handleSubmit} disabled={!canSubmit || submitting} className="w-full h-12 text-base" size="lg">
+            {submitting ? "Submitting..." : canSubmit ? "Submit Selection" : "Complete all required options to submit"}
           </Button>
         </div>
       )}
