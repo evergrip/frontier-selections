@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import SelectionCard from "@/components/portal/SelectionCard";
+import { useProjectAccess } from "@/hooks/useProjectAccess";
 
 const DONE = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
 
@@ -13,6 +14,7 @@ export default function CustomerAreaView() {
   const [selections, setSelections] = useState([]);
   const [catalogueItems, setCatalogueItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { loading: accessLoading, hasAccess } = useProjectAccess(projectId);
 
   useEffect(() => {
     async function load() {
@@ -21,6 +23,7 @@ export default function CustomerAreaView() {
         base44.entities.SelectionRequirement.filter({ area_id: areaId }),
         base44.entities.CustomerSelection.filter({ area_id: areaId })
       ]);
+      if (a.project_id !== projectId) { setArea(null); setLoading(false); return; }
       setArea(a);
       setRequirements(r);
       const currentSels = s.filter(sel => sel.is_current);
@@ -33,9 +36,10 @@ export default function CustomerAreaView() {
       setLoading(false);
     }
     load();
-  }, [areaId]);
+  }, [areaId, projectId]);
 
-  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
+  if (loading || accessLoading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
+  if (!hasAccess) return <div className="p-8 text-center text-gray-400">You don't have access to this project.</div>;
   if (!area) return <div className="text-center py-20 text-gray-400">Area not found</div>;
 
   const completed = requirements.filter(r => DONE.includes(r.status)).length;

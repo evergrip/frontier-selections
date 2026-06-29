@@ -55,6 +55,15 @@ Deno.serve(async (req) => {
     }).filter(Boolean);
 
     const showPrice = isStaff ? true : project.pricing_visibility !== "hidden";
+    if (!isStaff) {
+      packageItems.forEach(it => {
+        delete it.internalNotes;
+        delete it.procurementStatus;
+        delete it.installNotes;
+        delete it.siteNotes;
+        delete it.staffApprovalDate;
+      });
+    }
     return Response.json({ project, packageItems, showPrice, showAllowance: showPrice });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });

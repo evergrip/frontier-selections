@@ -19,10 +19,10 @@ export default function ProjectTimeline({ projectId, staff = true }) {
           title: c.author_name || (c.is_internal ? "Staff (internal)" : "Customer"),
           text: c.content, badge: c.is_internal ? "Internal" : "Customer-visible"
         })),
-        ...ledger.map(l => ({
+        ...(staff ? ledger.map(l => ({
           id: l.id, date: l.created_date, type: l.event_type, icon: DollarSign, tone: "emerald",
           title: l.performed_by || "Staff", text: l.description || "", badge: l.event_type
-        })),
+        })) : []),
         ...crs.map(r => ({
           id: r.id, date: r.created_date, type: "Change Request", icon: RefreshCw, tone: "amber",
           title: r.status, text: `${r.original_item_name || "—"} → ${r.requested_item_name || "—"}`, badge: r.status

@@ -30,13 +30,10 @@ export default function CommentThread({ projectId, targetType, targetId, staff, 
 
   async function notifyStaff(message) {
     try {
-      const users = await base44.entities.User.list();
-      const staffUsers = users.filter(u => u.role === "admin" || u.role === "staff");
-      if (staffUsers.length === 0) return;
-      await base44.entities.Notification.bulkCreate(staffUsers.map(u => ({
-        user_id: u.id, project_id: projectId, type: "new_comment",
-        title: "New customer comment", message, is_read: false
-      })));
+      await base44.functions.invoke("sendNotifications", {
+        target_all_staff: true, project_id: projectId, type: "new_comment",
+        title: "New customer comment", message, link: "", skip_email: true
+      });
     } catch {}
   }
 

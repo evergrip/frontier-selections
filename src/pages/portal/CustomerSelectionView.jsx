@@ -11,6 +11,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import { customerDisplayStatus } from "@/lib/constants";
 import CustomerSubstitution from "@/components/selection/CustomerSubstitution";
 import StepIndicator from "@/components/portal/StepIndicator";
+import { useProjectAccess } from "@/hooks/useProjectAccess";
 
 function assembleItem(item, groups, values, rules) {
   const itemGroups = (groups || [])
@@ -56,6 +57,7 @@ export default function CustomerSelectionView() {
   const [signOffNote, setSignOffNote] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterBrand, setFilterBrand] = useState("");
+  const { loading: accessLoading, hasAccess } = useProjectAccess(projectId);
 
   useEffect(() => {
     async function load() {
@@ -65,6 +67,7 @@ export default function CustomerSelectionView() {
         base44.entities.CustomerSelection.filter({ requirement_id: requirementId }),
         base44.entities.ChangeRequest.filter({ requirement_id: requirementId })
       ]);
+      if (req.project_id !== projectId) { setRequirement(null); setLoading(false); return; }
       setRequirement(req);
       setProject(proj);
       if (areaId) {
@@ -294,7 +297,8 @@ export default function CustomerSelectionView() {
     navigate(`/portal/project/${projectId}/area/${areaId}`);
   }
 
-  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
+  if (loading || accessLoading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
+  if (!hasAccess) return <div className="text-center py-20 text-gray-400">You don't have access to this project.</div>;
   if (!requirement) return <div className="text-center py-20 text-gray-400">Selection not found</div>;
 
   const isApproved = existingSelection?.status === "Approved" || requirement.status === "Approved";

@@ -5,17 +5,20 @@ import { ArrowLeft } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
 import CommentThread from "@/components/comments/CommentThread";
 import ProjectTimeline from "@/components/comments/ProjectTimeline";
+import { useProjectAccess } from "@/hooks/useProjectAccess";
 
 export default function CustomerProjectView() {
   const { projectId } = useParams();
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { loading: accessLoading, hasAccess } = useProjectAccess(projectId);
 
   useEffect(() => {
     base44.entities.Project.get(projectId).then(p => { setProject(p); setLoading(false); }).catch(() => setLoading(false));
   }, [projectId]);
 
-  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
+  if (loading || accessLoading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
+  if (!hasAccess) return <div className="p-8 text-center text-gray-400">You don't have access to this project.</div>;
   if (!project) return <div className="p-8 text-center text-gray-400">Project not found</div>;
 
   return (

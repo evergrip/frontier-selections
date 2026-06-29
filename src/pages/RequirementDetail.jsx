@@ -172,51 +172,28 @@ export default function RequirementDetail() {
 
   async function handleReview(action, data) {
     if (!selection) return;
-    const hasOverride = data.staffPriceOverride !== "" && data.staffPriceOverride != null;
-    const finalPrice = hasOverride ? Number(data.staffPriceOverride) : (selection.calculated_price || 0);
-    let over = finalPrice > allowance ? finalPrice - allowance : 0;
-    let under = finalPrice < allowance ? allowance - finalPrice : 0;
-    if (data.allowanceImpact !== "" && data.allowanceImpact != null) {
-      const adj = Number(data.allowanceImpact);
-      if (adj > 0) over += adj; else under += -adj;
-    }
-    await base44.entities.CustomerSelection.update(selection.id, {
-      status: action,
-      staff_price_override: hasOverride ? Number(data.staffPriceOverride) : null,
-      calculated_price: finalPrice,
-      over_allowance: over, under_allowance: under,
-      staff_comments: data.customerComments || selection.staff_comments,
-      internal_notes: data.internalNotes || selection.internal_notes,
-      reviewed_date: new Date().toISOString(), reviewed_by: "staff"
-    });
-    const reqStatus = action === "Approved" ? "Approved" : action === "Rejected" ? "Rejected" : "Revision Requested";
-    await base44.entities.SelectionRequirement.update(requirementId, { status: reqStatus });
-    if (action === "Approved") {
-      await base44.entities.AllowanceLedger.create({
-        project_id: projectId, area_id: areaId, requirement_id: requirementId,
-        event_type: hasOverride ? "Staff Override" : "Selection Approved",
-        amount: finalPrice, running_balance: over - under,
-        description: `Selection approved at $${finalPrice.toLocaleString()}`,
-        performed_by: "staff"
+    try {
+      await base44.functions.invoke("selectionWorkflow", {
+        action: "review",
+        selection_id: selection.id,
+        review_action: action,
+        staff_price_override: data.staffPriceOverride,
+        allowance_impact: data.allowanceImpact,
+        customer_comments: data.customerComments,
+        internal_notes: data.internalNotes
       });
-      const existingProc = await base44.entities.ProcurementItem.filter({ selection_id: selection.id });
-      if (existingProc.length === 0) {
-        await base44.entities.ProcurementItem.create({
-          project_id: projectId, area_id: areaId, requirement_id: requirementId,
-          selection_id: selection.id, catalogue_item_id: selection.catalogue_item_id,
-          item_name: catalogueItem?.name || "", category: catalogueItem?.category || "",
-          supplier: catalogueItem?.supplier || "", brand: catalogueItem?.brand || "",
-          sku: catalogueItem?.sku || "", quantity: 1,
-          unit_of_measure: catalogueItem?.unit_of_measure || "",
-          status: "Not Ready to Order"
-        });
-      }
-    }
+    } catch (e) { alert("Review failed"); }
     load();
   }
 
   async function handleRequirementStatusChange(newStatus) {
-    await base44.entities.SelectionRequirement.update(requirementId, { status: newStatus });
+    try {
+      await base44.functions.invoke("selectionWorkflow", {
+        action: "change_requirement_status",
+        requirement_id: requirementId,
+        new_status: newStatus
+      });
+    } catch (e) { alert("Status change failed"); }
     load();
   }
 

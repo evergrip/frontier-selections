@@ -25,10 +25,16 @@ export default function CustomerMoodBoard() {
   const [commentCounts, setCommentCounts] = useState({});
 
   useEffect(() => {
-    base44.entities.Project.list("-updated_date", 50).then(p => {
-      setProjects(p);
-      if (p[0]) setProjectId(p[0].id); else setLoading(false);
-    });
+    (async () => {
+      const user = await base44.auth.me();
+      const allProjects = await base44.entities.Project.list("-updated_date", 50);
+      const myProjects = allProjects.filter(p =>
+        (p.assigned_customers || []).includes(user.id) ||
+        (p.assigned_customers || []).includes(user.email)
+      );
+      setProjects(myProjects);
+      if (myProjects[0]) setProjectId(myProjects[0].id); else setLoading(false);
+    })();
   }, []);
 
   useEffect(() => {

@@ -90,6 +90,17 @@ export default function ChangeRequestDetail() {
       });
       let catItem = null;
       try { catItem = await base44.entities.CatalogueItem.get(cr.requested_item_id); } catch {}
+      if (originalSelection) {
+        const oldProcs = await base44.entities.ProcurementItem.filter({ selection_id: originalSelection.id });
+        for (const op of oldProcs) {
+          await base44.entities.ProcurementItem.update(op.id, {
+            selection_id: newSel.id, catalogue_item_id: cr.requested_item_id,
+            item_name: cr.requested_item_name || catItem?.name || "",
+            supplier: catItem?.supplier || "", brand: catItem?.brand || "",
+            sku: catItem?.sku || "", status: "Not Ready to Order"
+          });
+        }
+      }
       const existingProc = await base44.entities.ProcurementItem.filter({ selection_id: newSel.id });
       if (existingProc.length === 0) {
         await base44.entities.ProcurementItem.create({

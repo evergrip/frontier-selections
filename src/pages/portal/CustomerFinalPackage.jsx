@@ -3,20 +3,24 @@ import { base44 } from "@/api/base44Client";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import PackagePreview from "@/components/finalpackage/PackagePreview";
+import { useProjectAccess } from "@/hooks/useProjectAccess";
 
 export default function CustomerFinalPackage() {
   const { projectId } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { loading: accessLoading, hasAccess } = useProjectAccess(projectId);
 
   useEffect(() => {
+    if (!hasAccess) { setLoading(false); return; }
     base44.functions.invoke("getFinalPackage", { project_id: projectId })
       .then(res => setData(res.data))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [projectId]);
+  }, [projectId, hasAccess]);
 
-  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
+  if (loading || accessLoading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
+  if (!hasAccess) return <div className="p-8 text-center text-gray-400">You don't have access to this project.</div>;
   if (!data) return <div className="p-8 text-center text-gray-400">Final selections package is not available.</div>;
 
   return (

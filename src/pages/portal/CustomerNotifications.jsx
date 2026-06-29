@@ -8,10 +8,12 @@ export default function CustomerNotifications() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    base44.entities.Notification.list("-created_date", 50).then(data => {
+    (async () => {
+      const user = await base44.auth.me();
+      const data = await base44.entities.Notification.filter({ user_id: user.id }, "-created_date", 50);
       setNotifications(data);
       setLoading(false);
-    });
+    })();
   }, []);
 
   async function markRead(id) {

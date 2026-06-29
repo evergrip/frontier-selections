@@ -44,10 +44,10 @@ function PackageCard({ it, internal, showPrice, showAllowance }) {
           <p>SKU: {it.sku || "—"}</p>
           <p>Quantity: {it.qty || 1}</p>
           <p>Customer Approval: {it.customerApprovalDate || "—"}</p>
-          <p>Staff Approval: {it.staffApprovalDate || "—"}</p>
-          <p>Procurement: {it.procurementStatus || "—"}</p>
+          {internal && <p>Staff Approval: {it.staffApprovalDate || "—"}</p>}
+          {internal && <p>Procurement: {it.procurementStatus || "—"}</p>}
         </div>
-        {it.installNotes && <p className="text-xs text-gray-500">Install Notes: {it.installNotes}</p>}
+        {internal && it.installNotes && <p className="text-xs text-gray-500">Install Notes: {it.installNotes}</p>}
         {it.notes && <p className="text-xs text-gray-600">Notes: {it.notes}</p>}
         {internal && it.siteNotes && <p className="text-xs text-gray-500">Site Notes: {it.siteNotes}</p>}
         {internal && it.internalNotes && <p className="text-xs text-yellow-700 bg-yellow-50 rounded px-2 py-1">Internal: {it.internalNotes}</p>}

@@ -19,7 +19,7 @@ export default function CustomerDashboard() {
         (p.assigned_customers || []).includes(user.id) ||
         (p.assigned_customers || []).includes(user.email)
       );
-      setProjects(myProjects.length > 0 ? myProjects : allProjects);
+      setProjects(myProjects);
       setLoading(false);
     }
     load();
