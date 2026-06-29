@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
       const projectList = projectNames.length > 1 
         ? `Projects:\n${projectNames.map(n => `• ${n}`).join('\n')}`
         : `Project: ${projectNames[0] || 'your project'}`;
-      const inviteLink = `${portalUrl}?invite=${invitationId}`;
+      const inviteLink = `${appBaseUrl}/register?invite=${invitationId}`;
       const emailBody = `Hello ${customerName || ''},\n\nYou've been invited to Frontier Selections.\n\n${projectList}\n\nTo get started: ${inviteLink}\n\nThis invitation expires on ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.\n\nThank you,\nFrontier Building Group`;
       
       const emailRes = await base44.functions.invoke("sendNotifications", {
