@@ -3,7 +3,25 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const { user_ids, project_id, type, title, message, link, target_all_staff, skip_email } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const action = body.action;
+    
+    // Direct email sending for customer invitations
+    if (action === "sendEmail") {
+      const { to, subject, body: emailBody, from_name } = body;
+      if (!to || !subject || !emailBody) {
+        return Response.json({ error: "Missing required fields: to, subject, body" }, { status: 400 });
+      }
+      await base44.asServiceRole.integrations.Core.SendEmail({
+        to,
+        subject,
+        body: emailBody,
+        from_name
+      });
+      return Response.json({ success: true });
+    }
+    
+    const { user_ids, project_id, type, title, message, link, target_all_staff, skip_email } = body;
     const users = await base44.asServiceRole.entities.User.list();
     let targets;
     if (target_all_staff) {

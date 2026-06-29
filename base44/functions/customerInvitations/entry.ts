@@ -57,12 +57,17 @@ This invitation expires on ${expiryStr}. If you have any questions, please conta
 Thank you,
 Frontier Building Group`;
 
-      return await base44.integrations.Core.SendEmail({
+      const emailPayload = {
         to: email,
         subject: "You've been invited to Frontier Selections",
         body: body,
         from_name: "Frontier Building Group"
+      };
+      const emailRes = await base44.functions.invoke("sendNotifications", {
+        action: "sendEmail",
+        ...emailPayload
       });
+      return emailRes.data;
     }
 
     // Helper: create audit log
