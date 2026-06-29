@@ -15,6 +15,8 @@ import Catalogue from "@/pages/Catalogue";
 import CatalogueItemEditor from "@/pages/CatalogueItemEditor";
 import Templates from "@/pages/Templates";
 import Notifications from "@/pages/Notifications";
+import ChangeRequests from "@/pages/ChangeRequests";
+import ChangeRequestDetail from "@/pages/ChangeRequestDetail";
 
 import CustomerDashboard from "@/pages/portal/CustomerDashboard";
 import CustomerAreaView from "@/pages/portal/CustomerAreaView";
@@ -53,6 +55,8 @@ export default function RoleRouter() {
           <Route path="/catalogue/:itemId" element={<CatalogueItemEditor />} />
           <Route path="/templates" element={<Templates />} />
           <Route path="/notifications" element={<Notifications />} />
+          <Route path="/change-requests" element={<ChangeRequests />} />
+          <Route path="/change-requests/:changeRequestId" element={<ChangeRequestDetail />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

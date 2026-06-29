@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, Package, CheckCircle, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Check, Package, CheckCircle, AlertTriangle, RefreshCw, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -26,6 +26,8 @@ function assembleItem(item, groups, values, rules) {
   return { ...item, option_groups: itemGroups, option_rules: itemRules };
 }
 
+const PAST_READY_STATUSES = ["Ready to Order", "Ordered", "Backordered", "Received", "Delivered to Site", "Installed", "Locked"];
+
 export default function CustomerSelectionView() {
   const { projectId, areaId, requirementId } = useParams();
   const navigate = useNavigate();
@@ -40,6 +42,9 @@ export default function CustomerSelectionView() {
   const [step, setStep] = useState("browse");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [changeMode, setChangeMode] = useState(false);
+  const [changeReason, setChangeReason] = useState("");
+  const [allSelections, setAllSelections] = useState([]);
 
   useEffect(() => {
     async function load() {
@@ -53,6 +58,7 @@ export default function CustomerSelectionView() {
       if (areaId) {
         try { setArea(await base44.entities.ProjectArea.get(areaId)); } catch {}
       }
+      setAllSelections(sels);
       const current = sels.find(s => s.is_current);
       setExistingSelection(current || null);
 
@@ -218,6 +224,48 @@ export default function CustomerSelectionView() {
     navigate(`/portal/project/${projectId}/area/${areaId}`);
   }
 
+  function startChangeRequest() {
+    const item = catalogueItems.find(i => i.id === existingSelection.catalogue_item_id);
+    const opts = {};
+    (existingSelection.selected_options || []).forEach(o => { opts[o.group_id] = o.option_id; });
+    setSelectedItem(item || null);
+    setSelectedOptions(opts);
+    setChangeReason("");
+    setCustomerNotes("");
+    setChangeMode(true);
+    setStep("configure");
+  }
+
+  async function handleRequestChange() {
+    if (!selectedItem || !changeReason.trim()) return;
+    setSubmitting(true);
+    const optionsArray = Object.entries(selectedOptions).map(([groupId, optionId]) => {
+      const group = selectedItem.option_groups.find(g => g.id === groupId);
+      const option = group?.options.find(o => o.id === optionId);
+      return { group_id: groupId, group_name: group?.name || "", option_id: optionId, option_name: option?.name || "", price_modifier: option?.price_modifier || 0 };
+    });
+    const originalItem = catalogueItems.find(i => i.id === existingSelection.catalogue_item_id);
+    const originalPrice = existingSelection.calculated_price || 0;
+    const priceDiff = calculatedPrice - originalPrice;
+    const allowanceImpact = calculatedPrice - allowance;
+    const cr = await base44.entities.ChangeRequest.create({
+      project_id: projectId, area_id: areaId, requirement_id: requirementId,
+      selection_id: existingSelection.id, original_item_name: originalItem?.name || "",
+      original_price: originalPrice, requested_item_id: selectedItem.id, requested_item_name: selectedItem.name,
+      requested_options: optionsArray, requested_price: calculatedPrice,
+      reason: changeReason, price_impact: priceDiff, allowance_impact: allowanceImpact,
+      customer_note: customerNotes, status: "Requested"
+    });
+    await base44.entities.AuditLog.create({
+      target_type: "change_request", target_id: cr.id, action: "change_requested",
+      field: "selection", old_value: existingSelection.catalogue_item_id, new_value: selectedItem.id,
+      changed_by: "customer", reason: changeReason
+    });
+    await base44.entities.SelectionRequirement.update(requirementId, { status: "Change Requested" });
+    setSubmitting(false);
+    navigate(`/portal/project/${projectId}/area/${areaId}`);
+  }
+
   if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
   if (!requirement) return <div className="text-center py-20 text-gray-400">Selection not found</div>;
 
@@ -246,11 +294,23 @@ export default function CustomerSelectionView() {
         </div>
       )}
 
-      {isApproved && existingSelection && (
-        <ApprovedSelectionView selection={existingSelection} items={catalogueItems} showItemPrices={showItemPrices} showItemAllowance={showItemAllowance} allowance={allowance} />
+      {PAST_READY_STATUSES.includes(requirement.status) && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 flex items-start gap-2">
+          <AlertTriangle size={16} className="mt-0.5 shrink-0" /> This selection has already reached "{requirement.status}". Any changes require a formal change request and may affect procurement.
+        </div>
       )}
 
-      {step === "browse" && canEdit && !isApproved && (
+      {isApproved && existingSelection && !changeMode && (
+        <>
+          <ApprovedSelectionView selection={existingSelection} items={catalogueItems} showItemPrices={showItemPrices} showItemAllowance={showItemAllowance} allowance={allowance} />
+          {canEdit && (
+            <Button variant="outline" onClick={startChangeRequest} className="gap-2 w-fit"><RefreshCw size={14} /> Request a Change</Button>
+          )}
+          <RevisionHistory selections={allSelections} />
+        </>
+      )}
+
+      {step === "browse" && canEdit && (!isApproved || changeMode) && (
         <div>
           <h2 className="font-semibold text-gray-900 mb-4">Choose an Option</h2>
           {catalogueItems.length === 0 ? (
@@ -287,7 +347,7 @@ export default function CustomerSelectionView() {
         </div>
       )}
 
-      {step === "configure" && selectedItem && canEdit && (
+      {step === "configure" && selectedItem && canEdit && (!isApproved || changeMode) && (
         <div className="space-y-6">
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <div className="flex gap-4 mb-4">
@@ -300,9 +360,16 @@ export default function CustomerSelectionView() {
                 {showItemPrices && <p className="text-lg font-bold mt-1">From ${(selectedItem.base_price || 0).toLocaleString()}</p>}
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={() => { setStep("browse"); setSelectedItem(null); setSelectedOptions({}); }}>
-              Choose Different Item
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => { setStep("browse"); setSelectedItem(null); setSelectedOptions({}); }}>
+                Choose Different Item
+              </Button>
+              {changeMode && (
+                <Button variant="ghost" size="sm" onClick={() => { setChangeMode(false); setSelectedItem(null); setSelectedOptions({}); setStep("browse"); }}>
+                  Cancel Change Request
+                </Button>
+              )}
+            </div>
           </div>
 
           {(selectedItem.option_groups || []).map(group => {
@@ -421,8 +488,15 @@ export default function CustomerSelectionView() {
             </div>
           )}
 
-          <Button onClick={handleSubmit} disabled={!canSubmit || submitting} className="w-full h-12 text-base" size="lg">
-            {submitting ? "Submitting..." : canSubmit ? "Submit Selection" : "Complete all required options to submit"}
+          {changeMode && (
+            <div>
+              <h3 className="font-semibold text-gray-900 text-sm mb-2">Reason for Change <span className="text-red-500">*</span></h3>
+              <Textarea value={changeReason} onChange={e => setChangeReason(e.target.value)} placeholder="Why are you requesting this change?" rows={2} />
+            </div>
+          )}
+
+          <Button onClick={changeMode ? handleRequestChange : handleSubmit} disabled={(changeMode ? (!changeReason.trim() || !canSubmit) : !canSubmit) || submitting} className="w-full h-12 text-base" size="lg">
+            {submitting ? "Submitting..." : changeMode ? (canSubmit ? "Submit Change Request" : "Complete all required options") : canSubmit ? "Submit Selection" : "Complete all required options to submit"}
           </Button>
         </div>
       )}
@@ -453,6 +527,30 @@ function ApprovedSelectionView({ selection, items, showItemPrices, showItemAllow
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function RevisionHistory({ selections }) {
+  if (!selections || selections.length <= 1) return null;
+  const sorted = [...selections].sort((a, b) => (b.version || 0) - (a.version || 0));
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4">
+      <div className="flex items-center gap-2 mb-3"><History size={16} className="text-gray-500" /><h3 className="font-semibold text-gray-900 text-sm">Revision History</h3></div>
+      <div className="space-y-2">
+        {sorted.map(s => (
+          <div key={s.id} className="flex items-center justify-between text-sm border-b border-gray-50 pb-2 last:border-0">
+            <div>
+              <p className="font-medium text-gray-900">Version {s.version || 1}</p>
+              <p className="text-xs text-gray-400">{s.submitted_date ? new Date(s.submitted_date).toLocaleString() : ""}</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-gray-600">${(s.calculated_price || 0).toLocaleString()}</span>
+              <StatusBadge status={s.status} />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

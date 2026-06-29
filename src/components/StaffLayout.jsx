@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import {
-  LayoutDashboard, FolderKanban, BookOpen, Package, Bell,
+  LayoutDashboard, FolderKanban, BookOpen, Package, Bell, RefreshCw,
   ChevronLeft, ChevronRight, LogOut, Menu, X, Settings
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { label: "Catalogue", path: "/catalogue", icon: Package },
   { label: "Templates", path: "/templates", icon: BookOpen },
   { label: "Notifications", path: "/notifications", icon: Bell },
+  { label: "Change Requests", path: "/change-requests", icon: RefreshCw },
 ];
 
 export default function StaffLayout() {

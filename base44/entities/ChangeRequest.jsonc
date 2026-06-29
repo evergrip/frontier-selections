@@ -5,6 +5,9 @@
     "project_id": {
       "type": "string"
     },
+    "area_id": {
+      "type": "string"
+    },
     "selection_id": {
       "type": "string"
     },
@@ -14,7 +17,13 @@
     "original_item_name": {
       "type": "string"
     },
+    "original_price": {
+      "type": "number"
+    },
     "requested_item_id": {
+      "type": "string"
+    },
+    "requested_item_name": {
       "type": "string"
     },
     "requested_options": {
@@ -40,6 +49,9 @@
         }
       }
     },
+    "requested_price": {
+      "type": "number"
+    },
     "reason": {
       "type": "string"
     },
@@ -54,6 +66,7 @@
       "enum": [
         "Requested",
         "Under Review",
+        "More Information Needed",
         "Approved",
         "Rejected",
         "Cancelled",
@@ -62,13 +75,27 @@
       ],
       "default": "Requested"
     },
+    "customer_note": {
+      "type": "string"
+    },
     "staff_response": {
       "type": "string"
+    },
+    "internal_notes": {
+      "type": "string"
+    },
+    "is_locked": {
+      "type": "boolean",
+      "default": false
     },
     "reviewed_by": {
       "type": "string"
     },
     "reviewed_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "resolved_date": {
       "type": "string",
       "format": "date-time"
     }
