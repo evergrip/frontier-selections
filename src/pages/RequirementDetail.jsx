@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Check, X, RotateCcw, AlertTriangle, Clock, PackageX, Tag, Edit2, History, ArrowLeftRight, Link2 } from "lucide-react";
+import { ArrowLeft, Check, X, RotateCcw, AlertTriangle, Clock, PackageX, Tag, Edit2, History, ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,8 +64,6 @@ export default function RequirementDetail() {
   const [proc, setProc] = useState(null);
   const [audit, setAudit] = useState([]);
   const [substitutions, setSubstitutions] = useState([]);
-  const [childDependencies, setChildDependencies] = useState([]);
-  const [parentDependencies, setParentDependencies] = useState([]);
 
   useEffect(() => { load(); }, [requirementId]);
 
@@ -102,21 +100,6 @@ export default function RequirementDetail() {
       setAudit(auditEntries);
       setSubstitutions(subs);
     } else { setProc(null); setAudit([]); setSubstitutions([]); }
-    const [childDeps, parentDeps] = await Promise.all([
-      base44.entities.SelectionDependency.filter({ dependent_requirement_id: requirementId, is_active: true }),
-      base44.entities.SelectionDependency.filter({ parent_requirement_id: requirementId, is_active: true })
-    ]);
-    const resolvedChild = await Promise.all(childDeps.map(async d => {
-      const parentReq = await base44.entities.SelectionRequirement.get(d.parent_requirement_id);
-      const parentSels = await base44.entities.CustomerSelection.filter({ requirement_id: d.parent_requirement_id });
-      return { dep: d, parentReq, parentSel: parentSels.find(s => s.is_current) || null };
-    }));
-    const resolvedParent = await Promise.all(parentDeps.map(async d => {
-      const childReq = await base44.entities.SelectionRequirement.get(d.dependent_requirement_id);
-      return { dep: d, childReq };
-    }));
-    setChildDependencies(resolvedChild);
-    setParentDependencies(resolvedParent);
     const linkedMbItems = await base44.entities.MoodBoardItem.filter({ linked_requirement_id: requirementId });
     setLinkedMb(linkedMbItems);
     setLoading(false);
@@ -187,21 +170,8 @@ export default function RequirementDetail() {
     return list;
   }, [selection, catalogueItem, assembledItem]);
 
-  const approvalBlocked = useMemo(() => {
-    return childDependencies.some(({ dep, parentSel }) => {
-      const parentApproved = !!parentSel && ["Approved", "Ready to Order", "Ordered", "Received", "Delivered to Site", "Installed", "Locked"].includes(parentSel.status);
-      if (dep.dependency_type === "Blocks approval until parent approved") return !parentApproved;
-      if (dep.blocks_approval) return !parentApproved;
-      return false;
-    });
-  }, [childDependencies]);
-
   async function handleReview(action, data) {
     if (!selection) return;
-    if (action === "Approved" && approvalBlocked) {
-      alert("Approval is blocked by unmet selection dependencies. Please approve the prerequisite selections first.");
-      return;
-    }
     const hasOverride = data.staffPriceOverride !== "" && data.staffPriceOverride != null;
     const finalPrice = hasOverride ? Number(data.staffPriceOverride) : (selection.calculated_price || 0);
     let over = finalPrice > allowance ? finalPrice - allowance : 0;
@@ -361,15 +331,9 @@ export default function RequirementDetail() {
               </div>
             )}
 
-            {approvalBlocked && selection.status === "Pending" && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 flex items-start gap-2">
-                <AlertTriangle size={14} className="mt-0.5 shrink-0" /> Approval is blocked by unmet selection dependencies. Approve the prerequisite selections first.
-              </div>
-            )}
-
             {selection.status === "Pending" && (
               <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
-                <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700" disabled={approvalBlocked} onClick={() => { setReviewAction("Approved"); setShowReview(true); }}>
+                <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => { setReviewAction("Approved"); setShowReview(true); }}>
                   <Check size={14} /> Approve
                 </Button>
                 <Button size="sm" variant="outline" className="gap-1" onClick={() => { setReviewAction("Revision Requested"); setShowReview(true); }}>
@@ -392,54 +356,6 @@ export default function RequirementDetail() {
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
           <p className="text-gray-400 text-sm">No selection submitted yet</p>
-        </div>
-      )}
-
-      {(childDependencies.length > 0 || parentDependencies.length > 0) && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-          <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2"><Link2 size={14} className="text-blue-500" /> Selection Dependencies</h2>
-          {childDependencies.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-gray-500 mb-2">Depends on</p>
-              <div className="space-y-2">
-                {childDependencies.map(({ dep, parentReq, parentSel }) => {
-                  const parentApproved = !!parentSel && ["Approved", "Ready to Order", "Ordered", "Received", "Delivered to Site", "Installed", "Locked"].includes(parentSel.status);
-                  const parentSubmitted = !!parentSel && !["Rejected", "Superseded"].includes(parentSel.status);
-                  const blocksApproval = (dep.dependency_type === "Blocks approval until parent approved" || dep.blocks_approval) && !parentApproved;
-                  const blocksSubmission = (dep.dependency_type === "Requires parent selection first" || dep.blocks_submission) && !parentSubmitted;
-                  return (
-                    <Link key={dep.id} to={`/projects/${projectId}/area/${parentReq.area_id}/requirement/${parentReq.id}`} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 hover:bg-gray-100">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{parentReq.name}</p>
-                        <p className="text-xs text-gray-500">{dep.dependency_type}{dep.warning_message ? ` — ${dep.warning_message}` : ""}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {blocksApproval && <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700">Blocks approval</span>}
-                        {blocksSubmission && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Blocks submission</span>}
-                        <StatusBadge status={parentSel?.status || "Not Started"} />
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          {parentDependencies.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-gray-500 mb-2">Required by</p>
-              <div className="space-y-2">
-                {parentDependencies.map(({ dep, childReq }) => (
-                  <Link key={dep.id} to={`/projects/${projectId}/area/${childReq.area_id}/requirement/${childReq.id}`} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 hover:bg-gray-100">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{childReq.name}</p>
-                      <p className="text-xs text-gray-500">{dep.dependency_type}</p>
-                    </div>
-                    <StatusBadge status={childReq.status} />
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
