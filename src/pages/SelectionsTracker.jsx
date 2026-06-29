@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Search, X, Download, ExternalLink, Eye, Star, AlertTriangle, Clock, CheckCircle, Package, Loader2, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,6 +28,12 @@ export default function SelectionsTracker() {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterQuick, setFilterQuick] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const qf = searchParams.get("filter");
+    if (qf) setFilterQuick(qf);
+  }, [searchParams]);
 
   useEffect(() => {
     base44.auth.me().then(u => setUser(u)).catch(() => {});
