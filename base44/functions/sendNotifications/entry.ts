@@ -25,15 +25,22 @@ Deno.serve(async (req) => {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
           body: JSON.stringify({
-            from: from_name ? `${from_name} <onboarding@resend.dev>` : "Frontier Building Group <onboarding@resend.dev>",
+            from: "Frontier Building Group <onboarding@resend.dev>",
             to: [to],
             subject: subject,
             html: emailBody.replace(/\n/g, "<br>")
           })
         });
+        const responseData = await res.json().catch(() => ({}));
         if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          return Response.json({ success: false, email_sent: false, error: err.message || res.statusText }, { status: 200 });
+          console.error("Resend error:", responseData);
+          const isDomainError = responseData.message?.includes("unverified domain") || responseData.message?.includes("not authorized");
+          return Response.json({ 
+            success: false, 
+            email_sent: false, 
+            error: isDomainError ? "Domain not verified - can only send to verified email addresses" : (responseData.message || res.statusText),
+            resend_response: responseData
+          }, { status: 200 });
         }
         return Response.json({ success: true, email_sent: true });
       } catch (e) {
