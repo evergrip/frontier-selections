@@ -1,0 +1,57 @@
+{
+  "name": "CatalogueOptionValue",
+  "type": "object",
+  "properties": {
+    "option_group_id": {
+      "type": "string"
+    },
+    "catalogue_item_id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "image": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "price_modifier": {
+      "type": "number",
+      "default": 0
+    },
+    "customer_note": {
+      "type": "string"
+    },
+    "internal_note": {
+      "type": "string"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "requires_approval": {
+      "type": "boolean",
+      "default": false
+    },
+    "display_order": {
+      "type": "number",
+      "default": 0
+    },
+    "sku": {
+      "type": "string"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "option_group_id",
+    "catalogue_item_id",
+    "name"
+  ]
+}

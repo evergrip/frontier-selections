@@ -6,6 +6,26 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import StatusBadge from "@/components/ui/StatusBadge";
 
+function assembleItem(item, groups, values, rules) {
+  const itemGroups = (groups || [])
+    .filter(g => g.catalogue_item_id === item.id)
+    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+    .map(g => ({
+      id: g.id, name: g.name, is_required: g.is_required !== false,
+      options: (values || [])
+        .filter(v => v.option_group_id === g.id)
+        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+    }));
+  const itemRules = (rules || [])
+    .filter(r => r.catalogue_item_id === item.id)
+    .map(r => ({
+      ...r,
+      condition_option_id: r.condition_option_value_id,
+      target_option_id: r.target_option_value_id
+    }));
+  return { ...item, option_groups: itemGroups, option_rules: itemRules };
+}
+
 export default function CustomerSelectionView() {
   const { projectId, areaId, requirementId } = useParams();
   const navigate = useNavigate();
@@ -32,10 +52,16 @@ export default function CustomerSelectionView() {
       const current = sels.find(s => s.is_current);
       setExistingSelection(current || null);
 
-      const items = await base44.entities.CatalogueItem.filter(
-        req.category ? { category: req.category, is_active: true } : { is_active: true },
-        "name", 100
-      );
+      const itemFilter = req.category ? { category: req.category } : {};
+      const [rawItems, groups, values, rules] = await Promise.all([
+        base44.entities.CatalogueItem.filter(itemFilter, "name", 100),
+        base44.entities.CatalogueOptionGroup.filter({ is_active: true }, null, 500),
+        base44.entities.CatalogueOptionValue.filter({ is_active: true }, null, 500),
+        base44.entities.CatalogueOptionRule.filter({ is_active: true }, null, 500)
+      ]);
+      const items = rawItems
+        .filter(i => i.status !== "Discontinued" && i.status !== "Draft")
+        .map(item => assembleItem(item, groups, values, rules));
       setCatalogueItems(items);
 
       if (current && ["Revision Requested", "Rejected"].includes(current.status)) {

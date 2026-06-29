@@ -28,6 +28,10 @@
     "is_default": {
       "type": "boolean",
       "default": true
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
     }
   },
   "required": [

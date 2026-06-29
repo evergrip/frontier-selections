@@ -13,9 +13,19 @@ export default function Catalogue() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
 
+  const [optionCounts, setOptionCounts] = useState({});
+
   useEffect(() => {
-    base44.entities.CatalogueItem.list("-updated_date", 200).then(data => {
+    Promise.all([
+      base44.entities.CatalogueItem.list("-updated_date", 200),
+      base44.entities.CatalogueOptionGroup.filter({ is_active: true }, null, 500)
+    ]).then(([data, groups]) => {
       setItems(data);
+      const counts = {};
+      (groups || []).forEach(g => {
+        counts[g.catalogue_item_id] = (counts[g.catalogue_item_id] || 0) + 1;
+      });
+      setOptionCounts(counts);
       setLoading(false);
     });
   }, []);
@@ -76,8 +86,8 @@ export default function Catalogue() {
                     <Package size={48} />
                   </div>
                 )}
-                {!item.is_active && (
-                  <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-medium px-2 py-0.5 rounded-full">Inactive</div>
+                {item.status && item.status !== "Active" && (
+                  <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-medium px-2 py-0.5 rounded-full">{item.status}</div>
                 )}
               </div>
               <div className="p-4">
@@ -85,8 +95,8 @@ export default function Catalogue() {
                 <p className="text-xs text-gray-500 mt-0.5">{item.category}{item.supplier ? ` • ${item.supplier}` : ""}</p>
                 <div className="flex items-center justify-between mt-2">
                   <p className="text-sm font-semibold text-gray-900">${(item.base_price || 0).toLocaleString()}</p>
-                  {item.option_groups?.length > 0 && (
-                    <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-medium">{item.option_groups.length} options</span>
+                  {(optionCounts[item.id] || 0) > 0 && (
+                    <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-medium">{optionCounts[item.id]} options</span>
                   )}
                 </div>
               </div>

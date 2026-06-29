@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Upload, GripVertical } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,26 +16,58 @@ const emptyItem = {
   description: "", base_price: 0, unit_of_measure: "", default_image: "",
   gallery_images: [], spec_sheet_url: "", supplier_link: "", lead_time: "",
   warranty_info: "", installation_notes: "", customer_notes: "", internal_notes: "",
-  is_active: true, tags: [], taxable: true, markup_rule: "", labour_included: false,
-  install_complexity: "", option_groups: [], option_rules: []
+  tags: [], taxable: true, markup_rule: "", labour_included: false,
+  install_complexity: "", status: "Active"
 };
 
 export default function CatalogueItemEditor() {
   const { itemId } = useParams();
   const navigate = useNavigate();
   const isNew = itemId === "new";
-  const [form, setForm] = useState(emptyItem);
+  const [form, setForm] = useState({ ...emptyItem, option_groups: [], option_rules: [] });
+  const [existingGroups, setExistingGroups] = useState([]);
+  const [existingValues, setExistingValues] = useState([]);
+  const [existingRules, setExistingRules] = useState([]);
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!isNew) {
-      base44.entities.CatalogueItem.get(itemId).then(data => {
-        setForm({ ...emptyItem, ...data });
-        setLoading(false);
-      });
-    }
+    if (!isNew) loadItem(itemId);
   }, [itemId]);
+
+  async function loadItem(id) {
+    const [item, groups, values, rules] = await Promise.all([
+      base44.entities.CatalogueItem.get(id),
+      base44.entities.CatalogueOptionGroup.filter({ catalogue_item_id: id }),
+      base44.entities.CatalogueOptionValue.filter({ catalogue_item_id: id }),
+      base44.entities.CatalogueOptionRule.filter({ catalogue_item_id: id })
+    ]);
+    const sortedGroups = (groups || []).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    const optionGroups = sortedGroups.map(g => ({
+      id: g.id,
+      name: g.name,
+      display_order: g.display_order || 0,
+      is_required: g.is_required !== false,
+      options: (values || []).filter(v => v.option_group_id === g.id)
+        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+        .map(v => ({ id: v.id, name: v.name, price_modifier: v.price_modifier || 0, is_active: v.is_active !== false }))
+    }));
+    const optionRules = (rules || []).map(r => ({
+      id: r.id,
+      rule_type: r.rule_type,
+      condition_group_id: r.condition_group_id || "",
+      condition_option_id: r.condition_option_value_id || "",
+      target_group_id: r.target_group_id || "",
+      target_option_id: r.target_option_value_id || "",
+      action: r.action,
+      value: r.value || ""
+    }));
+    setForm({ ...emptyItem, ...item, option_groups: optionGroups, option_rules: optionRules });
+    setExistingGroups(optionGroups);
+    setExistingValues(optionGroups.flatMap(g => g.options));
+    setExistingRules(optionRules);
+    setLoading(false);
+  }
 
   function update(field, value) { setForm(prev => ({ ...prev, [field]: value })); }
 
@@ -53,69 +85,149 @@ export default function CatalogueItemEditor() {
   async function handleSave() {
     if (!form.name.trim()) return;
     setSaving(true);
-    if (isNew) {
-      const item = await base44.entities.CatalogueItem.create(form);
-      navigate(`/catalogue/${item.id}`, { replace: true });
-    } else {
-      await base44.entities.CatalogueItem.update(itemId, form);
+    try {
+      const itemData = { ...form };
+      delete itemData.option_groups;
+      delete itemData.option_rules;
+      let id = itemId;
+      if (isNew) {
+        const created = await base44.entities.CatalogueItem.create(itemData);
+        id = created.id;
+        navigate(`/catalogue/${id}`, { replace: true });
+      } else {
+        await base44.entities.CatalogueItem.update(itemId, itemData);
+      }
+      await syncOptions(id);
+      await loadItem(id);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
+  }
+
+  async function syncOptions(itemId) {
+    const formGroups = form.option_groups || [];
+    const formRules = form.option_rules || [];
+    const groupIdMap = {};
+    const valueIdMap = {};
+
+    const keptGroupIds = new Set();
+    const keptValueIds = new Set();
+    const keptRuleIds = new Set();
+
+    for (let gi = 0; gi < formGroups.length; gi++) {
+      const g = formGroups[gi];
+      const payload = {
+        catalogue_item_id: itemId, name: g.name, display_order: g.display_order ?? gi,
+        is_required: g.is_required !== false, is_active: true
+      };
+      let groupId = g.id;
+      if (!g.id || String(g.id).startsWith("new_")) {
+        const created = await base44.entities.CatalogueOptionGroup.create(payload);
+        groupId = created.id;
+        groupIdMap[g.id] = groupId;
+      } else {
+        await base44.entities.CatalogueOptionGroup.update(g.id, payload);
+        groupId = g.id;
+      }
+      keptGroupIds.add(groupId);
+
+      for (let oi = 0; oi < (g.options || []).length; oi++) {
+        const o = g.options[oi];
+        const vPayload = {
+          option_group_id: groupId, catalogue_item_id: itemId, name: o.name,
+          price_modifier: o.price_modifier || 0, display_order: oi,
+          is_active: o.is_active !== false, requires_approval: false, warnings: []
+        };
+        let valueId = o.id;
+        if (!o.id || String(o.id).startsWith("new_")) {
+          const created = await base44.entities.CatalogueOptionValue.create(vPayload);
+          valueId = created.id;
+          valueIdMap[o.id] = valueId;
+        } else {
+          await base44.entities.CatalogueOptionValue.update(o.id, vPayload);
+          valueId = o.id;
+        }
+        keptValueIds.add(valueId);
+      }
+    }
+
+    for (const rule of formRules) {
+      const condGroup = rule.condition_group_id && (groupIdMap[rule.condition_group_id] || rule.condition_group_id);
+      const condValue = rule.condition_option_id && (valueIdMap[rule.condition_option_id] || rule.condition_option_id);
+      const tgtGroup = rule.target_group_id && (groupIdMap[rule.target_group_id] || rule.target_group_id);
+      const tgtValue = rule.target_option_id && (valueIdMap[rule.target_option_id] || rule.target_option_id);
+      const rPayload = {
+        catalogue_item_id: itemId, rule_type: rule.rule_type || "availability",
+        condition_group_id: condGroup || "", condition_option_value_id: condValue || "",
+        target_group_id: tgtGroup || "", target_option_value_id: tgtValue || "",
+        action: rule.action || "hide", value: rule.value || "", is_active: true
+      };
+      if (!rule.id || String(rule.id).startsWith("new_")) {
+        await base44.entities.CatalogueOptionRule.create(rPayload);
+      } else {
+        await base44.entities.CatalogueOptionRule.update(rule.id, rPayload);
+        keptRuleIds.add(rule.id);
+      }
+    }
+
+    for (const g of existingGroups) {
+      if (!keptGroupIds.has(g.id)) {
+        await base44.entities.CatalogueOptionValue.deleteMany({ option_group_id: g.id }).catch(() => {});
+        await base44.entities.CatalogueOptionGroup.delete(g.id).catch(() => {});
+      }
+    }
+    for (const v of existingValues) {
+      if (!keptValueIds.has(v.id)) await base44.entities.CatalogueOptionValue.delete(v.id).catch(() => {});
+    }
+    for (const r of existingRules) {
+      if (!keptRuleIds.has(r.id)) await base44.entities.CatalogueOptionRule.delete(r.id).catch(() => {});
+    }
   }
 
   function addOptionGroup() {
-    const id = "og_" + Date.now();
+    const id = "new_og_" + Date.now();
     update("option_groups", [...(form.option_groups || []), {
       id, name: "", display_order: (form.option_groups || []).length, is_required: true, options: []
     }]);
   }
-
   function updateGroup(groupId, field, value) {
     update("option_groups", form.option_groups.map(g => g.id === groupId ? { ...g, [field]: value } : g));
   }
-
   function removeGroup(groupId) {
     update("option_groups", form.option_groups.filter(g => g.id !== groupId));
     update("option_rules", (form.option_rules || []).filter(r => r.condition_group_id !== groupId && r.target_group_id !== groupId));
   }
-
   function addOption(groupId) {
-    const optId = "opt_" + Date.now();
+    const optId = "new_opt_" + Date.now();
     update("option_groups", form.option_groups.map(g =>
-      g.id === groupId ? { ...g, options: [...g.options, { id: optId, name: "", price_modifier: 0, is_active: true, warnings: [], requires_approval: false }] } : g
+      g.id === groupId ? { ...g, options: [...g.options, { id: optId, name: "", price_modifier: 0, is_active: true }] } : g
     ));
   }
-
   function updateOption(groupId, optionId, field, value) {
     update("option_groups", form.option_groups.map(g =>
       g.id === groupId ? { ...g, options: g.options.map(o => o.id === optionId ? { ...o, [field]: value } : o) } : g
     ));
   }
-
   function removeOption(groupId, optionId) {
     update("option_groups", form.option_groups.map(g =>
       g.id === groupId ? { ...g, options: g.options.filter(o => o.id !== optionId) } : g
     ));
   }
-
   function addRule() {
-    const id = "rule_" + Date.now();
+    const id = "new_rule_" + Date.now();
     update("option_rules", [...(form.option_rules || []), {
       id, rule_type: "availability", condition_group_id: "", condition_option_id: "",
       target_group_id: "", target_option_id: "", action: "hide", value: ""
     }]);
   }
-
   function updateRule(ruleId, field, value) {
     update("option_rules", form.option_rules.map(r => r.id === ruleId ? { ...r, [field]: value } : r));
   }
-
   function removeRule(ruleId) {
     update("option_rules", form.option_rules.filter(r => r.id !== ruleId));
   }
 
   if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
-
-  const allOptions = (form.option_groups || []).flatMap(g => g.options.map(o => ({ ...o, groupId: g.id, groupName: g.name })));
 
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-4xl">
@@ -148,6 +260,16 @@ export default function CatalogueItemEditor() {
               <div><Label>SKU / Reference</Label><Input value={form.sku} onChange={e => update("sku", e.target.value)} /></div>
               <div><Label>Base Price ($)</Label><Input type="number" value={form.base_price} onChange={e => update("base_price", Number(e.target.value))} /></div>
               <div><Label>Unit of Measure</Label><Input value={form.unit_of_measure} onChange={e => update("unit_of_measure", e.target.value)} placeholder="e.g. each, sqft, linear ft" /></div>
+              <div><Label>Status</Label>
+                <Select value={form.status} onValueChange={v => update("status", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Draft">Draft</SelectItem>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Discontinued">Discontinued</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div><Label>Description</Label><Textarea value={form.description} onChange={e => update("description", e.target.value)} rows={3} /></div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -160,7 +282,7 @@ export default function CatalogueItemEditor() {
             <div><Label>Internal Staff Notes</Label><Textarea value={form.internal_notes} onChange={e => update("internal_notes", e.target.value)} rows={2} /></div>
             <div><Label>Install Complexity</Label><Input value={form.install_complexity} onChange={e => update("install_complexity", e.target.value)} /></div>
             <div className="flex flex-wrap gap-6">
-              <label className="flex items-center gap-2 text-sm"><Switch checked={form.is_active} onCheckedChange={v => update("is_active", v)} /> Active</label>
+              <label className="flex items-center gap-2 text-sm"><Switch checked={form.status === "Active"} onCheckedChange={v => update("status", v ? "Active" : "Draft")} /> Active</label>
               <label className="flex items-center gap-2 text-sm"><Switch checked={form.taxable} onCheckedChange={v => update("taxable", v)} /> Taxable</label>
               <label className="flex items-center gap-2 text-sm"><Switch checked={form.labour_included} onCheckedChange={v => update("labour_included", v)} /> Labour Included</label>
             </div>
@@ -179,7 +301,6 @@ export default function CatalogueItemEditor() {
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => removeGroup(group.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={14} /></Button>
               </div>
-
               <div className="space-y-2">
                 {group.options.map(opt => (
                   <div key={opt.id} className="flex items-center gap-2 bg-gray-50 rounded-lg p-3">

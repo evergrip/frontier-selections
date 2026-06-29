@@ -1,0 +1,30 @@
+{
+  "name": "ProjectAvailableCatalogueItem",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "catalogue_item_id": {
+      "type": "string"
+    },
+    "is_available": {
+      "type": "boolean",
+      "default": true
+    },
+    "custom_allowance": {
+      "type": "number"
+    },
+    "display_order": {
+      "type": "number",
+      "default": 0
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id",
+    "catalogue_item_id"
+  ]
+}

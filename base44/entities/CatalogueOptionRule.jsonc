@@ -1,0 +1,51 @@
+{
+  "name": "CatalogueOptionRule",
+  "type": "object",
+  "properties": {
+    "catalogue_item_id": {
+      "type": "string"
+    },
+    "rule_type": {
+      "type": "string",
+      "enum": [
+        "availability",
+        "price_override",
+        "warning",
+        "requires_approval"
+      ]
+    },
+    "condition_group_id": {
+      "type": "string"
+    },
+    "condition_option_value_id": {
+      "type": "string"
+    },
+    "target_group_id": {
+      "type": "string"
+    },
+    "target_option_value_id": {
+      "type": "string"
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "show",
+        "hide",
+        "set_price",
+        "add_warning",
+        "require_approval"
+      ]
+    },
+    "value": {
+      "type": "string"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "catalogue_item_id",
+    "rule_type"
+  ]
+}

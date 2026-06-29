@@ -1,0 +1,28 @@
+{
+  "name": "CatalogueOptionGroup",
+  "type": "object",
+  "properties": {
+    "catalogue_item_id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "display_order": {
+      "type": "number",
+      "default": 0
+    },
+    "is_required": {
+      "type": "boolean",
+      "default": true
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "catalogue_item_id",
+    "name"
+  ]
+}
