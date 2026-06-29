@@ -87,11 +87,14 @@ export default function Register() {
         // Link user to invited projects if coming from invite link
         if (inviteId) {
           try {
-            await base44.functions.invoke("customerInvitations", { action: "linkUser" });
+            const linkResult = await base44.functions.invoke("customerInvitations", { action: "linkUser" });
+            console.log("User linked to projects:", linkResult.data);
           } catch (e) {
             console.error("Failed to link user:", e);
           }
         }
+        // Small delay to ensure linking completes
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
       window.location.href = "/";
     } catch (err) {
