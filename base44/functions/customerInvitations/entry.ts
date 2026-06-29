@@ -21,13 +21,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    async function sendInviteEmail(email, customerName, projectNames, expiryDate) {
-      const projectList = projectNames.length > 1 ? projectNames.map(n => `  • ${n}`).join('\n') : projectNames[0] || 'your project';
-      const expiryStr = expiryDate ? new Date(expiryDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '7 days';
-      const emailBody = `Hello ${customerName || ''},\n\nYou've been invited to Frontier Selections.\n\n${projectNames.length > 1 ? 'Your projects:' : 'Your project:'}\n${projectList}\n\nTo get started: ${portalUrl}\n\nThis invitation expires on ${expiryStr}.\n\nThank you,\nFrontier Building Group`;
+    async function sendInviteEmail(email, customerName, projectNames) {
+      const projectList = projectNames.length > 1 
+        ? `Projects:\n${projectNames.map(n => `• ${n}`).join('\n')}`
+        : `Project: ${projectNames[0] || 'your project'}`;
+      const emailBody = `Hello ${customerName || ''},\n\nYou've been invited to access Frontier Selections.\n\n${projectList}\n\nNext Steps:\n1. Go to: ${portalUrl}\n2. Click "Register" and create your account using this email address\n3. Once logged in, you'll see your project(s) in the customer portal\n\nQuestions? Reply to this email.\n\nThank you,\nFrontier Building Group`;
       
       const emailRes = await base44.functions.invoke("sendNotifications", {
-        action: "sendEmail", to: email, subject: "You've been invited to Frontier Selections",
+        action: "sendEmail", to: email, subject: "Your Frontier Selections Portal Access",
         body: emailBody, from_name: "Frontier Building Group"
       });
       return emailRes.data;
@@ -76,7 +77,7 @@ Deno.serve(async (req) => {
 
       let emailResult = null, emailError = null;
       try {
-        emailResult = await sendInviteEmail(email, customer_name, project_names || [], expiryDate);
+        emailResult = await sendInviteEmail(email, customer_name, project_names || []);
         if (emailResult && !emailResult.email_sent) emailError = emailResult.reason || emailResult.error;
       } catch (e) { emailError = e.message; }
 
@@ -113,7 +114,7 @@ Deno.serve(async (req) => {
 
       let emailResult = null, emailError = null;
       try {
-        emailResult = await sendInviteEmail(invitation.email, invitation.customer_name, invitation.project_names || [], expiryDate);
+        emailResult = await sendInviteEmail(invitation.email, invitation.customer_name, invitation.project_names || []);
         if (emailResult && !emailResult.email_sent) emailError = emailResult.reason || emailResult.error;
       } catch (e) { emailError = e.message; }
 
