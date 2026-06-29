@@ -6,18 +6,38 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = body.action;
     
-    // Direct email sending for customer invitations
+    // Direct email sending for customer invitations using Resend
     if (action === "sendEmail") {
       const { to, subject, body: emailBody, from_name } = body;
       if (!to || !subject || !emailBody) {
         return Response.json({ error: "Missing required fields: to, subject, body" }, { status: 400 });
       }
-      await base44.asServiceRole.integrations.Core.SendEmail({
-        to,
-        subject,
-        body: emailBody,
-        from_name
+      
+      const apiKey = Deno.env.get("EMAIL_API_KEY");
+      if (!apiKey) {
+        return Response.json({ error: "EMAIL_API_KEY not configured" }, { status: 500 });
+      }
+      
+      // Use Resend API to send email
+      const resendRes = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          from: from_name ? `${from_name} <onboarding@resend.dev>` : "Frontier Building Group <onboarding@resend.dev>",
+          to: [to],
+          subject: subject,
+          html: emailBody.replace(/\n/g, "<br>")
+        })
       });
+      
+      if (!resendRes.ok) {
+        const errorData = await resendRes.json().catch(() => ({}));
+        return Response.json({ error: `Failed to send email: ${errorData.message || resendRes.statusText}` }, { status: 500 });
+      }
+      
       return Response.json({ success: true });
     }
     
