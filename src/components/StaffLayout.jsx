@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import {
-  LayoutDashboard, FolderKanban, BookOpen, Package, Bell, RefreshCw, Truck, ClipboardList, Palette,
+  LayoutDashboard, FolderKanban, BookOpen, Package, Bell, RefreshCw, Truck, ClipboardList, Palette, FileText,
   ChevronLeft, ChevronRight, LogOut, Menu, X, Settings
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { label: "Procurement", path: "/procurement", icon: Truck },
   { label: "Supplier Orders", path: "/supplier-orders", icon: ClipboardList },
   { label: "Mood Board", path: "/mood-board", icon: Palette },
+  { label: "Reports", path: "/reports", icon: FileText },
 ];
 
 export default function StaffLayout() {
