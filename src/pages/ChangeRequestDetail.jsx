@@ -68,7 +68,7 @@ export default function ChangeRequestDetail() {
       }
       const allowanceAmount = requirement?.allowance_amount || 0;
       const reqPrice = cr.requested_price || 0;
-      await base44.entities.CustomerSelection.create({
+      const newSel = await base44.entities.CustomerSelection.create({
         project_id: cr.project_id, area_id: cr.area_id, requirement_id: cr.requirement_id,
         catalogue_item_id: cr.requested_item_id, selected_options: cr.requested_options || [],
         calculated_price: reqPrice, allowance_amount: allowanceAmount,
@@ -84,6 +84,19 @@ export default function ChangeRequestDetail() {
         event_type: "Selection Changed", amount: reqPrice, running_balance: reqPrice - allowanceAmount,
         description: `Change request approved: ${cr.requested_item_name}`, performed_by: "staff"
       });
+      let catItem = null;
+      try { catItem = await base44.entities.CatalogueItem.get(cr.requested_item_id); } catch {}
+      const existingProc = await base44.entities.ProcurementItem.filter({ selection_id: newSel.id });
+      if (existingProc.length === 0) {
+        await base44.entities.ProcurementItem.create({
+          project_id: cr.project_id, area_id: cr.area_id, requirement_id: cr.requirement_id,
+          selection_id: newSel.id, catalogue_item_id: cr.requested_item_id,
+          item_name: cr.requested_item_name || catItem?.name || "",
+          category: catItem?.category || "", supplier: catItem?.supplier || "",
+          brand: catItem?.brand || "", sku: catItem?.sku || "", quantity: 1,
+          unit_of_measure: catItem?.unit_of_measure || "", status: "Not Ready to Order"
+        });
+      }
     }
     load();
   }

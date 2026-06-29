@@ -153,6 +153,18 @@ export default function RequirementDetail() {
         description: `Selection approved at $${finalPrice.toLocaleString()}`,
         performed_by: "staff"
       });
+      const existingProc = await base44.entities.ProcurementItem.filter({ selection_id: selection.id });
+      if (existingProc.length === 0) {
+        await base44.entities.ProcurementItem.create({
+          project_id: projectId, area_id: areaId, requirement_id: requirementId,
+          selection_id: selection.id, catalogue_item_id: selection.catalogue_item_id,
+          item_name: catalogueItem?.name || "", category: catalogueItem?.category || "",
+          supplier: catalogueItem?.supplier || "", brand: catalogueItem?.brand || "",
+          sku: catalogueItem?.sku || "", quantity: 1,
+          unit_of_measure: catalogueItem?.unit_of_measure || "",
+          status: "Not Ready to Order"
+        });
+      }
     }
     load();
   }

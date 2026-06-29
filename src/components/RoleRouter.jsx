@@ -17,6 +17,9 @@ import Templates from "@/pages/Templates";
 import Notifications from "@/pages/Notifications";
 import ChangeRequests from "@/pages/ChangeRequests";
 import ChangeRequestDetail from "@/pages/ChangeRequestDetail";
+import Procurement from "@/pages/Procurement";
+import ProcurementDetail from "@/pages/ProcurementDetail";
+import SupplierOrderList from "@/pages/SupplierOrderList";
 
 import CustomerDashboard from "@/pages/portal/CustomerDashboard";
 import CustomerAreaView from "@/pages/portal/CustomerAreaView";
@@ -57,6 +60,9 @@ export default function RoleRouter() {
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/change-requests" element={<ChangeRequests />} />
           <Route path="/change-requests/:changeRequestId" element={<ChangeRequestDetail />} />
+          <Route path="/procurement" element={<Procurement />} />
+          <Route path="/procurement/:procurementId" element={<ProcurementDetail />} />
+          <Route path="/supplier-orders" element={<SupplierOrderList />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

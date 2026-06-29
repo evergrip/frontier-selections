@@ -5,19 +5,28 @@
     "project_id": {
       "type": "string"
     },
-    "selection_id": {
+    "area_id": {
       "type": "string"
     },
     "requirement_id": {
       "type": "string"
     },
-    "area_id": {
+    "selection_id": {
+      "type": "string"
+    },
+    "catalogue_item_id": {
       "type": "string"
     },
     "item_name": {
       "type": "string"
     },
+    "category": {
+      "type": "string"
+    },
     "supplier": {
+      "type": "string"
+    },
+    "brand": {
       "type": "string"
     },
     "sku": {
@@ -26,6 +35,32 @@
     "quantity": {
       "type": "number",
       "default": 1
+    },
+    "unit_of_measure": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Not Ready to Order",
+        "Ready to Order",
+        "Ordered",
+        "Backordered",
+        "Delayed",
+        "Received",
+        "Delivered to Site",
+        "Installed",
+        "Cancelled",
+        "Returned",
+        "Substitution Required"
+      ],
+      "default": "Not Ready to Order"
+    },
+    "purchase_order_number": {
+      "type": "string"
+    },
+    "supplier_order_number": {
+      "type": "string"
     },
     "order_date": {
       "type": "string",
@@ -39,8 +74,13 @@
       "type": "string",
       "format": "date"
     },
-    "purchase_order_number": {
-      "type": "string"
+    "delivered_to_site_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "installed_date": {
+      "type": "string",
+      "format": "date"
     },
     "procurement_notes": {
       "type": "string"
@@ -48,20 +88,14 @@
     "site_notes": {
       "type": "string"
     },
-    "status": {
-      "type": "string",
-      "enum": [
-        "Not Ready to Order",
-        "Ready to Order",
-        "Ordered",
-        "Backordered",
-        "Received",
-        "Delivered to Site",
-        "Installed",
-        "Cancelled",
-        "Returned"
-      ],
-      "default": "Not Ready to Order"
+    "internal_staff_notes": {
+      "type": "string"
+    },
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
   },
   "required": [

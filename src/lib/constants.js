@@ -24,8 +24,9 @@ export const SELECTION_STATUSES = [
 ];
 
 export const PROCUREMENT_STATUSES = [
-  "Not Ready to Order", "Ready to Order", "Ordered", "Backordered",
-  "Received", "Delivered to Site", "Installed", "Cancelled", "Returned"
+  "Not Ready to Order", "Ready to Order", "Ordered", "Backordered", "Delayed",
+  "Received", "Delivered to Site", "Installed", "Cancelled", "Returned",
+  "Substitution Required"
 ];
 
 export const STATUS_COLORS = {
@@ -57,6 +58,8 @@ export const STATUS_COLORS = {
   "Cancelled": "bg-gray-100 text-gray-500",
   "Not Ready to Order": "bg-gray-100 text-gray-600",
   "Backordered": "bg-red-100 text-red-700",
+  "Delayed": "bg-orange-100 text-orange-700",
+  "Substitution Required": "bg-purple-100 text-purple-700",
   "Delivered to Site": "bg-teal-100 text-teal-700",
   "Returned": "bg-rose-100 text-rose-700",
   "Superseded": "bg-gray-100 text-gray-500",
