@@ -1,0 +1,46 @@
+{
+  "name": "AttachmentRequirement",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "area_id": {
+      "type": "string"
+    },
+    "requirement_id": {
+      "type": "string"
+    },
+    "attachment_type": {
+      "type": "string"
+    },
+    "required": {
+      "type": "boolean",
+      "default": true
+    },
+    "customer_can_upload": {
+      "type": "boolean",
+      "default": true
+    },
+    "staff_can_upload": {
+      "type": "boolean",
+      "default": true
+    },
+    "required_before_submission": {
+      "type": "boolean",
+      "default": false
+    },
+    "required_before_approval": {
+      "type": "boolean",
+      "default": false
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "requirement_id",
+    "attachment_type"
+  ]
+}

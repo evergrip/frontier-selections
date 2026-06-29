@@ -1,0 +1,79 @@
+{
+  "name": "RequestOther",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "area_id": {
+      "type": "string"
+    },
+    "requirement_id": {
+      "type": "string"
+    },
+    "customer_note": {
+      "type": "string"
+    },
+    "product_name": {
+      "type": "string"
+    },
+    "supplier_or_link": {
+      "type": "string"
+    },
+    "uploaded_image": {
+      "type": "string"
+    },
+    "uploaded_spec_sheet": {
+      "type": "string"
+    },
+    "estimated_price": {
+      "type": "number"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Submitted",
+        "Under staff review",
+        "Approved as custom item",
+        "Rejected",
+        "More information needed",
+        "Added to catalogue",
+        "Converted to selection"
+      ],
+      "default": "Submitted"
+    },
+    "staff_review_notes": {
+      "type": "string"
+    },
+    "staff_reviewed_by": {
+      "type": "string"
+    },
+    "staff_reviewed_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "rejection_reason": {
+      "type": "string"
+    },
+    "price_set": {
+      "type": "number"
+    },
+    "allowance_impact": {
+      "type": "number"
+    },
+    "converted_selection_id": {
+      "type": "string"
+    },
+    "added_catalogue_item_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id",
+    "requirement_id",
+    "reason"
+  ]
+}

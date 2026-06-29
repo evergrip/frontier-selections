@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import CommentThread from "@/components/comments/CommentThread";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, Package, CheckCircle, AlertTriangle, RefreshCw, History, FileSignature, Lock } from "lucide-react";
+import { ArrowLeft, Check, Package, CheckCircle, AlertTriangle, RefreshCw, History, FileSignature, Lock, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import StatusBadge from "@/components/ui/StatusBadge";
 import { customerDisplayStatus } from "@/lib/constants";
 import CustomerSubstitution from "@/components/selection/CustomerSubstitution";
+import StepIndicator from "@/components/portal/StepIndicator";
 
 function assembleItem(item, groups, values, rules) {
   const itemGroups = (groups || [])
@@ -53,6 +54,8 @@ export default function CustomerSelectionView() {
   const [changeRequests, setChangeRequests] = useState([]);
   const [showSignOff, setShowSignOff] = useState(false);
   const [signOffNote, setSignOffNote] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterBrand, setFilterBrand] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -187,6 +190,21 @@ export default function CustomerSelectionView() {
   const showPricing = pv !== "hidden";
   const remaining = allowance - calculatedPrice;
 
+  const brands = useMemo(() => [...new Set(catalogueItems.map(i => i.brand).filter(Boolean))], [catalogueItems]);
+  const filteredItems = useMemo(() => {
+    return catalogueItems.filter(item => {
+      if (filterBrand && item.brand !== filterBrand) return false;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        return item.name.toLowerCase().includes(q) ||
+          (item.description || "").toLowerCase().includes(q) ||
+          (item.brand || "").toLowerCase().includes(q) ||
+          (item.supplier || "").toLowerCase().includes(q);
+      }
+      return true;
+    });
+  }, [catalogueItems, searchQuery, filterBrand]);
+
   async function handleSubmit() {
     setSubmitting(true);
     const optionsArray = Object.entries(selectedOptions).map(([groupId, optionId]) => {
@@ -310,6 +328,8 @@ export default function CustomerSelectionView() {
         <StatusBadge status={displayStatus} />
       </div>
 
+      <StepIndicator currentStep={isApproved ? 7 : step === "browse" ? 3 : 4} />
+
       {existingSelection?.sign_off_requested && !existingSelection?.signed_off && !isLocked && isApproved && (
         <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 space-y-3">
           <div className="flex items-center gap-2 text-violet-800 font-medium text-sm"><FileSignature size={16} /> Sign-off Requested</div>
@@ -364,37 +384,72 @@ export default function CustomerSelectionView() {
 
       {step === "browse" && (changeMode || (canEdit && !isApproved)) && (
         <div>
-          <h2 className="font-semibold text-gray-900 mb-4">Choose an Option</h2>
+          <h2 className="font-semibold text-gray-900 mb-4">Choose a Product</h2>
           {catalogueItems.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-xl border text-gray-400 text-sm">No catalogue items available for this category</div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {catalogueItems.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => { setSelectedItem(item); setSelectedOptions({}); setStep("configure"); }}
-                  className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow text-left"
-                >
-                  <div className="aspect-video bg-gray-100 relative">
-                    {item.default_image ? (
-                      <img src={item.default_image} alt={item.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center"><Package size={32} className="text-gray-300" /></div>
-                    )}
-                  </div>
-                  <div className="p-4">
-                    <h3 className="font-semibold text-gray-900">{item.name}</h3>
-                    {item.description && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.description}</p>}
-                    <div className="flex items-center justify-between mt-3">
-                      {showItemPrices && <p className="font-bold text-gray-900">${(item.base_price || 0).toLocaleString()}</p>}
-                      {item.option_groups?.length > 0 && (
-                        <span className="text-xs text-blue-600">{item.option_groups.length} customization{item.option_groups.length > 1 ? "s" : ""}</span>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
+            <>
+              <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                <div className="relative flex-1">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Search products..."
+                    className="w-full h-10 pl-9 pr-9 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  />
+                  {searchQuery && (
+                    <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+                {brands.length > 1 && (
+                  <select
+                    value={filterBrand}
+                    onChange={e => setFilterBrand(e.target.value)}
+                    className="h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  >
+                    <option value="">All Brands</option>
+                    {brands.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                )}
+              </div>
+
+              {filteredItems.length === 0 ? (
+                <div className="text-center py-16 bg-white rounded-xl border text-gray-400 text-sm">No products match your search</div>
+              ) : (
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                  {filteredItems.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => { setSelectedItem(item); setSelectedOptions({}); setStep("configure"); }}
+                      className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-lg hover:border-gray-300 transition-all text-left"
+                    >
+                      <div className="aspect-square bg-gray-100 relative">
+                        {item.default_image ? (
+                          <img src={item.default_image} alt={item.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center"><Package size={32} className="text-gray-300" /></div>
+                        )}
+                      </div>
+                      <div className="p-3">
+                        <h3 className="font-semibold text-gray-900 text-sm line-clamp-1">{item.name}</h3>
+                        {item.brand && <p className="text-xs text-gray-400 line-clamp-1">{item.brand}</p>}
+                        {item.description && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.description}</p>}
+                        <div className="flex items-center justify-between mt-2">
+                          {showItemPrices && <p className="font-bold text-gray-900 text-sm">${(item.base_price || 0).toLocaleString()}</p>}
+                          {item.option_groups?.length > 0 && (
+                            <span className="text-[10px] text-blue-600 font-medium">{item.option_groups.length} option{item.option_groups.length > 1 ? "s" : ""}</span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -404,7 +459,7 @@ export default function CustomerSelectionView() {
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <div className="flex gap-4 mb-4">
               {selectedItem.default_image && (
-                <img src={selectedItem.default_image} alt={selectedItem.name} className="w-20 h-20 object-cover rounded-lg" />
+                <img src={selectedItem.default_image} alt={selectedItem.name} className="w-24 h-24 object-cover rounded-xl" />
               )}
               <div>
                 <h2 className="font-bold text-gray-900">{selectedItem.name}</h2>

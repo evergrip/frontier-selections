@@ -1,0 +1,66 @@
+{
+  "name": "SelectionDependency",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "area_id": {
+      "type": "string"
+    },
+    "parent_requirement_id": {
+      "type": "string"
+    },
+    "dependent_requirement_id": {
+      "type": "string"
+    },
+    "dependency_type": {
+      "type": "string",
+      "enum": [
+        "Informational only",
+        "Warning",
+        "Requires parent selection first",
+        "Blocks approval until parent approved",
+        "Limits available catalogue items",
+        "Limits available option values"
+      ],
+      "default": "Informational only"
+    },
+    "rule_note": {
+      "type": "string"
+    },
+    "warning_message": {
+      "type": "string"
+    },
+    "blocks_submission": {
+      "type": "boolean",
+      "default": false
+    },
+    "blocks_approval": {
+      "type": "boolean",
+      "default": false
+    },
+    "allowed_catalogue_item_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "allowed_option_value_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "project_id",
+    "parent_requirement_id",
+    "dependent_requirement_id",
+    "dependency_type"
+  ]
+}
