@@ -94,6 +94,14 @@ function ProjectCard({ project }) {
         <MiniStat icon={AlertCircle} value={needsAttention} label="Needs Action" color="text-red-600" />
       </div>
 
+      <Link to={`/portal/project/${project.id}`} className="flex items-center justify-between bg-blue-50 hover:bg-blue-100 rounded-xl px-4 py-3 transition-colors mb-2">
+        <div>
+          <p className="font-medium text-gray-900 text-sm">Project Communication</p>
+          <p className="text-xs text-gray-500">Ask questions & view timeline</p>
+        </div>
+        <ChevronRight size={16} className="text-gray-400" />
+      </Link>
+
       <div className="space-y-2">
         {areas.sort((a, b) => (a.display_order || 0) - (b.display_order || 0)).map(area => {
           const areaReqs = requirements.filter(r => r.area_id === area.id);

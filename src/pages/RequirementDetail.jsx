@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import StatusBadge from "@/components/ui/StatusBadge";
+import CommentThread from "@/components/comments/CommentThread";
 import { SELECTION_STATUSES } from "@/lib/constants";
 
 function assembleItem(item, groups, values, rules) {
@@ -381,6 +382,11 @@ export default function RequirementDetail() {
           </div>
         )}
       </div>
+
+      <CommentThread projectId={projectId} targetType="requirement" targetId={requirementId} staff={true} title="Requirement Comments" />
+      {selection && (
+        <CommentThread projectId={projectId} targetType="selection" targetId={selection.id} staff={true} title="Selection Comments" />
+      )}
 
       <ReviewDialog open={showReview} onClose={() => setShowReview(false)} initialAction={reviewAction} selection={selection} allowance={allowance} onSubmit={handleReview} />
       <EditAllowanceDialog open={showEditAllowance} onClose={() => setShowEditAllowance(false)} requirement={requirement} onUpdated={load} />

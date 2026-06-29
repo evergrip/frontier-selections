@@ -13,7 +13,8 @@
         "requirement",
         "selection",
         "change_request",
-        "mood_board"
+        "mood_board",
+        "procurement"
       ]
     },
     "target_id": {
@@ -31,6 +32,12 @@
     },
     "author_role": {
       "type": "string"
+    },
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
   },
   "required": [

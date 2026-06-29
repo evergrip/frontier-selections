@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import StatusBadge from "@/components/ui/StatusBadge";
+import CommentThread from "@/components/comments/CommentThread";
 
 const PAST_READY = ["Ready to Order", "Ordered", "Backordered", "Received", "Delivered to Site", "Installed", "Locked"];
 
@@ -198,6 +199,8 @@ export default function ChangeRequestDetail() {
           </div>
         </div>
       )}
+
+      <CommentThread projectId={cr.project_id} targetType="change_request" targetId={cr.id} staff={true} title="Change Request Comments" />
     </div>
   );
 }

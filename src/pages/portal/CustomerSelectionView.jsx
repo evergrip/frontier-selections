@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
+import CommentThread from "@/components/comments/CommentThread";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Check, Package, CheckCircle, AlertTriangle, RefreshCw, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -308,6 +309,10 @@ export default function CustomerSelectionView() {
           )}
           <RevisionHistory selections={allSelections} />
         </>
+      )}
+
+      {existingSelection && (
+        <CommentThread projectId={projectId} targetType="selection" targetId={existingSelection.id} staff={false} title="Comments" />
       )}
 
       {step === "browse" && canEdit && (!isApproved || changeMode) && (

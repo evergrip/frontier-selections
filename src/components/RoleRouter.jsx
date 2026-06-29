@@ -24,6 +24,7 @@ import StaffMoodBoard from "@/pages/StaffMoodBoard";
 
 import CustomerDashboard from "@/pages/portal/CustomerDashboard";
 import CustomerAreaView from "@/pages/portal/CustomerAreaView";
+import CustomerProjectView from "@/pages/portal/CustomerProjectView";
 import CustomerSelectionView from "@/pages/portal/CustomerSelectionView";
 import CustomerMoodBoard from "@/pages/portal/CustomerMoodBoard";
 import CustomerNotifications from "@/pages/portal/CustomerNotifications";
@@ -75,6 +76,7 @@ export default function RoleRouter() {
     <Routes>
       <Route element={<CustomerLayout />}>
         <Route path="/portal" element={<CustomerDashboard />} />
+        <Route path="/portal/project/:projectId" element={<CustomerProjectView />} />
         <Route path="/portal/project/:projectId/area/:areaId" element={<CustomerAreaView />} />
         <Route path="/portal/project/:projectId/area/:areaId/selection/:requirementId" element={<CustomerSelectionView />} />
         <Route path="/portal/mood-board" element={<CustomerMoodBoard />} />

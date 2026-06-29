@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StatusBadge from "@/components/ui/StatusBadge";
+import CommentThread from "@/components/comments/CommentThread";
+import ProjectTimeline from "@/components/comments/ProjectTimeline";
 import { PROJECT_STATUSES, AREA_TYPES, DEFAULT_TEMPLATES } from "@/lib/constants";
 import AreaCard from "@/components/staff/AreaCard";
 
@@ -81,6 +83,7 @@ export default function ProjectDetail() {
           <TabsTrigger value="areas">Areas & Rooms</TabsTrigger>
           <TabsTrigger value="selections">All Selections</TabsTrigger>
           <TabsTrigger value="details">Project Details</TabsTrigger>
+          <TabsTrigger value="communication">Communication</TabsTrigger>
         </TabsList>
 
         <TabsContent value="areas" className="mt-6 space-y-4">
@@ -114,6 +117,10 @@ export default function ProjectDetail() {
 
         <TabsContent value="details" className="mt-6">
           <ProjectDetailsCard project={project} onUpdate={load} />
+        </TabsContent>
+        <TabsContent value="communication" className="mt-6 space-y-4">
+          <ProjectTimeline projectId={projectId} staff={true} />
+          <CommentThread projectId={projectId} targetType="project" targetId={projectId} staff={true} title="Project Comments" />
         </TabsContent>
       </Tabs>
 

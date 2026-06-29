@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import StatusBadge from "@/components/ui/StatusBadge";
+import CommentThread from "@/components/comments/CommentThread";
 import { PROCUREMENT_STATUSES } from "@/lib/constants";
 
 const today = new Date().toISOString().slice(0, 10);
@@ -178,6 +179,8 @@ export default function ProcurementDetail() {
 
         <Button onClick={handleSave} disabled={saving} className="gap-2"><Save size={14} /> {saving ? "Saving..." : "Save Changes"}</Button>
       </div>
+
+      <CommentThread projectId={item.project_id} targetType="procurement" targetId={item.id} staff={true} title="Procurement Comments" />
     </div>
   );
 }

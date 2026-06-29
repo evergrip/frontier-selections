@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import StatusBadge from "@/components/ui/StatusBadge";
+import CommentThread from "@/components/comments/CommentThread";
 import { CATEGORIES, SELECTION_STATUSES } from "@/lib/constants";
 
 export default function AreaDetail() {
@@ -89,6 +90,8 @@ export default function AreaDetail() {
           })}
         </div>
       )}
+
+      <CommentThread projectId={projectId} targetType="area" targetId={areaId} staff={true} title="Area Comments" />
 
       <AddRequirementDialog open={showAddReq} onClose={() => setShowAddReq(false)} projectId={projectId} areaId={areaId} onAdded={load} />
       <EditAllowanceDialog open={showEditAllowance} onClose={() => setShowEditAllowance(false)} area={area} onUpdated={load} />
