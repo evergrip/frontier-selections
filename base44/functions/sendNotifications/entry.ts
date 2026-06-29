@@ -26,7 +26,9 @@ Deno.serve(async (req) => {
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
           body: JSON.stringify({
             from: from_name ? `${from_name} <onboarding@resend.dev>` : "Frontier Building Group <onboarding@resend.dev>",
-            to: [to], subject, html: emailBody.replace(/\n/g, "<br>")
+            to: [to],
+            subject: subject,
+            html: emailBody.replace(/\n/g, "<br>")
           })
         });
         if (!res.ok) {
@@ -42,17 +44,26 @@ Deno.serve(async (req) => {
     const { user_ids, project_id, type, title, message, link, target_all_staff, skip_email } = body;
     const users = await base44.asServiceRole.entities.User.list();
     let targets = target_all_staff ? users.filter(u => u.role === "admin" || u.role === "staff") : users.filter(u => user_ids?.includes(u.id));
-    if (!target_all_staff && (!user_ids || user_ids.length === 0)) return Response.json({ sent: 0 });
+    if (!target_all_staff && (!user_ids || user_ids.length === 0)) {
+      return Response.json({ sent: 0 });
+    }
     let sent = 0;
     for (const u of targets) {
       try {
         await base44.asServiceRole.entities.Notification.create({
-          user_id: u.id, project_id: project_id || null, type: type || "general",
-          title: title || "Notification", message: message || "", link: link || "", is_read: false
+          user_id: u.id,
+          project_id: project_id || null,
+          type: type || "general",
+          title: title || "Notification",
+          message: message || "",
+          link: link || "",
+          is_read: false
         });
         if (u.email && !skip_email) {
           await base44.asServiceRole.integrations.Core.SendEmail({
-            to: u.email, subject: title || "Notification", body: (message || "") + (link ? `\n\nOpen: ${link}` : "")
+            to: u.email,
+            subject: title || "Notification",
+            body: (message || "") + (link ? `\n\nOpen: ${link}` : "")
           });
         }
         sent++;
