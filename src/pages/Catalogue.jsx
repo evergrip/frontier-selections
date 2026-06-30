@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CATEGORIES, BT_LINE_ITEM_TYPES, BT_TAX_STATUSES } from "@/lib/constants";
 import MissingDataBadges from "@/components/catalogue/MissingDataBadges";
+import NextActionPanel from "@/components/staff/NextActionPanel";
 import QuickAddItemDialog from "@/components/catalogue/QuickAddItemDialog";
 import BulkEditDialog from "@/components/catalogue/BulkEditDialog";
 import BuildertrendImportDialog from "@/components/catalogue/BuildertrendImportDialog";
@@ -142,6 +143,7 @@ export default function Catalogue() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Catalogue</h1>
+          <p className="text-sm text-gray-500 mt-1">{items.length} items total</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link to="/catalogue-dashboard"><Button variant="outline" className="gap-2"><LayoutDashboard size={16} /> Dashboard</Button></Link>
@@ -151,6 +153,17 @@ export default function Catalogue() {
           <Link to="/catalogue/new"><Button variant="outline" className="gap-2"><Edit2 size={16} /> Full Editor</Button></Link>
         </div>
       </div>
+
+      {(() => {
+        const catActions = [];
+        const missingBt = items.filter(i => !i.cost_code || !i.line_item_type || !i.tax_status || !i.parent_group || !i.subgroup);
+        const missingImg = items.filter(i => !i.default_image);
+        const missingPrice = items.filter(i => !i.base_price || i.base_price === 0);
+        if (missingBt.length > 0) catActions.push({ label: `${missingBt.length} items missing Buildertrend fields`, to: "#", priority: "high", buttonLabel: "Filter", onClick: () => setMissingBtFilter(true), description: "Cost code, line item type, tax status, parent group, or subgroup" });
+        if (missingImg.length > 0) catActions.push({ label: `${missingImg.length} items missing images`, to: "#", priority: "medium", buttonLabel: "Filter", onClick: () => setMissingImageFilter(true) });
+        if (missingPrice.length > 0) catActions.push({ label: `${missingPrice.length} items missing pricing`, to: "#", priority: "medium", buttonLabel: "Filter", onClick: () => setMissingPriceFilter(true) });
+        return catActions.length > 0 ? <NextActionPanel actions={catActions} /> : null;
+      })()}
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
@@ -242,7 +255,11 @@ export default function Catalogue() {
         <div className="text-center py-20">
           <Package size={48} className="mx-auto text-gray-300 mb-3" />
           <p className="text-gray-400 text-sm">No catalogue items found</p>
-          <Button onClick={() => setShowQuickAdd(true)} variant="outline" className="mt-4 gap-2"><Plus size={16} /> Add your first item</Button>
+          <p className="text-gray-400 text-xs mt-1">Quick Add your first catalogue item or import a Buildertrend file.</p>
+          <div className="flex justify-center gap-2 mt-4">
+            <Button onClick={() => setShowQuickAdd(true)} variant="outline" className="gap-2"><Plus size={16} /> Quick Add</Button>
+            <Button onClick={() => setShowImport(true)} variant="outline" className="gap-2"><Upload size={16} /> Import</Button>
+          </div>
         </div>
       ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

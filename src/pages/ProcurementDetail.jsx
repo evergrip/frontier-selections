@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import StatusBadge from "@/components/ui/StatusBadge";
 import CommentThread from "@/components/comments/CommentThread";
+import NextActionPanel from "@/components/staff/NextActionPanel";
 import { PROCUREMENT_STATUSES } from "@/lib/constants";
 import ContextualHelpLink from "@/components/training/ContextualHelpLink";
 
@@ -61,6 +62,7 @@ export default function ProcurementDetail() {
   function setField(k, v) { setForm(f => ({ ...f, [k]: v })); }
 
   async function handleSave() {
+    if (saving) return;
     setSaving(true);
     await base44.entities.ProcurementItem.update(procurementId, {
       supplier: form.supplier, brand: form.brand, sku: form.sku,
@@ -80,7 +82,7 @@ export default function ProcurementDetail() {
 
   async function handleUpload(e) {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || uploading) return;
     setUploading(true);
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
     setField("attachments", [...(form.attachments || []), file_url]);
@@ -127,6 +129,16 @@ export default function ProcurementDetail() {
           {warnings.map((w, i) => <div key={i} className="flex items-start gap-2 text-sm text-red-700"><AlertTriangle size={14} className="mt-0.5 shrink-0" /> {w}</div>)}
         </div>
       )}
+
+      {(() => {
+        const procActions = [];
+        if (item.status === "Ready to Order") procActions.push({ label: "Mark as Ordered", onClick: () => { setForm(f => ({ ...f, status: "Ordered", order_date: new Date().toISOString().slice(0, 10) })); }, priority: "urgent", buttonLabel: "Set Ordered", description: "Place the order with the supplier and record the PO number" });
+        if (item.status === "Ordered") procActions.push({ label: "Mark as Received", onClick: () => { setForm(f => ({ ...f, status: "Received", actual_received_date: new Date().toISOString().slice(0, 10) })); }, priority: "high", buttonLabel: "Set Received" });
+        if (item.status === "Received") procActions.push({ label: "Mark Delivered to Site", onClick: () => { setForm(f => ({ ...f, status: "Delivered to Site", delivered_to_site_date: new Date().toISOString().slice(0, 10) })); }, priority: "high", buttonLabel: "Set Delivered" });
+        if (item.status === "Delivered to Site") procActions.push({ label: "Mark as Installed", onClick: () => { setForm(f => ({ ...f, status: "Installed", installed_date: new Date().toISOString().slice(0, 10) })); }, priority: "medium", buttonLabel: "Set Installed" });
+        if (!item.supplier) procActions.push({ label: "Add supplier information", to: "#", priority: "high", buttonLabel: "Below", description: "Supplier is required before ordering" });
+        return procActions.length > 0 ? <NextActionPanel actions={procActions} /> : null;
+      })()}
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2 text-sm">
         <div className="grid grid-cols-2 gap-3">

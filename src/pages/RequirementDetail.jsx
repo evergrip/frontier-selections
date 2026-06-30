@@ -238,6 +238,20 @@ export default function RequirementDetail() {
   if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
   if (!requirement) return <div className="p-8 text-center text-gray-400">Requirement not found</div>;
 
+  const reqActions = [];
+  if (selection?.status === "Pending") {
+    reqActions.push({ label: "Review submitted selection", onClick: () => { setReviewAction("Approved"); setShowReview(true); }, priority: "urgent", buttonLabel: "Review", description: `Customer submitted — approve, reject, or request revision` });
+  }
+  if (selection?.status === "Approved" && !selection?.signed_off) {
+    reqActions.push({ label: "Request sign-off", to: "#", priority: "high", buttonLabel: "Request", description: "Selection is approved — request customer sign-off to lock it in" });
+  }
+  if (selection?.signed_off && !selection?.locked) {
+    reqActions.push({ label: "Lock signed-off selection", to: "#", priority: "high", buttonLabel: "Lock", description: "Selection is signed off — lock it to prevent further changes" });
+  }
+  if (!selection && (requirement.customer_catalogue_access_mode || "suggested_only") === "suggested_only") {
+    reqActions.push({ label: "Add suggested options", onClick: () => setShowAssignCatalogue(true), priority: "high", buttonLabel: "Add", description: "Give the customer catalogue items to choose from" });
+  }
+
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-3xl">
       <div className="flex items-center gap-3">
@@ -249,6 +263,8 @@ export default function RequirementDetail() {
         <StatusBadge status={requirement.status} />
         <ContextualHelpLink category="Approvals" relatedModule="Selections" label="How to approve or reject selections" />
       </div>
+
+      {reqActions.length > 0 && <NextActionPanel actions={reqActions} />}
 
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
         <div className="flex items-center justify-between">

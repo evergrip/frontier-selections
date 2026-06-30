@@ -99,6 +99,7 @@ function InviteStaffDialog({ onClose, onDone }) {
   };
 
   const handleSubmit = async () => {
+    if (loading) return;
     if (!email) { setError("Email is required"); return; }
     setLoading(true); setError("");
     try {
@@ -173,6 +174,7 @@ function EditStaffDialog({ user, onClose, onDone }) {
   const [error, setError] = useState("");
 
   const handleSubmit = async () => {
+    if (loading) return;
     setLoading(true); setError("");
     try {
       await base44.functions.invoke("userManagement", {

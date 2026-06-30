@@ -32,6 +32,7 @@ export default function CustomerInviteDialog({ open, onClose, preselectedProject
   };
 
   const handleSubmit = async () => {
+    if (loading) return;
     if (!email || selectedProjects.length === 0) {
       setError("Email and at least one project are required");
       return;

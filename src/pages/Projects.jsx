@@ -175,6 +175,11 @@ export default function Projects() {
                   <Link to={`/selections-tracker?project=${p.id}`} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50">
                     <ClipboardCheck size={12} /> Selections
                   </Link>
+                  {s.customerInvited && (
+                    <Link to={`/projects/${p.id}`} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50">
+                      <Eye size={12} /> Portal
+                    </Link>
+                  )}
                   {!s.customerInvited && (
                     <Link to={`/projects/${p.id}`} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50">
                       <UserPlus size={12} /> Invite
@@ -197,7 +202,7 @@ function CreateProjectDialog({ open, onClose, onCreated }) {
   const [saving, setSaving] = useState(false);
 
   async function handleCreate() {
-    if (!form.name.trim()) return;
+    if (saving || !form.name.trim()) return;
     setSaving(true);
     const p = await base44.entities.Project.create(form);
     setSaving(false);

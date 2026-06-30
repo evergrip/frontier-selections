@@ -9,6 +9,7 @@ export default function InvitationManagement() {
   const [invitations, setInvitations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
+  const [actionLoading, setActionLoading] = useState({});
 
   const load = async () => {
     setLoading(true);
@@ -22,6 +23,8 @@ export default function InvitationManagement() {
   useEffect(() => { load(); }, []);
 
   const handleAction = async (action, invitationId, extra = {}) => {
+    if (actionLoading[invitationId + action]) return;
+    setActionLoading(prev => ({ ...prev, [invitationId + action]: true }));
     try {
       const res = await base44.functions.invoke("customerInvitations", { action, invitation_id: invitationId, ...extra });
       const data = res.data;
@@ -35,6 +38,8 @@ export default function InvitationManagement() {
       load();
     } catch (e) {
       alert(e.response?.data?.error || "Failed");
+    } finally {
+      setActionLoading(prev => ({ ...prev, [invitationId + action]: false }));
     }
   };
 
@@ -80,16 +85,16 @@ export default function InvitationManagement() {
                   </div>
                   <div className="flex flex-col gap-1.5 flex-shrink-0">
                     {(inv.status === 'Invitation sent' || expired) && (
-                      <Button size="sm" variant="ghost" onClick={() => handleAction('resend', inv.id)}><Send size={12} /> Resend</Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleAction('resend', inv.id)} disabled={!!actionLoading[inv.id + 'resend']}>{actionLoading[inv.id + 'resend'] ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Resend</Button>
                     )}
                     {inv.status !== 'Cancelled' && inv.status !== 'Deactivated' && (
-                      <Button size="sm" variant="ghost" onClick={() => handleAction('cancel', inv.id)} className="text-orange-600"><Ban size={12} /> Cancel</Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleAction('cancel', inv.id)} disabled={!!actionLoading[inv.id + 'cancel']} className="text-orange-600">{actionLoading[inv.id + 'cancel'] ? <Loader2 size={12} className="animate-spin" /> : <Ban size={12} />} Cancel</Button>
                     )}
                     {inv.status !== 'Deactivated' && inv.status !== 'Cancelled' && (
-                      <Button size="sm" variant="ghost" onClick={() => handleAction('deactivate', inv.id)} className="text-red-600"><PowerOff size={12} /> Deactivate</Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleAction('deactivate', inv.id)} disabled={!!actionLoading[inv.id + 'deactivate']} className="text-red-600">{actionLoading[inv.id + 'deactivate'] ? <Loader2 size={12} className="animate-spin" /> : <PowerOff size={12} />} Deactivate</Button>
                     )}
                     {inv.status === 'Deactivated' && (
-                      <Button size="sm" variant="ghost" onClick={() => handleAction('reactivate', inv.id)} className="text-green-600"><Power size={12} /> Reactivate</Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleAction('reactivate', inv.id)} disabled={!!actionLoading[inv.id + 'reactivate']} className="text-green-600">{actionLoading[inv.id + 'reactivate'] ? <Loader2 size={12} className="animate-spin" /> : <Power size={12} />} Reactivate</Button>
                     )}
                   </div>
                 </div>

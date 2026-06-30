@@ -5,6 +5,7 @@ import { Search, X, Download, ExternalLink, Eye, Star, AlertTriangle, Clock, Che
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import StatusBadge from "@/components/ui/StatusBadge";
+import NextActionPanel from "@/components/staff/NextActionPanel";
 import { CATEGORIES, SELECTION_STATUSES, hasPermission } from "@/lib/constants";
 
 const DONE_STATUSES = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
@@ -36,6 +37,8 @@ export default function SelectionsTracker() {
   useEffect(() => {
     const qf = searchParams.get("filter");
     if (qf) setFilterQuick(qf);
+    const qp = searchParams.get("project");
+    if (qp) setFilterProject(qp);
   }, [searchParams]);
 
   useEffect(() => {
@@ -270,6 +273,15 @@ export default function SelectionsTracker() {
           )}
         </div>
       </div>
+
+      {(() => {
+        const trackerActions = [];
+        if (stats.overdue > 0) trackerActions.push({ label: `${stats.overdue} overdue selection(s)`, to: "#", priority: "urgent", buttonLabel: "Filter", onClick: () => setFilterQuick("overdue") });
+        if (stats.pendingApproval > 0) trackerActions.push({ label: `${stats.pendingApproval} selection(s) pending approval`, to: "#", priority: "high", buttonLabel: "Filter", onClick: () => setFilterQuick("pending_approval") });
+        if (stats.missingSuggested > 0) trackerActions.push({ label: `${stats.missingSuggested} selection(s) missing suggested options`, to: "#", priority: "high", buttonLabel: "Filter", onClick: () => setFilterQuick("missing_suggested") });
+        if (stats.overAllowance > 0) trackerActions.push({ label: `${stats.overAllowance} selection(s) over allowance`, to: "#", priority: "medium", buttonLabel: "Filter", onClick: () => setFilterQuick("over_allowance") });
+        return trackerActions.length > 0 ? <NextActionPanel actions={trackerActions} /> : null;
+      })()}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
