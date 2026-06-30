@@ -23,23 +23,143 @@
       "default": false
     },
     "staff_note": {
-      "type": "string"
+      "type": "string",
+      "rls": {
+        "read": {
+          "$or": [
+            {
+              "user_condition": {
+                "role": "admin"
+              }
+            },
+            {
+              "user_condition": {
+                "role": "staff"
+              }
+            }
+          ]
+        },
+        "write": {
+          "$or": [
+            {
+              "user_condition": {
+                "role": "admin"
+              }
+            },
+            {
+              "user_condition": {
+                "role": "staff"
+              }
+            }
+          ]
+        }
+      }
     },
     "customer_note": {
       "type": "string"
     },
     "price_override": {
-      "type": "number"
+      "type": "number",
+      "rls": {
+        "read": {
+          "$or": [
+            {
+              "user_condition": {
+                "role": "admin"
+              }
+            },
+            {
+              "user_condition": {
+                "role": "staff"
+              }
+            }
+          ]
+        },
+        "write": {
+          "$or": [
+            {
+              "user_condition": {
+                "role": "admin"
+              }
+            },
+            {
+              "user_condition": {
+                "role": "staff"
+              }
+            }
+          ]
+        }
+      }
     },
     "allowance_impact_override": {
-      "type": "number"
+      "type": "number",
+      "rls": {
+        "read": {
+          "$or": [
+            {
+              "user_condition": {
+                "role": "admin"
+              }
+            },
+            {
+              "user_condition": {
+                "role": "staff"
+              }
+            }
+          ]
+        },
+        "write": {
+          "$or": [
+            {
+              "user_condition": {
+                "role": "admin"
+              }
+            },
+            {
+              "user_condition": {
+                "role": "staff"
+              }
+            }
+          ]
+        }
+      }
     },
     "is_available": {
       "type": "boolean",
       "default": true
     },
     "custom_allowance": {
-      "type": "number"
+      "type": "number",
+      "rls": {
+        "read": {
+          "$or": [
+            {
+              "user_condition": {
+                "role": "admin"
+              }
+            },
+            {
+              "user_condition": {
+                "role": "staff"
+              }
+            }
+          ]
+        },
+        "write": {
+          "$or": [
+            {
+              "user_condition": {
+                "role": "admin"
+              }
+            },
+            {
+              "user_condition": {
+                "role": "staff"
+              }
+            }
+          ]
+        }
+      }
     },
     "notes": {
       "type": "string"
@@ -51,5 +171,54 @@
   "required": [
     "project_id",
     "catalogue_item_id"
-  ]
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        }
+      ]
+    },
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }

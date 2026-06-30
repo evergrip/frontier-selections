@@ -17,7 +17,18 @@ Deno.serve(async (req) => {
     async function verifyProjectAccess(projectId) {
       const project = await base44.asServiceRole.entities.Project.get(projectId).catch(() => null);
       if (!project) return { ok: false, error: "Project not found", status: 404 };
-      if (isStaff) return { ok: true, project, isStaff: true };
+      if (isStaff) {
+        const perms = user.permissions || [];
+        const hasViewAll = user.role === "admin" || perms.includes("view_all_projects");
+        if (!hasViewAll) {
+          const assigned = project.assigned_staff || [];
+          const userAssigned = assigned.includes(user.id) || assigned.includes(user.email);
+          if (!userAssigned) {
+            return { ok: false, error: "Forbidden - project not assigned", status: 403 };
+          }
+        }
+        return { ok: true, project, isStaff: true };
+      }
       const custs = project.assigned_customers || [];
       if (!custs.includes(user.id) && !custs.includes(user.email)) {
         await base44.asServiceRole.entities.AuditLog.create({
@@ -361,6 +372,8 @@ Deno.serve(async (req) => {
     if (action === "review") {
       const sel = await base44.asServiceRole.entities.CustomerSelection.get(body.selection_id).catch(() => null);
       if (!sel) return Response.json({ error: "Not found" }, { status: 404 });
+      const reviewAccess = await verifyProjectAccess(sel.project_id);
+      if (!reviewAccess.ok) return Response.json({ error: reviewAccess.error }, { status: reviewAccess.status });
       const reviewAction = body.review_action;
       if (!["Approved", "Rejected", "Revision Requested"].includes(reviewAction)) {
         return Response.json({ error: "Invalid review action" }, { status: 400 });
@@ -416,6 +429,8 @@ Deno.serve(async (req) => {
     if (action === "change_requirement_status") {
       const req = await base44.asServiceRole.entities.SelectionRequirement.get(body.requirement_id).catch(() => null);
       if (!req) return Response.json({ error: "Not found" }, { status: 404 });
+      const reqAccess = await verifyProjectAccess(req.project_id);
+      if (!reqAccess.ok) return Response.json({ error: reqAccess.error }, { status: reqAccess.status });
       const oldStatus = req.status;
       await base44.asServiceRole.entities.SelectionRequirement.update(req.id, { status: body.new_status });
       await createAudit("requirement", req.id, "status_changed", "status", oldStatus, body.new_status,
@@ -438,6 +453,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === "request_signoff") {
+      if (body.project_id) {
+        const signoffAccess = await verifyProjectAccess(body.project_id);
+        if (!signoffAccess.ok) return Response.json({ error: signoffAccess.error }, { status: signoffAccess.status });
+      }
       const sels = await getScopedSelections();
       const approved = sels.filter(s => s.status === "Approved" && !s.signed_off);
       let count = 0;
@@ -461,6 +480,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === "lock") {
+      if (body.project_id) {
+        const lockAccess = await verifyProjectAccess(body.project_id);
+        if (!lockAccess.ok) return Response.json({ error: lockAccess.error }, { status: lockAccess.status });
+      }
       const sels = await getScopedSelections();
       const lockable = sels.filter(s => s.status === "Approved" && s.signed_off && !s.locked);
       let count = 0;
@@ -479,6 +502,8 @@ Deno.serve(async (req) => {
       if (!body.reason || !body.reason.trim()) return Response.json({ error: "Reason required" }, { status: 400 });
       const s = await base44.asServiceRole.entities.CustomerSelection.get(body.selection_id).catch(() => null);
       if (!s) return Response.json({ error: "Not found" }, { status: 404 });
+      const unlockAccess = await verifyProjectAccess(s.project_id);
+      if (!unlockAccess.ok) return Response.json({ error: unlockAccess.error }, { status: unlockAccess.status });
       await base44.asServiceRole.entities.CustomerSelection.update(s.id, { locked: false, unlock_reason: body.reason });
       await createAudit("selection", s.id, "unlocked", "locked", "true", "false",
         body.reason, s.project_id, { severity: 'high', unlocked_by: actor });

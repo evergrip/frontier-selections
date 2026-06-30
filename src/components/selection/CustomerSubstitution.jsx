@@ -24,6 +24,7 @@ export default function CustomerSubstitution({ projectId, selectionId, showPrici
   }, [selectionId, projectId]);
 
   async function decide(action) {
+    if (readOnly) return;
     setBusy(true);
     try {
       await base44.functions.invoke("substitutionWorkflow", { action, recommendation_id: active.id, note });

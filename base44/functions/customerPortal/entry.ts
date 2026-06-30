@@ -300,8 +300,10 @@ Deno.serve(async (req) => {
         return Response.json({ error: "Item not found in this project" }, { status: 404 });
       }
 
-      // Only allow safe fields to be updated by customers
-      const allowedFields = ["is_favourite", "is_reviewed", "linked_requirement_id", "internal_notes", "tags", "notes", "link", "priority"];
+      // Customers may only update safe fields; staff-only fields require staff role
+      const customerFields = ["is_favourite", "tags", "notes", "link", "priority"];
+      const staffFields = ["is_favourite", "is_reviewed", "linked_requirement_id", "internal_notes", "tags", "notes", "link", "priority"];
+      const allowedFields = access.isStaff ? staffFields : customerFields;
       const safeUpdates = {};
       for (const key of allowedFields) {
         if (updates[key] !== undefined) safeUpdates[key] = updates[key];
