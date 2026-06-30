@@ -1,22 +1,15 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { ChevronRight, Calendar, AlertCircle } from "lucide-react";
-
-const CUSTOMER_COMPLETE_STATUSES = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Delivered to Site", "Installed"];
+import { getSelectionTruthState } from "@/utils/selectionTruth";
 
 function getCurrentSelection(requirementId, selections) {
   return selections.find(s => s.requirement_id === requirementId && s.is_current === true) || null;
 }
 
 function isRequirementCustomerComplete(requirement, currentSelection) {
-  if (currentSelection) {
-    if (currentSelection.status === "Approved") return true;
-    if (currentSelection.signed_off === true) return true;
-    if (currentSelection.locked === true) return true;
-    if (["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Delivered to Site", "Installed"].includes(currentSelection.status)) return true;
-  }
-  if (CUSTOMER_COMPLETE_STATUSES.includes(requirement.status)) return true;
-  return false;
+  const truth = getSelectionTruthState({ requirement, currentSelection, changeRequests: [] });
+  return truth.countsAsComplete;
 }
 
 export default function AreaCard({ area, requirements, selections = [], projectId }) {

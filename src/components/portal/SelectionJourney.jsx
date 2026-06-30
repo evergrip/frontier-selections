@@ -1,5 +1,6 @@
 import React from "react";
 import { Check, ChevronRight } from "lucide-react";
+import { getSelectionTruthState } from "@/utils/selectionTruth";
 
 const STEPS = [
   { num: 1, label: "Review Rooms", desc: "Explore your rooms and areas" },
@@ -12,17 +13,23 @@ const STEPS = [
 ];
 
 export default function SelectionJourney({ requirements, selections, project }) {
-  const DONE = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
   const totalReqs = (requirements || []).length;
-  const completedReqs = (requirements || []).filter(r => DONE.includes(r.status)).length;
   const currentSels = (selections || []).filter(s => s.is_current);
+  
+  // Use truth state for accurate step calculation
+  const requirementTruths = (requirements || []).map(r => {
+    const currentSelection = currentSels.find(s => s.requirement_id === r.id);
+    return getSelectionTruthState({ requirement: r, currentSelection, changeRequests: [] });
+  });
+  
   const hasAnySelection = currentSels.length > 0;
-  const hasApproved = currentSels.some(s => s.status === "Approved");
-  const hasRevision = currentSels.some(s => ["Revision Requested", "Rejected"].includes(s.status));
+  const hasApproved = requirementTruths.some(t => t.isApproved && !t.needsCustomerAction);
+  const hasRevision = requirementTruths.some(t => t.needsCustomerAction);
   const hasSignOffRequested = currentSels.some(s => s.sign_off_requested && !s.signed_off);
   const hasSignedOff = currentSels.some(s => s.signed_off);
   const hasLocked = currentSels.some(s => s.locked);
-  const hasOrdered = (requirements || []).some(r => ["Ordered", "Received", "Installed"].includes(r.status));
+  const hasOrdered = requirementTruths.some(t => t.isOrdered || t.isReceived || t.isInstalled);
+  const allComplete = requirementTruths.length > 0 && requirementTruths.every(t => t.countsAsComplete);
 
   let currentStep = 1;
   if (totalReqs === 0) currentStep = 1;
@@ -30,6 +37,7 @@ export default function SelectionJourney({ requirements, selections, project }) 
   else if (hasRevision) currentStep = 4;
   else if (hasLocked || hasSignedOff) currentStep = hasOrdered ? 6 : 5;
   else if (hasSignOffRequested) currentStep = 5;
+  else if (hasApproved && allComplete) currentStep = 5;
   else if (hasApproved) currentStep = 3;
   else currentStep = 2;
 

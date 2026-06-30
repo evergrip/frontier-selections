@@ -132,10 +132,9 @@ export default function SelectionAllowanceSummary({
       {/* Remaining or overage */}
       {showRemainingOnly && summary.itemAllowance > 0 && (
         <div className="flex justify-between text-sm font-bold">
-          <span>Remaining Balance</span>
-          <span className={summary.remainingAgainstItemAllowance >= 0 ? "text-green-600" : "text-red-600"}>
-            ${Math.abs(summary.remainingAgainstItemAllowance).toLocaleString()}
-            {summary.remainingAgainstItemAllowance < 0 ? " over" : " left"}
+          <span>{summary.isOverAllowance ? "Over Allowance" : "Remaining Allowance"}</span>
+          <span className={summary.isOverAllowance ? "text-red-600" : "text-green-600"}>
+            {summary.isOverAllowance ? '+' : ''}${summary.isOverAllowance ? summary.overAllowance.toLocaleString() : summary.underAllowance.toLocaleString()}
           </span>
         </div>
       )}
@@ -154,7 +153,7 @@ export default function SelectionAllowanceSummary({
         <div className={`flex justify-between text-sm font-bold border-t border-gray-200 pt-2 ${summary.isOverAllowance ? "text-red-600" : "text-green-600"}`}>
           <span>{summary.isOverAllowance ? "Over Allowance" : "Remaining Allowance"}</span>
           <span>
-            {summary.isOverAllowance ? `+$${summary.overAllowance.toLocaleString()}` : `-$${summary.underAllowance.toLocaleString()}`}
+            {summary.isOverAllowance ? `+$${summary.overAllowance.toLocaleString()}` : `$${summary.underAllowance.toLocaleString()}`}
           </span>
         </div>
       )}

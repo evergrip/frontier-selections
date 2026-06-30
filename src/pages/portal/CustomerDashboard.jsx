@@ -5,39 +5,27 @@ import { ChevronRight, CheckCircle, Clock, AlertCircle, ArrowRight, Wallet, Aler
 import StatusBadge from "@/components/ui/StatusBadge";
 import AreaCard from "@/components/portal/AreaCard";
 import SelectionJourney from "@/components/portal/SelectionJourney";
-
-const CUSTOMER_COMPLETE_STATUSES = [
-  "Approved", "Locked", "Ready to Order", "Ordered", 
-  "Received", "Delivered to Site", "Installed"
-];
+import { getSelectionTruthState } from "@/utils/selectionTruth";
 
 function getCurrentSelectionForRequirement(requirementId, selections) {
   return selections.find(s => s.requirement_id === requirementId && s.is_current === true) || null;
 }
 
 function isRequirementCustomerComplete(requirement, currentSelection) {
-  if (currentSelection) {
-    if (currentSelection.status === "Approved") return true;
-    if (currentSelection.signed_off === true) return true;
-    if (currentSelection.locked === true) return true;
-    if (["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Delivered to Site", "Installed"].includes(currentSelection.status)) return true;
-  }
-  if (CUSTOMER_COMPLETE_STATUSES.includes(requirement.status)) return true;
-  return false;
+  const truth = getSelectionTruthState({ requirement, currentSelection, changeRequests: [] });
+  return truth.countsAsComplete;
 }
 
 function getCustomerNextSelection(requirements, selections) {
   const withSelection = requirements.map(r => {
     const currentSelection = getCurrentSelectionForRequirement(r.id, selections);
-    return { ...r, currentSelection };
+    const truth = getSelectionTruthState({ requirement: r, currentSelection, changeRequests: [] });
+    return { ...r, currentSelection, truth };
   });
 
   const needsAction = withSelection.filter(r => {
-    if (isRequirementCustomerComplete(r, r.currentSelection)) return false;
-    if (r.currentSelection && ["Revision Requested", "Rejected"].includes(r.currentSelection.status)) return true;
-    if (!r.currentSelection || ["Pending", "Submitted", "Superseded"].includes(r.currentSelection.status)) {
-      return r.status === "Not Started" || r.status === "Viewed" || r.status === "In Progress";
-    }
+    if (r.truth.countsAsComplete) return false;
+    if (r.truth.needsCustomerAction) return true;
     return false;
   });
 

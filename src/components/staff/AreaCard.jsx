@@ -2,16 +2,15 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { getSelectionTruthState } from "@/utils/selectionTruth";
 
 function getCurrentSelection(requirementId, selections = []) {
   return selections.find(s => s.requirement_id === requirementId && s.is_current === true) || null;
 }
 
 function isRequirementComplete(requirement, currentSelection) {
-  if (currentSelection?.status === "Approved") return true;
-  if (currentSelection?.signed_off === true) return true;
-  if (currentSelection?.locked === true) return true;
-  return ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Delivered to Site", "Installed"].includes(requirement.status);
+  const truth = getSelectionTruthState({ requirement, currentSelection, changeRequests: [] });
+  return truth.countsAsComplete;
 }
 
 export default function AreaCard({ area, requirements, selections = [], projectId }) {

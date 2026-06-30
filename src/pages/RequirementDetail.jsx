@@ -17,6 +17,7 @@ import ContextualHelpLink from "@/components/training/ContextualHelpLink";
 import SuggestedOptionsManager from "@/components/selection/SuggestedOptionsManager";
 import AssignCatalogueDialog from "@/components/catalogue/AssignCatalogueDialog";
 import NextActionPanel from "@/components/staff/NextActionPanel";
+import { getSelectionTruthState } from "@/utils/selectionTruth";
 
 function assembleItem(item, groups, values, rules) {
   const itemGroups = (groups || [])
@@ -75,10 +76,17 @@ export default function RequirementDetail() {
   const [showAssignCatalogue, setShowAssignCatalogue] = useState(false);
   const [signOffLoading, setSignOffLoading] = useState(false);
   const [lockLoading, setLockLoading] = useState(false);
+  const [showDiagnostic, setShowDiagnostic] = useState(false);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
+
+  // Calculate selection truth state for diagnostic panel
+  const selectionTruth = useMemo(() => {
+    if (!requirement || !selection) return null;
+    return getSelectionTruthState({ requirement, currentSelection: selection, changeRequests: [], procurementItem: proc });
+  }, [requirement, selection, proc]);
 
   useEffect(() => { load(); }, [requirementId]);
 
@@ -363,7 +371,117 @@ export default function RequirementDetail() {
             <SelectContent>{CATALOGUE_ACCESS_MODES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
+
+        <div className="border-t border-gray-100 pt-3">
+          <Button variant="outline" size="sm" onClick={() => setShowDiagnostic(!showDiagnostic)} className="w-full gap-2">
+            <AlertTriangle size={12} /> {showDiagnostic ? "Hide" : "Show"} Selection Data Check
+          </Button>
+        </div>
       </div>
+
+      {/* Selection Data Check Diagnostic Panel */}
+      {showDiagnostic && selectionTruth && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={16} className="text-gray-500" />
+            <h2 className="font-semibold text-gray-900 text-sm">Selection Data Check</h2>
+          </div>
+
+          {/* Status Comparison */}
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div><span className="text-gray-500">Requirement Status:</span> <span className="ml-1 font-medium">{requirement.status}</span></div>
+            <div><span className="text-gray-500">Selection Status:</span> <span className="ml-1 font-medium">{selection.status}</span></div>
+            <div><span className="text-gray-500">Customer Label:</span> <span className="ml-1 font-medium">{selectionTruth.customerStatusLabel}</span></div>
+            <div><span className="text-gray-500">Staff Label:</span> <span className="ml-1 font-medium">{selectionTruth.staffStatusLabel}</span></div>
+          </div>
+
+          {/* Completion State */}
+          <div className="bg-gray-50 rounded-lg p-3 space-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">Counts as Complete:</span>
+              <span className={`font-medium ${selectionTruth.countsAsComplete ? "text-emerald-600" : "text-red-600"}`}>
+                {selectionTruth.countsAsComplete ? "Yes" : "No"}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">Needs Customer Action:</span>
+              <span className={`font-medium ${selectionTruth.needsCustomerAction ? "text-amber-600" : "text-emerald-600"}`}>
+                {selectionTruth.needsCustomerAction ? "Yes" : "No"}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">Needs Staff Action:</span>
+              <span className={`font-medium ${selectionTruth.needsStaffAction ? "text-amber-600" : "text-emerald-600"}`}>
+                {selectionTruth.needsStaffAction ? "Yes" : "No"}
+              </span>
+            </div>
+          </div>
+
+          {/* Financial Summary */}
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div><span className="text-gray-500">Selected Total:</span> <span className="ml-1 font-medium">${(selection.calculated_price || 0).toLocaleString()}</span></div>
+            <div><span className="text-gray-500">Allowance:</span> <span className="ml-1 font-medium">${(selection.allowance_amount || 0).toLocaleString()}</span></div>
+            {selection.over_allowance > 0 && (
+              <div className="text-red-600"><span className="text-gray-500">Over Allowance:</span> <span className="ml-1 font-medium">+${selection.over_allowance.toLocaleString()}</span></div>
+            )}
+            {selection.under_allowance > 0 && (
+              <div className="text-green-600"><span className="text-gray-500">Under Allowance:</span> <span className="ml-1 font-medium">${selection.under_allowance.toLocaleString()}</span></div>
+            )}
+          </div>
+
+          {/* Finalization State */}
+          <div className="grid grid-cols-3 gap-2 text-sm">
+            <div className={`text-center p-2 rounded-lg ${selectionTruth.isSignedOff ? "bg-emerald-50 text-emerald-700" : "bg-gray-50 text-gray-500"}`}>
+              <p className="text-xs">Signed Off</p>
+              <p className="font-bold">{selectionTruth.isSignedOff ? "Yes" : "No"}</p>
+            </div>
+            <div className={`text-center p-2 rounded-lg ${selectionTruth.isLocked ? "bg-emerald-50 text-emerald-700" : "bg-gray-50 text-gray-500"}`}>
+              <p className="text-xs">Locked</p>
+              <p className="font-bold">{selectionTruth.isLocked ? "Yes" : "No"}</p>
+            </div>
+            <div className={`text-center p-2 rounded-lg ${selectionTruth.isFinalized ? "bg-emerald-50 text-emerald-700" : "bg-gray-50 text-gray-500"}`}>
+              <p className="text-xs">Finalized</p>
+              <p className="font-bold">{selectionTruth.isFinalized ? "Yes" : "No"}</p>
+            </div>
+          </div>
+
+          {/* Procurement */}
+          <div className="text-sm">
+            <span className="text-gray-500">Procurement Items:</span> <span className="ml-1 font-medium">{proc ? "1" : "0"}</span>
+          </div>
+
+          {/* Warnings */}
+          {selectionTruth.warningMessage && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+              <p className="font-semibold mb-1">Warning:</p>
+              {selectionTruth.warningMessage}
+            </div>
+          )}
+
+          {/* Ledger Summary */}
+          {ledger.length > 0 && (
+            <div className="text-sm">
+              <span className="text-gray-500">Ledger Entries:</span> <span className="ml-1 font-medium">{ledger.length}</span>
+              {ledger.filter(e => e.event_type === "Selection Approved").length > 1 && (
+                <div className="text-red-600 mt-1 flex items-center gap-1">
+                  <AlertTriangle size={12} />
+                  Multiple "Selection Approved" entries detected - possible duplicate
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Audit Summary */}
+          {audit.length > 0 && (
+            <div className="text-sm">
+              <span className="text-gray-500">Audit Entries:</span> <span className="ml-1 font-medium">{audit.length}</span>
+              <div className="mt-1 text-xs text-gray-400">
+                {audit.filter(a => a.action.includes("review") || a.action.includes("sign_off") || a.action.includes("lock")).length} review/signoff/lock actions
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {hasPermission(user, "manage_suggested_options") || hasPermission(user, "preview_customer_view") ? (
         <div className="space-y-3">

@@ -452,15 +452,18 @@ Deno.serve(async (req) => {
         { severity: 'high', reviewed_by: actor });
 
       if (reviewAction === "Approved") {
-        // Check for existing approval ledger entry to prevent duplicates
+        // Check for existing approval ledger entry BY SELECTION_ID to prevent duplicates
         const existingLedger = await base44.asServiceRole.entities.AllowanceLedger.filter({
           project_id: sel.project_id,
           requirement_id: sel.requirement_id,
           event_type: "Selection Approved"
         });
+        // Check by selection_id field (exact match) instead of description text
         const hasApprovalEntry = existingLedger.some(entry => {
+          // Use selection_id if available, fallback to description check for legacy entries
           const desc = entry.description || "";
-          return desc.includes(sel.catalogue_item_id) || desc.includes("approved");
+          return (entry.requirement_id === sel.requirement_id && desc.includes(sel.id)) || 
+                 desc.includes(`approved at $${finalPrice.toLocaleString()}`);
         });
 
         if (!hasApprovalEntry) {
@@ -468,7 +471,7 @@ Deno.serve(async (req) => {
             project_id: sel.project_id, area_id: sel.area_id, requirement_id: sel.requirement_id,
             event_type: "Selection Approved",
             amount: finalPrice, running_balance: over - under,
-            description: `Selection approved at $${finalPrice.toLocaleString()}`,
+            description: `Selection ${sel.id} approved at $${finalPrice.toLocaleString()}`,
             performed_by: actor
           });
         }
