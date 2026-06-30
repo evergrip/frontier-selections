@@ -1,20 +1,21 @@
 import React from "react";
 import { Check } from "lucide-react";
 
-const STEPS = [
+const BASE_STEPS = [
   "Choose Room",
   "Choose Selection",
   "Pick Product",
   "Customize",
   "Review Allowance",
-  "Submit",
-  "Wait for Approval"
+  "Submit"
 ];
 
-export default function StepIndicator({ currentStep }) {
+export default function StepIndicator({ currentStep, finalStepLabel }) {
+  const displaySteps = [...BASE_STEPS, finalStepLabel || "Wait for Approval"];
+  
   return (
     <div className="flex items-center gap-1 overflow-x-auto pb-1 -mx-1 px-1">
-      {STEPS.map((step, idx) => {
+      {displaySteps.map((step, idx) => {
         const stepNum = idx + 1;
         const isDone = stepNum < currentStep;
         const isActive = stepNum === currentStep;
@@ -32,7 +33,7 @@ export default function StepIndicator({ currentStep }) {
                 {step}
               </span>
             </div>
-            {idx < STEPS.length - 1 && (
+            {idx < displaySteps.length - 1 && (
               <div className={`h-px w-3 sm:w-6 shrink-0 ${isDone ? "bg-emerald-300" : "bg-gray-200"}`} />
             )}
           </React.Fragment>

@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import CommentThread from "@/components/comments/CommentThread";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { toast } from "@/components/ui/use-toast";
-import { ArrowLeft, Check, Package, CheckCircle, AlertTriangle, RefreshCw, History, FileSignature, Lock, Search, X, Star, GitCompare } from "lucide-react";
+import { ArrowLeft, Check, Package, CheckCircle, AlertTriangle, RefreshCw, History, FileSignature, Lock, Search, X, Star, GitCompare, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -14,8 +14,10 @@ import CustomerSubstitution from "@/components/selection/CustomerSubstitution";
 import StepIndicator from "@/components/portal/StepIndicator";
 import PortalBreadcrumb from "@/components/portal/PortalBreadcrumb";
 import CompareItems from "@/components/portal/CompareItems";
+import SelectionAllowanceSummary from "@/components/portal/SelectionAllowanceSummary";
 import { useProjectAccess } from "@/hooks/useProjectAccess";
 import { useCustomerPortal } from "@/components/CustomerPortalContext";
+import { getCustomerSelectionDisplayState, buildSelectionFinancialSummary, getCustomerStatusMessage } from "@/utils/selectionDisplay";
 
 function assembleItem(item, groups, values, rules) {
   const itemGroups = (groups || [])
@@ -344,6 +346,21 @@ export default function CustomerSelectionView() {
   const canRequestChange = isApproved && !!existingSelection && (canEdit || isLocked);
   const hasOpenChangeRequest = changeRequests.some(c => !["Approved", "Rejected", "Cancelled"].includes(c.status));
   const displayStatus = customerDisplayStatus(requirement, existingSelection, hasOpenChangeRequest);
+  
+  // New unified display state for stepper and status consistency
+  const displayState = requirement && existingSelection !== undefined
+    ? getCustomerSelectionDisplayState({
+        requirement,
+        selection: existingSelection,
+        hasOpenChangeRequest,
+        currentStepMode: step
+      })
+    : getCustomerSelectionDisplayState({
+        requirement: { status: "Not Started" },
+        selection: null,
+        hasOpenChangeRequest: false,
+        currentStepMode: "browse"
+      });
 
   async function handleSignOff() {
     setSubmitting(true);
@@ -376,23 +393,25 @@ export default function CustomerSelectionView() {
         <StatusBadge status={displayStatus} />
       </div>
 
-      <StepIndicator currentStep={isApproved ? 7 : step === "browse" ? 3 : 4} />
+      <StepIndicator currentStep={displayState.stepNumber} finalStepLabel={displayState.finalStepLabel} />
 
-      {existingSelection?.sign_off_requested && !existingSelection?.signed_off && !isLocked && isApproved && (
+      {/* Status message card based on display state */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 flex items-start gap-2">
+        <Info size={16} className="mt-0.5 shrink-0" />
+        <span>{displayState.actionMessage}</span>
+      </div>
+
+      {displayState.showSignOffPrompt && (
         <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 space-y-3">
           <div className="flex items-center gap-2 text-violet-800 font-medium text-sm"><FileSignature size={16} /> Sign-off Requested</div>
           <p className="text-sm text-violet-700">Please review and sign off on this approved selection to confirm your final choice.</p>
-          <Button className="gap-2" onClick={() => setShowSignOff(true)} disabled={isPreviewMode}><Check size={14} /> {isPreviewMode ? "Preview mode" : "Sign Off Now"}</Button>
+          <Button className="gap-2" onClick={() => setShowSignOff(true)} disabled={isPreviewMode || displayState.isReadOnly}><Check size={14} /> {isPreviewMode ? "Preview mode" : "Sign Off Now"}</Button>
         </div>
       )}
+
       {existingSelection?.signed_off && (
         <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 text-sm text-violet-800 flex items-center gap-2">
           <CheckCircle size={16} /> Signed off by {existingSelection.signed_off_by || "customer"}{existingSelection.signed_off_date ? ` on ${new Date(existingSelection.signed_off_date).toLocaleDateString()}` : ""}
-        </div>
-      )}
-      {isLocked && (
-        <div className="bg-gray-100 border border-gray-300 rounded-xl p-4 text-sm text-gray-700 flex items-start gap-2">
-          <Lock size={16} className="mt-0.5 shrink-0" /> This choice is finalized and cannot be changed without staff help. If you need to make a change, please contact your project coordinator.
         </div>
       )}
 
@@ -414,7 +433,14 @@ export default function CustomerSelectionView() {
 
       {isApproved && existingSelection && !changeMode && (
         <>
-          <ApprovedSelectionView selection={existingSelection} items={catalogueItems} showItemPrices={showItemPrices} showItemAllowance={showItemAllowance} allowance={allowance} />
+          <ApprovedSelectionView 
+            selection={existingSelection} 
+            items={catalogueItems} 
+            requirement={requirement}
+            area={area}
+            project={project}
+            pricingVisibility={project?.pricing_visibility || "hidden"}
+          />
           {canRequestChange && !isPreviewMode && (
             <Button variant="outline" onClick={startChangeRequest} className="gap-2 w-fit"><RefreshCw size={14} /> Request a Change</Button>
           )}
@@ -648,56 +674,15 @@ export default function CustomerSelectionView() {
             <Textarea value={customerNotes} onChange={e => setCustomerNotes(e.target.value)} placeholder="Any preferences, questions, or notes..." rows={3} />
           </div>
 
-          {showPricing && (
-            <div className="bg-gray-50 rounded-xl p-4 space-y-2">
-              {showItemPrices && (
-                <>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Base Price</span>
-                    <span className="font-medium">${(selectedItem.base_price || 0).toLocaleString()}</span>
-                  </div>
-                  {Object.entries(selectedOptions).map(([gId, oId]) => {
-                    const group = selectedItem.option_groups.find(g => g.id === gId);
-                    const opt = group?.options.find(o => o.id === oId);
-                    if (!opt || !opt.price_modifier) return null;
-                    return (
-                      <div key={gId} className="flex justify-between text-sm">
-                        <span className="text-gray-500">{group.name}: {opt.name}</span>
-                        <span className={opt.price_modifier > 0 ? "text-red-600" : "text-green-600"}>
-                          {opt.price_modifier > 0 ? "+" : ""}${opt.price_modifier.toLocaleString()}
-                        </span>
-                      </div>
-                    );
-                  })}
-                  <div className="flex justify-between text-sm font-bold border-t border-gray-200 pt-2">
-                    <span>Total</span>
-                    <span>${calculatedPrice.toLocaleString()}</span>
-                  </div>
-                </>
-              )}
-              {showTotalAllowance && totalAllowance > 0 && (
-                <div className="flex justify-between text-sm"><span className="text-gray-500">Project Allowance</span><span>${totalAllowance.toLocaleString()}</span></div>
-              )}
-              {showAreaAllowance && areaAllowance > 0 && (
-                <div className="flex justify-between text-sm"><span className="text-gray-500">Area Allowance</span><span>${areaAllowance.toLocaleString()}</span></div>
-              )}
-              {showItemAllowance && allowance > 0 && (
-                <div className="flex justify-between text-sm"><span className="text-gray-500">Item Allowance</span><span>${allowance.toLocaleString()}</span></div>
-              )}
-              {showRemainingOnly && allowance > 0 && (
-                <div className="flex justify-between text-sm font-bold">
-                  <span>Remaining Balance</span>
-                  <span className={remaining >= 0 ? "text-green-600" : "text-red-600"}>${Math.abs(remaining).toLocaleString()}{remaining < 0 ? " over" : " left"}</span>
-                </div>
-              )}
-              {showOverageOnly && (overAllowance > 0 || underAllowance > 0) && (
-                <div className={`flex justify-between text-sm font-bold ${overAllowance > 0 ? "text-red-600" : "text-green-600"}`}>
-                  <span>{overAllowance > 0 ? "Overage" : "Credit"}</span>
-                  <span>{overAllowance > 0 ? `+$${overAllowance.toLocaleString()}` : `-$${underAllowance.toLocaleString()}`}</span>
-                </div>
-              )}
-            </div>
-          )}
+          <SelectionAllowanceSummary
+            item={selectedItem}
+            selectedOptions={selectedOptions}
+            requirement={requirement}
+            area={area}
+            project={project}
+            mode="configuring"
+            pricingVisibility={project?.pricing_visibility || "hidden"}
+          />
 
           {changeMode && (
             <div>
@@ -736,29 +721,46 @@ export default function CustomerSelectionView() {
   );
 }
 
-function ApprovedSelectionView({ selection, items, showItemPrices, showItemAllowance, allowance }) {
+function ApprovedSelectionView({ selection, items, requirement, area, project, pricingVisibility }) {
   const item = items.find(i => i.id === selection.catalogue_item_id);
   return (
-    <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-5">
-      <div className="flex items-center gap-2 mb-3">
-        <CheckCircle size={18} className="text-emerald-600" />
-        <h3 className="font-semibold text-emerald-800">Approved Selection</h3>
-      </div>
-      {item && (
-        <div className="flex gap-4">
-          {item.default_image && <img src={item.default_image} alt={item.name} className="w-16 h-16 object-cover rounded-lg" />}
-          <div>
-            <p className="font-medium text-gray-900">{item.name}</p>
-            <div className="space-y-0.5 mt-1">
-              {(selection.selected_options || []).map((o, i) => (
-                <p key={i} className="text-xs text-gray-500"><span className="text-gray-400">{o.group_name}:</span> {o.option_name}</p>
-              ))}
-            </div>
-            {showItemPrices && <p className="text-sm font-bold mt-2">${(selection.calculated_price || 0).toLocaleString()}</p>}
-            {showItemAllowance && allowance > 0 && <p className="text-xs text-gray-500 mt-1">Allowance: ${allowance.toLocaleString()}</p>}
-          </div>
+    <div className="space-y-4">
+      <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <CheckCircle size={18} className="text-emerald-600" />
+          <h3 className="font-semibold text-emerald-800">Approved Selection</h3>
         </div>
-      )}
+        {item && (
+          <div className="flex gap-4">
+            {item.default_image && <img src={item.default_image} alt={item.name} className="w-16 h-16 object-cover rounded-lg" />}
+            <div className="flex-1">
+              <p className="font-medium text-gray-900">{item.name}</p>
+              <div className="space-y-0.5 mt-1">
+                {(selection.selected_options || []).map((o, i) => (
+                  <p key={i} className="text-xs text-gray-500">
+                    <span className="text-gray-400">{o.group_name}:</span> {o.option_name}
+                    {pricingVisibility === "show_item_prices" && o.price_modifier !== 0 && (
+                      <span className={o.price_modifier > 0 ? "text-red-600" : "text-green-600"}>
+                        {" "}{o.price_modifier > 0 ? "+" : ""}${o.price_modifier.toLocaleString()}
+                      </span>
+                    )}
+                  </p>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      
+      <SelectionAllowanceSummary
+        selection={selection}
+        item={item}
+        requirement={requirement}
+        area={area}
+        project={project}
+        mode="approved"
+        pricingVisibility={pricingVisibility}
+      />
     </div>
   );
 }
