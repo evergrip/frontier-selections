@@ -388,6 +388,47 @@ Deno.serve(async (req) => {
         return Response.json({ error: "Invalid review action" }, { status: 400 });
       }
 
+      // Idempotency guard: prevent duplicate approval actions
+      if (reviewAction === "Approved" && sel.status === "Approved") {
+        const hasOverride = body.staff_price_override !== "" && body.staff_price_override != null;
+        if (!hasOverride && !body.customer_comments && !body.internal_notes) {
+          // Already approved, no changes needed - return early without creating duplicate entries
+          await createAudit("selection", sel.id, "review_noop", "status", "Approved", "Approved",
+            "Selection was already approved - no duplicate action taken", sel.project_id,
+            { severity: 'low', reviewed_by: actor });
+          return Response.json({ ok: true, already_approved: true, message: "Selection was already approved. No duplicate allowance entry created." });
+        }
+        // If there's a price override, treat as price adjustment only (not a second approval)
+        if (hasOverride) {
+          const oldPrice = sel.calculated_price || 0;
+          const newPrice = Number(body.staff_price_override);
+          const priceDelta = newPrice - oldPrice;
+          const allowance = sel.allowance_amount || 0;
+          const over = newPrice > allowance ? newPrice - allowance : 0;
+          const under = newPrice < allowance ? allowance - newPrice : 0;
+
+          await base44.asServiceRole.entities.CustomerSelection.update(sel.id, {
+            staff_price_override: newPrice,
+            calculated_price: newPrice, over_allowance: over, under_allowance: under,
+            reviewed_date: now, reviewed_by: actor
+          });
+
+          // Create ledger entry for the delta only, not the full amount
+          if (priceDelta !== 0) {
+            await base44.asServiceRole.entities.AllowanceLedger.create({
+              project_id: sel.project_id, area_id: sel.area_id, requirement_id: sel.requirement_id,
+              event_type: "Price Adjustment",
+              amount: priceDelta, running_balance: over - under,
+              description: `Price adjustment: $${oldPrice.toLocaleString()} → $${newPrice.toLocaleString()} (delta: ${priceDelta >= 0 ? '+' : ''}$${priceDelta.toLocaleString()})`,
+              performed_by: actor
+            });
+          }
+          await createAudit("selection", sel.id, "price_adjusted", "calculated_price", oldPrice, newPrice,
+            "Staff price adjustment on approved selection", sel.project_id, { severity: 'medium' });
+          return Response.json({ ok: true, price_adjustment: priceDelta });
+        }
+      }
+
       const hasOverride = body.staff_price_override !== "" && body.staff_price_override != null;
       const finalPrice = hasOverride ? Number(body.staff_price_override) : (sel.calculated_price || 0);
       const allowance = sel.allowance_amount || 0;
@@ -411,13 +452,26 @@ Deno.serve(async (req) => {
         { severity: 'high', reviewed_by: actor });
 
       if (reviewAction === "Approved") {
-        await base44.asServiceRole.entities.AllowanceLedger.create({
-          project_id: sel.project_id, area_id: sel.area_id, requirement_id: sel.requirement_id,
-          event_type: hasOverride ? "Staff Override" : "Selection Approved",
-          amount: finalPrice, running_balance: over - under,
-          description: `Selection approved at $${finalPrice.toLocaleString()}`,
-          performed_by: actor
+        // Check for existing approval ledger entry to prevent duplicates
+        const existingLedger = await base44.asServiceRole.entities.AllowanceLedger.filter({
+          project_id: sel.project_id,
+          requirement_id: sel.requirement_id,
+          event_type: "Selection Approved"
         });
+        const hasApprovalEntry = existingLedger.some(entry => {
+          const desc = entry.description || "";
+          return desc.includes(sel.catalogue_item_id) || desc.includes("approved");
+        });
+
+        if (!hasApprovalEntry) {
+          await base44.asServiceRole.entities.AllowanceLedger.create({
+            project_id: sel.project_id, area_id: sel.area_id, requirement_id: sel.requirement_id,
+            event_type: "Selection Approved",
+            amount: finalPrice, running_balance: over - under,
+            description: `Selection approved at $${finalPrice.toLocaleString()}`,
+            performed_by: actor
+          });
+        }
 
         const existingProc = await base44.asServiceRole.entities.ProcurementItem.filter({ selection_id: sel.id });
         if (existingProc.length === 0) {
@@ -626,6 +680,90 @@ Deno.serve(async (req) => {
       await createAudit("selection", s.id, "unlocked", "locked", "true", "false",
         body.reason, s.project_id, { severity: 'high', unlocked_by: actor });
       return Response.json({ ok: true });
+    }
+
+    // ==================== REPAIR DUPLICATE ALLOWANCE ENTRIES ====================
+    if (action === "repair_selection_allowance") {
+      const { project_id, requirement_id, selection_id } = body;
+      if (!project_id) return Response.json({ error: "project_id required" }, { status: 400 });
+
+      const access = await verifyProjectAccess(project_id);
+      if (!access.ok) return Response.json({ error: access.error }, { status: access.status });
+
+      // Find the current selection
+      let targetSelection;
+      if (selection_id) {
+        targetSelection = await base44.asServiceRole.entities.CustomerSelection.get(selection_id).catch(() => null);
+        if (!targetSelection) return Response.json({ error: "Selection not found" }, { status: 404 });
+      } else if (requirement_id) {
+        const allSels = await base44.asServiceRole.entities.CustomerSelection.filter({ requirement_id }, null, 100);
+        targetSelection = allSels.find(s => s.is_current === true);
+        if (!targetSelection) return Response.json({ error: "No current selection found for this requirement" }, { status: 404 });
+      } else {
+        return Response.json({ error: "requirement_id or selection_id required" }, { status: 400 });
+      }
+
+      // Find all approval ledger entries for this requirement
+      const allLedger = await base44.asServiceRole.entities.AllowanceLedger.filter({
+        project_id: targetSelection.project_id,
+        requirement_id: targetSelection.requirement_id
+      });
+
+      const approvalEntries = allLedger.filter(entry =>
+        entry.event_type === "Selection Approved" || entry.event_type === "Staff Override"
+      ).sort((a, b) => (a.created_date || "").localeCompare(b.created_date || ""));
+
+      // Identify duplicates (more than one approval entry)
+      const duplicateEntries = approvalEntries.slice(1); // Keep the first, mark rest as duplicates
+      const duplicateAmount = duplicateEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0);
+
+      // Create reversing entries for duplicates
+      let correctionsCreated = 0;
+      for (const dup of duplicateEntries) {
+        await base44.asServiceRole.entities.AllowanceLedger.create({
+          project_id: targetSelection.project_id,
+          area_id: targetSelection.area_id,
+          requirement_id: targetSelection.requirement_id,
+          event_type: "Correction",
+          amount: -(dup.amount || 0),
+          running_balance: 0,
+          description: `Reversal of duplicate approval entry (ID: ${dup.id})`,
+          performed_by: actor
+        });
+        correctionsCreated++;
+      }
+
+      // Recalculate selection over/under allowance
+      const price = targetSelection.calculated_price || 0;
+      const allowance = targetSelection.allowance_amount || 0;
+      const over = price > allowance ? price - allowance : 0;
+      const under = price < allowance ? allowance - price : 0;
+
+      if (over !== targetSelection.over_allowance || under !== targetSelection.under_allowance) {
+        await base44.asServiceRole.entities.CustomerSelection.update(targetSelection.id, {
+          over_allowance: over,
+          under_allowance: under
+        });
+      }
+
+      // Calculate corrected remaining allowance for the project
+      const currentSels = await base44.asServiceRole.entities.CustomerSelection.filter({ project_id });
+      const currentSelections = currentSels.filter(s => s.is_current === true);
+      const selectedTotal = currentSelections.reduce((sum, s) => sum + (s.calculated_price || 0), 0);
+      const project = access.project;
+      const correctedRemaining = (project.total_allowance || 0) - selectedTotal;
+
+      await createAudit("selection", targetSelection.id, "allowance_repaired", "over_allowance",
+        targetSelection.over_allowance, over, `Corrected ${correctionsCreated} duplicate ledger entries`,
+        project_id, { severity: 'high', duplicate_entries_found: correctionsCreated, duplicate_amount_reversed: duplicateAmount });
+
+      return Response.json({
+        ok: true,
+        duplicate_ledger_entries_found: correctionsCreated,
+        duplicate_amount_reversed: duplicateAmount,
+        current_selected_total: selectedTotal,
+        corrected_remaining_allowance: correctedRemaining
+      });
     }
 
     return Response.json({ error: "Unknown action" }, { status: 400 });

@@ -3,12 +3,24 @@ import { Link } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
 
-export default function AreaCard({ area, requirements, selections, projectId }) {
+function getCurrentSelection(requirementId, selections = []) {
+  return selections.find(s => s.requirement_id === requirementId && s.is_current === true) || null;
+}
+
+function isRequirementComplete(requirement, currentSelection) {
+  if (currentSelection?.status === "Approved") return true;
+  if (currentSelection?.signed_off === true) return true;
+  if (currentSelection?.locked === true) return true;
+  return ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Delivered to Site", "Installed"].includes(requirement.status);
+}
+
+export default function AreaCard({ area, requirements, selections = [], projectId }) {
   const totalReqs = requirements.length;
-  const completed = requirements.filter(r =>
-    ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"].includes(r.status)
-  ).length;
-  const pending = selections.filter(s => s.status === "Pending").length;
+  const completed = requirements.filter(r => {
+    const currentSelection = getCurrentSelection(r.id, selections);
+    return isRequirementComplete(r, currentSelection);
+  }).length;
+  const pending = selections.filter(s => s.is_current && s.status === "Pending").length;
   const progress = totalReqs > 0 ? Math.round((completed / totalReqs) * 100) : 0;
 
   return (
