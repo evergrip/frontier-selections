@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Link } from "react-router-dom";
-import { ChevronRight, CheckCircle, Clock, AlertCircle, ArrowRight, Calendar, Wallet } from "lucide-react";
+import { ChevronRight, CheckCircle, Clock, AlertCircle, ArrowRight, Wallet, AlertTriangle } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
 import AreaCard from "@/components/portal/AreaCard";
 
@@ -10,24 +10,33 @@ const DONE = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "In
 export default function CustomerDashboard() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
     async function load() {
-      const user = await base44.auth.me();
-      // Link user to any pending invitations
-      base44.functions.invoke("customerInvitations", { action: "linkUser" }).catch(() => {});
-      const allProjects = await base44.entities.Project.list("-updated_date", 50);
-      const myProjects = allProjects.filter(p =>
-        (p.assigned_customers || []).includes(user.id) ||
-        (p.assigned_customers || []).includes(user.email)
-      );
-      setProjects(myProjects);
-      setLoading(false);
+      try {
+        // Link user to any pending invitations
+        base44.functions.invoke("customerInvitations", { action: "linkUser" }).catch(() => {});
+        const res = await base44.functions.invoke("customerPortal", { action: "list_my_projects" });
+        if (res.data?.error) throw new Error(res.data.error);
+        setProjects(res.data?.projects || []);
+      } catch (err) {
+        setLoadError(err.message || "Failed to load projects");
+      } finally {
+        setLoading(false);
+      }
     }
     load();
   }, []);
 
   if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
+  if (loadError) return (
+    <div className="p-8 text-center">
+      <AlertTriangle size={32} className="mx-auto text-red-400 mb-2" />
+      <p className="text-red-600 text-sm font-medium">Failed to load projects</p>
+      <p className="text-gray-400 text-xs mt-1">{loadError}</p>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -53,13 +62,27 @@ export default function CustomerDashboard() {
 function ProjectCard({ project }) {
   const [areas, setAreas] = useState([]);
   const [requirements, setRequirements] = useState([]);
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
-    Promise.all([
-      base44.entities.ProjectArea.filter({ project_id: project.id }),
-      base44.entities.SelectionRequirement.filter({ project_id: project.id })
-    ]).then(([a, r]) => { setAreas(a); setRequirements(r); });
+    (async () => {
+      try {
+        const res = await base44.functions.invoke("customerPortal", { action: "get_project_dashboard", project_id: project.id });
+        if (res.data?.error) throw new Error(res.data.error);
+        setAreas(res.data?.areas || []);
+        setRequirements(res.data?.requirements || []);
+      } catch (err) {
+        setLoadError(err.message);
+      }
+    })();
   }, [project.id]);
+
+  if (loadError) return (
+    <div className="bg-white rounded-2xl border border-gray-200 p-5">
+      <h2 className="text-lg font-bold text-gray-900 truncate mb-2">{project.name}</h2>
+      <div className="flex items-center gap-2 text-red-600 text-sm"><AlertTriangle size={14} /> Failed to load project data</div>
+    </div>
+  );
 
   const totalReqs = requirements.length;
   const completed = requirements.filter(r => DONE.includes(r.status)).length;

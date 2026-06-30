@@ -10,6 +10,17 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = body.action;
     const debugMode = body.debug === true || Deno.env.get("DEBUG_MODE") === "true";
+
+    // Helper: verify staff user has access to a project before inviting to it
+    async function verifyStaffProjectAccess(projectId) {
+      if (user.role === 'admin') return true;
+      const project = await base44.asServiceRole.entities.Project.get(projectId).catch(() => null);
+      if (!project) return false;
+      const perms = user.permissions || [];
+      if (perms.includes('view_all_projects')) return true;
+      const assigned = project.assigned_staff || [];
+      return assigned.includes(user.id) || assigned.includes(user.email);
+    }
     // Use the app's configured base URL - hardcoded for production app
     const appBaseUrl = Deno.env.get("BASE44_APP_BASE_URL") || Deno.env.get("VITE_BASE44_APP_BASE_URL") || "https://archetypal-frontier-build-flow.base44.app";
     const portalUrl = `${appBaseUrl}/login`;
@@ -41,6 +52,13 @@ Deno.serve(async (req) => {
       const { email, customer_name, phone, project_ids, project_names } = body;
       if (!email || !project_ids || project_ids.length === 0) {
         return Response.json({ error: 'Email and at least one project are required' }, { status: 400 });
+      }
+
+      // Verify staff has access to all projects they're inviting to
+      for (const pid of project_ids) {
+        if (!(await verifyStaffProjectAccess(pid))) {
+          return Response.json({ error: 'You do not have access to one or more of the selected projects' }, { status: 403 });
+        }
       }
 
       const existing = await base44.asServiceRole.entities.CustomerInvitation.filter({ email });

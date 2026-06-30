@@ -14,16 +14,21 @@ export default function CustomerSubstitution({ projectId, selectionId, showPrici
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    base44.entities.SubstitutionRecommendation.filter({ selection_id: selectionId })
-      .then(r => setRecs(r.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || ""))))
+    base44.functions.invoke("customerPortal", { action: "get_substitutions", project_id: projectId, selection_id: selectionId })
+      .then(res => {
+        const r = res.data?.recommendations || [];
+        setRecs(r.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
+      })
+      .catch(() => {})
       .finally(() => setLoading(false));
-  }, [selectionId]);
+  }, [selectionId, projectId]);
 
   async function decide(action) {
     setBusy(true);
     try {
       await base44.functions.invoke("substitutionWorkflow", { action, recommendation_id: active.id, note });
-      const r = await base44.entities.SubstitutionRecommendation.filter({ selection_id: selectionId });
+      const res2 = await base44.functions.invoke("customerPortal", { action: "get_substitutions", project_id: projectId, selection_id: selectionId });
+      const r = res2.data?.recommendations || [];
       setRecs(r.sort((a, b) => (b.created_date || "").localeCompare(a.created_date || "")));
       setNote("");
     } catch (e) { alert("Failed"); }

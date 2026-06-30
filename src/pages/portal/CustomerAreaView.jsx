@@ -7,26 +7,6 @@ import { useProjectAccess } from "@/hooks/useProjectAccess";
 
 const DONE = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
 
-function assembleItem(item, groups, values, rules) {
-  const itemGroups = (groups || [])
-    .filter(g => g.catalogue_item_id === item.id)
-    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-    .map(g => ({
-      id: g.id, name: g.name, is_required: g.is_required !== false,
-      options: (values || [])
-        .filter(v => v.option_group_id === g.id)
-        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-    }));
-  const itemRules = (rules || [])
-    .filter(r => r.catalogue_item_id === item.id)
-    .map(r => ({
-      ...r,
-      condition_option_id: r.condition_option_value_id,
-      target_option_id: r.target_option_value_id
-    }));
-  return { ...item, option_groups: itemGroups, option_rules: itemRules };
-}
-
 export default function CustomerAreaView() {
   const { projectId, areaId } = useParams();
   const [area, setArea] = useState(null);
@@ -41,29 +21,15 @@ export default function CustomerAreaView() {
     if (accessLoading || !hasAccess) return;
     async function load() {
       try {
-        const [a, r, s] = await Promise.all([
-          base44.entities.ProjectArea.get(areaId),
-          base44.entities.SelectionRequirement.filter({ area_id: areaId }),
-          base44.entities.CustomerSelection.filter({ area_id: areaId })
-        ]);
-        if (a.project_id !== projectId) { setArea(null); setLoading(false); return; }
-        setArea(a);
-        setRequirements(r);
-        const currentSels = s.filter(sel => sel.is_current);
-        setSelections(currentSels);
-        const itemIds = [...new Set(currentSels.map(sel => sel.catalogue_item_id).filter(Boolean))];
-        
-        if (itemIds.length > 0) {
-          const [rawItems, groups, values, rules] = await Promise.all([
-            base44.entities.CatalogueItem.list(null, 100),
-            base44.entities.CatalogueOptionGroup.filter({ is_active: true }, null, 500),
-            base44.entities.CatalogueOptionValue.filter({ is_active: true }, null, 500),
-            base44.entities.CatalogueOptionRule.filter({ is_active: true }, null, 500)
-          ]);
-          const filteredItems = rawItems.filter(i => itemIds.includes(i.id) && i.status !== "Discontinued");
-          const assembled = filteredItems.map(item => assembleItem(item, groups, values, rules));
-          setCatalogueItems(assembled);
-        }
+        const res = await base44.functions.invoke("customerPortal", {
+          action: "get_project_area", project_id: projectId, area_id: areaId
+        });
+        const data = res.data;
+        if (data?.error) throw new Error(data.error);
+        setArea(data.area);
+        setRequirements(data.requirements || []);
+        setSelections(data.selections || []);
+        setCatalogueItems(data.catalogueItems || []);
       } catch (err) {
         setLoadError(err.message || "Failed to load area data");
       } finally {

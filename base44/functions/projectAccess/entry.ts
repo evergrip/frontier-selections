@@ -6,7 +6,7 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me().catch(() => null);
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    // Check if user is active
+    // Reject deactivated users
     if (user.active === false) {
       return Response.json({ has_access: false, reason: "Account deactivated" }, { status: 403 });
     }
@@ -19,14 +19,35 @@ Deno.serve(async (req) => {
     if (!project) return Response.json({ has_access: false, reason: "Project not found" }, { status: 404 });
 
     const isStaff = user.role === "admin" || user.role === "staff";
-    const custs = project.assigned_customers || [];
-    const hasAccess = isStaff || custs.includes(user.id) || custs.includes(user.email);
+    let hasAccess = false;
+
+    if (isStaff) {
+      // Admins always have access
+      if (user.role === "admin") {
+        hasAccess = true;
+      } else {
+        // Staff: check if they have view_all_projects or are assigned to this project
+        const perms = user.permissions || [];
+        if (perms.includes("view_all_projects")) {
+          hasAccess = true;
+        } else {
+          // Check assigned_staff for user ID or email
+          const assigned = project.assigned_staff || [];
+          hasAccess = assigned.includes(user.id) || assigned.includes(user.email);
+        }
+      }
+    } else {
+      // Customer: check assigned_customers by user ID or email
+      const custs = project.assigned_customers || [];
+      hasAccess = custs.includes(user.id) || custs.includes(user.email);
+    }
 
     if (!hasAccess) {
-      // Log unauthorized access attempt
+      // Log suspicious denied access attempt
       await base44.asServiceRole.entities.AuditLog.create({
         target_type: "project", target_id: project_id, action: "access_denied",
-        action_type: "access_denied", description: `${user.email} denied access to project ${project.name}`,
+        action_type: "access_denied",
+        description: `${user.email} denied access to project ${project.name}`,
         actor_user_id: user.id, actor_name: user.full_name || user.email,
         actor_role: user.role, project_id, severity: "high"
       }).catch(() => {});

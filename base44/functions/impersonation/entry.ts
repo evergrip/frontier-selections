@@ -31,6 +31,20 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'A reason is required to act as customer' }, { status: 400 });
       }
 
+      // Verify staff user has access to the project they're impersonating on
+      if (user.role !== 'admin') {
+        const project = await base44.asServiceRole.entities.Project.get(project_id).catch(() => null);
+        if (!project) {
+          return Response.json({ error: 'Project not found' }, { status: 404 });
+        }
+        const perms = user.permissions || [];
+        const hasViewAll = perms.includes('view_all_projects');
+        const assigned = project.assigned_staff || [];
+        if (!hasViewAll && !assigned.includes(user.id) && !assigned.includes(user.email)) {
+          return Response.json({ error: 'You do not have access to this project' }, { status: 403 });
+        }
+      }
+
       const sessionId = crypto.randomUUID();
       const now = new Date().toISOString();
 

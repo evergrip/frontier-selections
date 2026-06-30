@@ -1,27 +1,43 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { Bell, Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Bell, Check, AlertTriangle } from "lucide-react";
 
 export default function CustomerNotifications() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
     (async () => {
-      const user = await base44.auth.me();
-      const data = await base44.entities.Notification.filter({ user_id: user.id }, "-created_date", 50);
-      setNotifications(data);
-      setLoading(false);
+      try {
+        const res = await base44.functions.invoke("customerPortal", { action: "list_my_notifications" });
+        if (res.data?.error) throw new Error(res.data.error);
+        setNotifications(res.data?.notifications || []);
+      } catch (err) {
+        setLoadError(err.message || "Failed to load notifications");
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
   async function markRead(id) {
-    await base44.entities.Notification.update(id, { is_read: true });
-    setNotifications(notifications.map(n => n.id === id ? { ...n, is_read: true } : n));
+    try {
+      await base44.functions.invoke("customerPortal", { action: "mark_notification_read", notification_id: id });
+      setNotifications(notifications.map(n => n.id === id ? { ...n, is_read: true } : n));
+    } catch (err) {
+      alert("Failed to mark notification: " + (err.message || "Unknown error"));
+    }
   }
 
   if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
+  if (loadError) return (
+    <div className="p-8 text-center">
+      <AlertTriangle size={32} className="mx-auto text-red-400 mb-2" />
+      <p className="text-red-600 text-sm font-medium">Failed to load notifications</p>
+      <p className="text-gray-400 text-xs mt-1">{loadError}</p>
+    </div>
+  );
 
   return (
     <div className="space-y-6">

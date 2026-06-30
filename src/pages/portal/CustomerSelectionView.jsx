@@ -67,51 +67,27 @@ export default function CustomerSelectionView() {
     if (accessLoading || !hasAccess) return;
     async function load() {
       try {
-        const [req, proj, sels, crs] = await Promise.all([
-          base44.entities.SelectionRequirement.get(requirementId),
-          base44.entities.Project.get(projectId),
-          base44.entities.CustomerSelection.filter({ requirement_id: requirementId }),
-          base44.entities.ChangeRequest.filter({ requirement_id: requirementId })
-        ]);
-        if (req.project_id !== projectId) { setRequirement(null); setLoading(false); return; }
-        setRequirement(req);
-        setProject(proj);
-        if (areaId) {
-          try { setArea(await base44.entities.ProjectArea.get(areaId)); } catch {}
-        }
-        setAllSelections(sels);
-        setChangeRequests(crs);
-        const current = sels.find(s => s.is_current);
+        const res = await base44.functions.invoke("customerPortal", {
+          action: "get_selection_detail",
+          project_id: projectId, area_id: areaId, requirement_id: requirementId
+        });
+        const data = res.data;
+        if (data?.error) throw new Error(data.error);
+        if (!data.requirement) { setRequirement(null); setLoading(false); return; }
+        setRequirement(data.requirement);
+        setProject(data.project);
+        setArea(data.area);
+        setAllSelections(data.selections || []);
+        setChangeRequests(data.changeRequests || []);
+        const current = (data.selections || []).find(s => s.is_current);
         setExistingSelection(current || null);
 
-        const itemFilter = req.category ? { category: req.category } : {};
-        const [rawItems, groups, values, rules, suggested] = await Promise.all([
-          base44.entities.CatalogueItem.filter(itemFilter, "name", 100),
-          base44.entities.CatalogueOptionGroup.filter({ is_active: true }, null, 500),
-          base44.entities.CatalogueOptionValue.filter({ is_active: true }, null, 500),
-          base44.entities.CatalogueOptionRule.filter({ is_active: true }, null, 500),
-          base44.entities.ProjectAvailableCatalogueItem.filter({ requirement_id: requirementId })
-        ]);
-        const suggestedSorted = suggested.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+        const suggestedSorted = (data.suggestedOptions || []).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
         setSuggestedOptions(suggestedSorted);
-
-        const accessMode = req.customer_catalogue_access_mode || "suggested_only";
-        let visibleItems = rawItems.filter(i => i.status !== "Discontinued" && i.status !== "Draft");
-
-        if (accessMode === "suggested_only" || accessMode === "suggested_plus_request") {
-          const suggestedItemIds = suggestedSorted
-            .filter(s => s.is_available !== false)
-            .map(s => s.catalogue_item_id);
-          visibleItems = visibleItems.filter(i => suggestedItemIds.includes(i.id));
-        } else if (accessMode === "staff_only") {
-          visibleItems = [];
-        }
-
-        const items = visibleItems.map(item => assembleItem(item, groups, values, rules));
-        setCatalogueItems(items);
+        setCatalogueItems(data.catalogueItems || []);
 
         if (current && ["Revision Requested", "Rejected"].includes(current.status)) {
-          const item = items.find(i => i.id === current.catalogue_item_id);
+          const item = (data.catalogueItems || []).find(i => i.id === current.catalogue_item_id);
           if (item) {
             setSelectedItem(item);
             const opts = {};
@@ -322,9 +298,11 @@ export default function CustomerSelectionView() {
     setSubmitting(true);
     try {
       await base44.functions.invoke("selectionWorkflow", { action: "sign_off", selection_id: existingSelection.id, note: signOffNote });
-      const sels = await base44.entities.CustomerSelection.filter({ requirement_id: requirementId });
-      setAllSelections(sels);
-      setExistingSelection(sels.find(s => s.is_current) || null);
+      const res = await base44.functions.invoke("customerPortal", {
+        action: "get_selection_detail", project_id: projectId, area_id: areaId, requirement_id: requirementId
+      });
+      setAllSelections(res.data?.selections || []);
+      setExistingSelection((res.data?.selections || []).find(s => s.is_current) || null);
       setShowSignOff(false);
       setSignOffNote("");
     } catch (e) { alert("Sign-off failed: " + (e.message || "Unknown error")); }

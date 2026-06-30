@@ -12,12 +12,22 @@ export default function CommentThread({ projectId, targetType, targetId, staff, 
   const [uploading, setUploading] = useState(false);
   const [authorName, setAuthorName] = useState("");
   const [confirmVisible, setConfirmVisible] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => { if (targetId) load(); }, [targetId]);
 
   async function load() {
-    const cs = await base44.entities.Comment.filter({ project_id: projectId, target_type: targetType, target_id: targetId });
-    setComments(cs.sort((a, b) => (a.created_date || "").localeCompare(b.created_date || "")));
+    try {
+      // Use customerPortal for server-side access verification and internal note filtering
+      const res = await base44.functions.invoke("customerPortal", {
+        action: "get_comments", project_id: projectId, target_type: targetType, target_id: targetId
+      });
+      if (res.data?.error) throw new Error(res.data.error);
+      setComments(res.data?.comments || []);
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err.message || "Failed to load comments");
+    }
     try { const u = await base44.auth.me(); setAuthorName(u.full_name || u.email || (staff ? "Staff" : "Customer")); } catch {}
   }
 
@@ -25,44 +35,30 @@ export default function CommentThread({ projectId, targetType, targetId, staff, 
     if (readOnly) return;
     const file = e.target.files[0]; if (!file) return;
     setUploading(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    setAttachments([...attachments, file_url]); setUploading(false);
-  }
-
-  async function notifyStaff(message) {
     try {
-      await base44.functions.invoke("sendNotifications", {
-        target_all_staff: true, project_id: projectId, type: "new_comment",
-        title: "New customer comment", message, link: "", skip_email: true
-      });
-    } catch {}
-  }
-
-  async function notifyCustomers(message) {
-    try {
-      const project = await base44.entities.Project.get(projectId);
-      const custs = project.assigned_customers || [];
-      if (custs.length === 0) return;
-      await base44.entities.Notification.bulkCreate(custs.map(id => ({
-        user_id: id, project_id: projectId, type: "new_comment",
-        title: "New message from staff", message, is_read: false
-      })));
-    } catch {}
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setAttachments([...attachments, file_url]);
+    } catch (err) {
+      alert("Upload failed: " + (err.message || "Unknown error"));
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function doPost() {
     if (readOnly || !content.trim()) return;
-    const c = await base44.entities.Comment.create({
-      project_id: projectId, target_type: targetType, target_id: targetId,
-      content, is_internal: staff ? isInternal : false,
-      author_name: authorName, author_role: staff ? "staff" : "customer",
-      attachments
-    });
-    setComments([...comments, c]);
-    const msg = `${authorName}: ${content.slice(0, 120)}`;
-    if (!staff) { await notifyStaff(msg); }
-    else if (!isInternal) { await notifyCustomers(msg); }
-    setContent(""); setAttachments([]); setConfirmVisible(false);
+    try {
+      const res = await base44.functions.invoke("customerPortal", {
+        action: "create_comment",
+        project_id: projectId, target_type: targetType, target_id: targetId,
+        content, is_internal: staff ? isInternal : false, attachments
+      });
+      if (res.data?.error) throw new Error(res.data.error);
+      if (res.data?.comment) setComments([...comments, res.data.comment]);
+      setContent(""); setAttachments([]); setConfirmVisible(false);
+    } catch (err) {
+      alert("Failed to post comment: " + (err.message || "Unknown error"));
+    }
   }
 
   function handlePost() {
@@ -71,14 +67,19 @@ export default function CommentThread({ projectId, targetType, targetId, staff, 
     doPost();
   }
 
-  const visible = staff ? comments : comments.filter(c => !c.is_internal);
+  if (loadError) return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      {title && <h3 className="font-semibold text-gray-900 text-sm mb-2">{title}</h3>}
+      <div className="flex items-center gap-2 text-red-600 text-sm"><AlertTriangle size={14} /> {loadError}</div>
+    </div>
+  );
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
       {title && <h3 className="font-semibold text-gray-900 text-sm">{title}</h3>}
       <div className="space-y-3">
-        {visible.length === 0 && <p className="text-sm text-gray-400">No comments yet</p>}
-        {visible.map(c => (
+        {comments.length === 0 && <p className="text-sm text-gray-400">No comments yet</p>}
+        {comments.map(c => (
           <div key={c.id} className={`rounded-lg p-3 ${c.is_internal ? "bg-yellow-50 border border-yellow-200" : "bg-blue-50 border border-blue-200"}`}>
             <div className="flex items-center justify-between mb-1">
               <span className="font-medium text-gray-900 text-xs">{c.author_name || (c.is_internal ? "Staff" : "Customer")}</span>

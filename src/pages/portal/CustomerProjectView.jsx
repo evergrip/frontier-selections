@@ -24,14 +24,12 @@ export default function CustomerProjectView() {
     if (accessLoading || !hasAccess) return;
     async function load() {
       try {
-        const [p, a, r] = await Promise.all([
-          base44.entities.Project.get(projectId),
-          base44.entities.ProjectArea.filter({ project_id: projectId }),
-          base44.entities.SelectionRequirement.filter({ project_id: projectId })
-        ]);
-        setProject(p);
-        setAreas(a);
-        setRequirements(r);
+        const res = await base44.functions.invoke("customerPortal", { action: "get_project_dashboard", project_id: projectId });
+        const data = res.data;
+        if (data?.error) throw new Error(data.error);
+        setProject(data.project);
+        setAreas(data.areas || []);
+        setRequirements(data.requirements || []);
       } catch (err) {
         setLoadError(err.message || "Failed to load project data");
       } finally {
@@ -64,19 +62,14 @@ export default function CustomerProjectView() {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const notDone = requirements.filter(r => !DONE.includes(r.status));
     if (notDone.length === 0) return null;
-    
     const revision = notDone.find(r => ["Revision Requested", "Rejected"].includes(r.status));
     if (revision) return { req: revision, type: "revision", label: "Needs your review" };
-    
-    const overdue = notDone.find(r => r.due_date && new Date(r.due_date + "T00:00:00") < today);
-    if (overdue) return { req: overdue, type: "overdue", label: "Overdue" };
-    
+    const overdueItem = notDone.find(r => r.due_date && new Date(r.due_date + "T00:00:00") < today);
+    if (overdueItem) return { req: overdueItem, type: "overdue", label: "Overdue" };
     const withDueDate = notDone.filter(r => r.due_date).sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
     if (withDueDate.length > 0) return { req: withDueDate[0], type: "upcoming", label: "Up next" };
-    
     const required = notDone.find(r => r.is_required);
     if (required) return { req: required, type: "required", label: "Required choice" };
-    
     return { req: notDone[0], type: "optional", label: "Optional choice" };
   }, [requirements]);
 

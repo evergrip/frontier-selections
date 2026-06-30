@@ -5,11 +5,7 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me().catch(() => null);
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-
-    // Check if user is active (not deactivated)
-    if (user.active === false) {
-      return Response.json({ error: "Account deactivated" }, { status: 403 });
-    }
+    if (user.active === false) return Response.json({ error: "Account deactivated" }, { status: 403 });
 
     const body = await req.json();
     const action = body.action;
@@ -17,19 +13,25 @@ Deno.serve(async (req) => {
     const actor = user.full_name || user.email || "user";
     const isStaff = user.role === "admin" || user.role === "staff";
 
-    // Helper: verify the user has access to the project
+    // ==================== ACCESS VERIFICATION ====================
     async function verifyProjectAccess(projectId) {
       const project = await base44.asServiceRole.entities.Project.get(projectId).catch(() => null);
       if (!project) return { ok: false, error: "Project not found", status: 404 };
-      if (isStaff) return { ok: true, project };
+      if (isStaff) return { ok: true, project, isStaff: true };
       const custs = project.assigned_customers || [];
       if (!custs.includes(user.id) && !custs.includes(user.email)) {
+        await base44.asServiceRole.entities.AuditLog.create({
+          target_type: "project", target_id: projectId, action: "selection_access_denied",
+          action_type: "selection_access_denied",
+          description: `${user.email} denied selection access to project ${project.name}`,
+          actor_user_id: user.id, actor_name: actor, actor_role: user.role,
+          project_id: projectId, severity: "high"
+        }).catch(() => {});
         return { ok: false, error: "Forbidden", status: 403 };
       }
-      return { ok: true, project };
+      return { ok: true, project, isStaff: false };
     }
 
-    // Helper: verify a child record belongs to the correct project
     async function verifyChildProject(entityName, recordId, expectedProjectId) {
       const record = await base44.asServiceRole.entities[entityName].get(recordId).catch(() => null);
       if (!record) return { ok: false, error: "Record not found", status: 404 };
@@ -39,8 +41,7 @@ Deno.serve(async (req) => {
       return { ok: true, record };
     }
 
-    // Helper: server-side price calculation
-    function calculatePrice(basePrice, selectedOptions, optionGroups, optionValues) {
+    function calculatePrice(basePrice, selectedOptions, optionValues) {
       let total = basePrice || 0;
       for (const sel of selectedOptions) {
         const opt = (optionValues || []).find(v => v.id === sel.option_id);
@@ -49,18 +50,17 @@ Deno.serve(async (req) => {
       return total;
     }
 
-    // Helper: server-side allowance calculation
     function calculateAllowance(price, allowanceAmount) {
       const over = price > allowanceAmount ? price - allowanceAmount : 0;
       const under = price < allowanceAmount ? allowanceAmount - price : 0;
       return { over, under };
     }
 
-    // Helper: create audit log
     async function createAudit(targetType, targetId, auditAction, field, oldValue, newValue, reason, projectId, extra = {}) {
       await base44.asServiceRole.entities.AuditLog.create({
         target_type: targetType, target_id: targetId, action: auditAction,
-        action_type: auditAction, field: field || null, old_value: oldValue != null ? String(oldValue) : null,
+        action_type: auditAction, field: field || null,
+        old_value: oldValue != null ? String(oldValue) : null,
         new_value: newValue != null ? String(newValue) : null, changed_by: actor,
         actor_user_id: user.id, actor_name: actor, actor_role: user.role,
         project_id: projectId || null, reason: reason || null, severity: extra.severity || 'medium',
@@ -68,21 +68,113 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ==================== CUSTOMER: SUBMIT SELECTION ====================
+    // ==================== VALIDATE CATALOGUE ITEM ELIGIBILITY ====================
+    async function validateCatalogueItem(projectId, requirementId, catalogueItemId, selectedOptions) {
+      const requirement = await base44.asServiceRole.entities.SelectionRequirement.get(requirementId).catch(() => null);
+      if (!requirement) return { ok: false, error: "Requirement not found", status: 404 };
+      if (requirement.lock_after_approval && requirement.status === "Locked") {
+        return { ok: false, error: "Requirement is locked", status: 400 };
+      }
+
+      const catItem = await base44.asServiceRole.entities.CatalogueItem.get(catalogueItemId).catch(() => null);
+      if (!catItem) return { ok: false, error: "Catalogue item not found", status: 404 };
+
+      // Check item status - reject unavailable items
+      const blockedStatuses = ["Discontinued", "Draft", "Inactive"];
+      if (blockedStatuses.includes(catItem.status)) {
+        return { ok: false, error: `Catalogue item is not available (status: ${catItem.status})`, status: 400 };
+      }
+
+      // Check category matches requirement category
+      if (requirement.category && catItem.category && requirement.category !== catItem.category) {
+        return { ok: false, error: `Catalogue item category (${catItem.category}) does not match requirement category (${requirement.category})`, status: 400 };
+      }
+
+      // Check customer catalogue access mode
+      const accessMode = requirement.customer_catalogue_access_mode || "suggested_only";
+      if (accessMode === "staff_only") {
+        return { ok: false, error: "This selection is staff-only. Customers cannot submit directly.", status: 403 };
+      }
+
+      // If suggested_only or suggested_plus_request, verify item is in suggested list
+      if (accessMode === "suggested_only" || accessMode === "suggested_plus_request") {
+        const suggested = await base44.asServiceRole.entities.ProjectAvailableCatalogueItem.filter(
+          { requirement_id: requirementId, catalogue_item_id: catalogueItemId }
+        );
+        if (suggested.length === 0 || suggested[0].is_available === false) {
+          return { ok: false, error: "This catalogue item is not in the suggested options for this requirement", status: 403 };
+        }
+      }
+
+      // Verify selected option groups and values belong to this catalogue item
+      const [optionGroups, optionValues] = await Promise.all([
+        base44.asServiceRole.entities.CatalogueOptionGroup.filter({ catalogue_item_id: catalogueItemId }, null, 500),
+        base44.asServiceRole.entities.CatalogueOptionValue.filter({ catalogue_item_id: catalogueItemId }, null, 500)
+      ]);
+
+      const validGroupIds = new Set(optionGroups.map(g => g.id));
+      const validValueIds = new Set(optionValues.map(v => v.id));
+
+      for (const sel of selectedOptions || []) {
+        if (!validGroupIds.has(sel.group_id)) {
+          return { ok: false, error: `Option group ${sel.group_name || sel.group_id} does not belong to this catalogue item`, status: 400 };
+        }
+        if (!validValueIds.has(sel.option_id)) {
+          return { ok: false, error: `Option value ${sel.option_name || sel.option_id} does not belong to this catalogue item`, status: 400 };
+        }
+      }
+
+      // Verify required option groups are complete
+      const requiredGroups = optionGroups.filter(g => g.is_required !== false);
+      const selectedGroupIds = new Set((selectedOptions || []).map(s => s.group_id));
+      for (const rg of requiredGroups) {
+        if (!selectedGroupIds.has(rg.id)) {
+          return { ok: false, error: `Required option group "${rg.name}" is not selected`, status: 400 };
+        }
+      }
+
+      // Verify option rules are respected
+      const optionRules = await base44.asServiceRole.entities.CatalogueOptionRule.filter(
+        { catalogue_item_id: catalogueItemId, is_active: true }, null, 500
+      );
+      const selectedMap = {};
+      (selectedOptions || []).forEach(s => { selectedMap[s.group_id] = s.option_id; });
+
+      for (const rule of optionRules) {
+        if (rule.action === "hide" && rule.target_option_value_id) {
+          // If condition is met, target option should NOT be selected
+          if (selectedMap[rule.condition_group_id] === rule.condition_option_value_id) {
+            if (selectedMap[rule.target_group_id] === rule.target_option_value_id) {
+              return { ok: false, error: "Selected option combination violates a configuration rule", status: 400 };
+            }
+          }
+        }
+        if (rule.action === "show" && rule.target_option_value_id) {
+          // Target option can ONLY be selected if condition is met
+          if (selectedMap[rule.target_group_id] === rule.target_option_value_id) {
+            if (selectedMap[rule.condition_group_id] !== rule.condition_option_value_id) {
+              return { ok: false, error: "Selected option combination violates a configuration rule (conditional option)", status: 400 };
+            }
+          }
+        }
+      }
+
+      return { ok: true, catItem, requirement, optionValues, optionGroups };
+    }
+
+    // ==================== SUBMIT SELECTION ====================
     if (action === "submit_selection") {
       const { project_id, area_id, requirement_id, catalogue_item_id, selected_options, customer_notes, existing_selection_id } = body;
       if (!project_id || !requirement_id || !catalogue_item_id) {
         return Response.json({ error: "project_id, requirement_id, and catalogue_item_id are required" }, { status: 400 });
       }
 
-      // Verify project access
       const access = await verifyProjectAccess(project_id);
       if (!access.ok) return Response.json({ error: access.error }, { status: access.status });
 
       // Verify requirement belongs to this project
       const reqCheck = await verifyChildProject("SelectionRequirement", requirement_id, project_id);
       if (!reqCheck.ok) return Response.json({ error: reqCheck.error }, { status: reqCheck.status });
-      const requirement = reqCheck.record;
 
       // Verify area belongs to this project if provided
       if (area_id) {
@@ -90,33 +182,34 @@ Deno.serve(async (req) => {
         if (!areaCheck.ok) return Response.json({ error: areaCheck.error }, { status: areaCheck.status });
       }
 
-      // Check if selection is locked or past approval
+      // Validate catalogue item eligibility (category, access mode, options, rules)
+      const validation = await validateCatalogueItem(project_id, requirement_id, catalogue_item_id, selected_options);
+      if (!validation.ok) return Response.json({ error: validation.error }, { status: validation.status });
+      const { catItem, requirement, optionValues } = validation;
+
+      // Check existing selection lock/status
       if (existing_selection_id) {
         const existing = await base44.asServiceRole.entities.CustomerSelection.get(existing_selection_id).catch(() => null);
-        if (existing && existing.locked) {
-          return Response.json({ error: "Selection is locked. Submit a change request instead." }, { status: 400 });
-        }
-        if (existing && existing.project_id !== project_id) {
-          return Response.json({ error: "Selection does not belong to this project" }, { status: 403 });
+        if (!existing) return Response.json({ error: "Existing selection not found" }, { status: 404 });
+        if (existing.project_id !== project_id) return Response.json({ error: "Selection does not belong to this project" }, { status: 403 });
+        if (existing.locked) return Response.json({ error: "Selection is locked. Submit a change request instead." }, { status: 400 });
+        if (!["Pending", "Revision Requested", "Rejected"].includes(existing.status)) {
+          return Response.json({ error: "Cannot update selection with status: " + existing.status }, { status: 400 });
         }
       }
 
-      // Server-side pricing calculation
-      const catItem = await base44.asServiceRole.entities.CatalogueItem.get(catalogue_item_id).catch(() => null);
-      if (!catItem) return Response.json({ error: "Catalogue item not found" }, { status: 404 });
-
-      const optionValues = await base44.asServiceRole.entities.CatalogueOptionValue.filter({ catalogue_item_id }, null, 500);
-      const calculatedPrice = calculatePrice(catItem.base_price, selected_options || [], null, optionValues);
+      // SERVER-SIDE price calculation - ignore any client-supplied price
+      const calculatedPrice = calculatePrice(catItem.base_price, selected_options || [], optionValues);
       const allowanceAmount = requirement.allowance_amount || 0;
       const { over, under } = calculateAllowance(calculatedPrice, allowanceAmount);
 
-      // Build the options array with validated names and prices
+      // Build validated options array with server-confirmed names and prices
       const validatedOptions = (selected_options || []).map(sel => {
         const opt = optionValues.find(v => v.id === sel.option_id);
-        const group = opt ? (base44.asServiceRole.entities.CatalogueOptionGroup) : null;
+        const grp = optionValues.find(v => v.id === sel.option_id);
         return {
           group_id: sel.group_id,
-          group_name: sel.group_name || "",
+          group_name: opt ? (validation.optionGroups.find(g => g.id === sel.group_id)?.name || "") : (sel.group_name || ""),
           option_id: sel.option_id,
           option_name: opt?.name || sel.option_name || "",
           price_modifier: opt?.price_modifier || 0
@@ -125,10 +218,6 @@ Deno.serve(async (req) => {
 
       let selectionId;
       if (existing_selection_id) {
-        const existing = await base44.asServiceRole.entities.CustomerSelection.get(existing_selection_id);
-        if (!["Pending", "Revision Requested", "Rejected"].includes(existing.status)) {
-          return Response.json({ error: "Cannot update selection with status: " + existing.status }, { status: 400 });
-        }
         await base44.asServiceRole.entities.CustomerSelection.update(existing_selection_id, {
           catalogue_item_id, selected_options: validatedOptions,
           calculated_price: calculatedPrice, allowance_amount: allowanceAmount,
@@ -138,7 +227,7 @@ Deno.serve(async (req) => {
         });
         selectionId = existing_selection_id;
       } else {
-        // If there's a current selection, supersede it
+        // Supersede existing current selection
         const existingSels = await base44.asServiceRole.entities.CustomerSelection.filter({ requirement_id });
         const current = existingSels.find(s => s.is_current);
         if (current) {
@@ -158,7 +247,7 @@ Deno.serve(async (req) => {
       const oldReqStatus = requirement.status;
       await base44.asServiceRole.entities.SelectionRequirement.update(requirement_id, { status: "Submitted" });
 
-      // Create allowance ledger entry (server-side)
+      // Create allowance ledger entry
       await base44.asServiceRole.entities.AllowanceLedger.create({
         project_id, area_id, requirement_id,
         event_type: existing_selection_id ? "Selection Changed" : "Selection Submitted",
@@ -167,7 +256,6 @@ Deno.serve(async (req) => {
         performed_by: actor
       });
 
-      // Audit log
       await createAudit("selection", selectionId, "selection_submitted", "status",
         oldReqStatus, "Submitted", customer_notes || "Customer submitted selection", project_id,
         { severity: 'high', catalogue_item_id, calculated_price: calculatedPrice });
@@ -175,7 +263,7 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true, selection_id: selectionId, calculated_price: calculatedPrice, over_allowance: over, under_allowance: under });
     }
 
-    // ==================== CUSTOMER: REQUEST CHANGE ====================
+    // ==================== REQUEST CHANGE ====================
     if (action === "request_change") {
       const { project_id, area_id, requirement_id, selection_id, catalogue_item_id, selected_options, reason, customer_note } = body;
       if (!project_id || !selection_id || !catalogue_item_id || !reason) {
@@ -189,20 +277,22 @@ Deno.serve(async (req) => {
       if (!selCheck.ok) return Response.json({ error: selCheck.error }, { status: selCheck.status });
       const existingSelection = selCheck.record;
 
-      if (existingSelection.locked) {
-        return Response.json({ error: "Selection is locked" }, { status: 400 });
+      if (existingSelection.locked) return Response.json({ error: "Selection is locked" }, { status: 400 });
+
+      // Verify change requests are allowed based on current status
+      if (!["Approved", "Pending"].includes(existingSelection.status)) {
+        return Response.json({ error: `Cannot request change on selection with status: ${existingSelection.status}` }, { status: 400 });
       }
 
+      // Validate new catalogue item
+      const validation = await validateCatalogueItem(project_id, requirement_id, catalogue_item_id, selected_options);
+      if (!validation.ok) return Response.json({ error: validation.error }, { status: validation.status });
+      const { catItem, requirement, optionValues } = validation;
+
       // Server-side pricing
-      const catItem = await base44.asServiceRole.entities.CatalogueItem.get(catalogue_item_id).catch(() => null);
-      if (!catItem) return Response.json({ error: "Catalogue item not found" }, { status: 404 });
-      const optionValues = await base44.asServiceRole.entities.CatalogueOptionValue.filter({ catalogue_item_id }, null, 500);
-      const calculatedPrice = calculatePrice(catItem.base_price, selected_options || [], null, optionValues);
+      const calculatedPrice = calculatePrice(catItem.base_price, selected_options || [], optionValues);
       const originalPrice = existingSelection.calculated_price || 0;
       const priceDiff = calculatedPrice - originalPrice;
-
-      // Get requirement for allowance
-      const requirement = await base44.asServiceRole.entities.SelectionRequirement.get(requirement_id).catch(() => null);
       const allowanceAmount = requirement?.allowance_amount || 0;
       const allowanceImpact = calculatedPrice - allowanceAmount;
 
@@ -225,11 +315,9 @@ Deno.serve(async (req) => {
         customer_note: customer_note || "", status: "Requested"
       });
 
-      // Update requirement status
       const oldReqStatus = requirement?.status;
       await base44.asServiceRole.entities.SelectionRequirement.update(requirement_id, { status: "Change Requested" });
 
-      // Audit log
       await createAudit("change_request", cr.id, "change_requested", "selection",
         existingSelection.catalogue_item_id, catalogue_item_id, reason, project_id,
         { severity: 'high', selection_id, price_impact: priceDiff });
@@ -237,26 +325,37 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true, change_request_id: cr.id, price_impact: priceDiff });
     }
 
-    // ==================== CUSTOMER: SIGN OFF ====================
+    // ==================== SIGN OFF ====================
     if (action === "sign_off") {
-      const sel = await base44.asServiceRole.entities.CustomerSelection.get(body.selection_id).catch(() => null);
-      if (!sel) return Response.json({ error: "Not found" }, { status: 404 });
+      const { selection_id, note } = body;
+      if (!selection_id) return Response.json({ error: "selection_id required" }, { status: 400 });
+
+      const sel = await base44.asServiceRole.entities.CustomerSelection.get(selection_id).catch(() => null);
+      if (!sel) return Response.json({ error: "Selection not found" }, { status: 404 });
       if (sel.locked) return Response.json({ error: "Selection is locked" }, { status: 400 });
 
-      if (!isStaff) {
-        const access = await verifyProjectAccess(sel.project_id);
-        if (!access.ok) return Response.json({ error: access.error }, { status: access.status });
+      // Verify project access
+      const access = await verifyProjectAccess(sel.project_id);
+      if (!access.ok) return Response.json({ error: access.error }, { status: access.status });
+
+      // Verify sign-off was requested
+      if (!sel.sign_off_requested) {
+        return Response.json({ error: "Sign-off has not been requested for this selection" }, { status: 400 });
+      }
+      // Prevent double sign-off
+      if (sel.signed_off) {
+        return Response.json({ error: "Selection has already been signed off" }, { status: 400 });
       }
 
       await base44.asServiceRole.entities.CustomerSelection.update(sel.id, {
-        signed_off: true, signed_off_by: actor, signed_off_date: now, sign_off_note: body.note || ""
+        signed_off: true, signed_off_by: actor, signed_off_date: now, sign_off_note: note || ""
       });
       await createAudit("selection", sel.id, "signed_off", "signed_off", "false", "true",
-        body.note || "Customer sign-off", sel.project_id, { severity: 'high' });
+        note || "Customer sign-off", sel.project_id, { severity: 'high' });
       return Response.json({ ok: true });
     }
 
-    // ==================== STAFF-ONLY ACTIONS BELOW ====================
+    // ==================== STAFF-ONLY ACTIONS ====================
     if (!isStaff) return Response.json({ error: "Forbidden" }, { status: 403 });
 
     if (action === "review") {
@@ -267,7 +366,6 @@ Deno.serve(async (req) => {
         return Response.json({ error: "Invalid review action" }, { status: 400 });
       }
 
-      // Server-side pricing with staff override
       const hasOverride = body.staff_price_override !== "" && body.staff_price_override != null;
       const finalPrice = hasOverride ? Number(body.staff_price_override) : (sel.calculated_price || 0);
       const allowance = sel.allowance_amount || 0;
@@ -291,7 +389,6 @@ Deno.serve(async (req) => {
         { severity: 'high', reviewed_by: actor });
 
       if (reviewAction === "Approved") {
-        // Server-side ledger entry
         await base44.asServiceRole.entities.AllowanceLedger.create({
           project_id: sel.project_id, area_id: sel.area_id, requirement_id: sel.requirement_id,
           event_type: hasOverride ? "Staff Override" : "Selection Approved",
@@ -300,7 +397,6 @@ Deno.serve(async (req) => {
           performed_by: actor
         });
 
-        // Create procurement item if not exists
         const existingProc = await base44.asServiceRole.entities.ProcurementItem.filter({ selection_id: sel.id });
         if (existingProc.length === 0) {
           const catItem = await base44.asServiceRole.entities.CatalogueItem.get(sel.catalogue_item_id).catch(() => null);

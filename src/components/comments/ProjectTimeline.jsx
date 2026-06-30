@@ -1,39 +1,54 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { MessageSquare, DollarSign, RefreshCw } from "lucide-react";
+import { MessageSquare, DollarSign, RefreshCw, AlertTriangle } from "lucide-react";
 
 export default function ProjectTimeline({ projectId, staff = true }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
     (async () => {
-      const [comments, ledger, crs] = await Promise.all([
-        base44.entities.Comment.filter({ project_id: projectId }, null, 500),
-        base44.entities.AllowanceLedger.filter({ project_id: projectId }, null, 500),
-        base44.entities.ChangeRequest.filter({ project_id: projectId }, null, 500)
-      ]);
-      const evs = [
-        ...comments.filter(c => staff || !c.is_internal).map(c => ({
-          id: c.id, date: c.created_date, type: "Comment", icon: MessageSquare, tone: "blue",
-          title: c.author_name || (c.is_internal ? "Staff (internal)" : "Customer"),
-          text: c.content, badge: c.is_internal ? "Internal" : "Customer-visible"
-        })),
-        ...(staff ? ledger.map(l => ({
-          id: l.id, date: l.created_date, type: l.event_type, icon: DollarSign, tone: "emerald",
-          title: l.performed_by || "Staff", text: l.description || "", badge: l.event_type
-        })) : []),
-        ...crs.map(r => ({
-          id: r.id, date: r.created_date, type: "Change Request", icon: RefreshCw, tone: "amber",
-          title: r.status, text: `${r.original_item_name || "—"} → ${r.requested_item_name || "—"}`, badge: r.status
-        }))
-      ];
-      evs.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-      setEvents(evs); setLoading(false);
+      try {
+        const res = await base44.functions.invoke("customerPortal", { action: "get_project_timeline", project_id: projectId });
+        const data = res.data;
+        if (data?.error) throw new Error(data.error);
+        const comments = data.comments || [];
+        const ledger = data.ledger || [];
+        const crs = data.changeRequests || [];
+
+        const evs = [
+          ...comments.map(c => ({
+            id: c.id, date: c.created_date, type: "Comment", icon: MessageSquare, tone: "blue",
+            title: c.author_name || (c.is_internal ? "Staff (internal)" : "Customer"),
+            text: c.content, badge: c.is_internal ? "Internal" : "Customer-visible"
+          })),
+          ...(staff ? ledger.map(l => ({
+            id: l.id, date: l.created_date, type: l.event_type, icon: DollarSign, tone: "emerald",
+            title: l.performed_by || "Staff", text: l.description || "", badge: l.event_type
+          })) : []),
+          ...crs.map(r => ({
+            id: r.id, date: r.created_date, type: "Change Request", icon: RefreshCw, tone: "amber",
+            title: r.status, text: `${r.original_item_name || "—"} → ${r.requested_item_name || "—"}`, badge: r.status
+          }))
+        ];
+        evs.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+        setEvents(evs);
+      } catch (err) {
+        setLoadError(err.message || "Failed to load timeline");
+      } finally {
+        setLoading(false);
+      }
     })();
   }, [projectId]);
 
   if (loading) return <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
+  if (loadError) return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <h3 className="font-semibold text-gray-900 text-sm mb-2">Communication Timeline</h3>
+      <div className="flex items-center gap-2 text-red-600 text-sm"><AlertTriangle size={14} /> {loadError}</div>
+    </div>
+  );
 
   const toneClass = { blue: "bg-blue-100 text-blue-600", emerald: "bg-emerald-100 text-emerald-600", amber: "bg-amber-100 text-amber-600" };
 
