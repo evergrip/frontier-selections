@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { Link, useOutletContext } from "react-router-dom";
+import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { Input } from "@/components/ui/input";
 import { X } from "lucide-react";
@@ -12,6 +12,9 @@ export default function ChangeRequests() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [filterProject, setFilterProject] = useState(selectedProject?.id || "");
+  const [searchParams] = useSearchParams();
+  const urlFilter = searchParams.get("filter");
+  const NEEDING_REVIEW = ["Requested", "Under Review", "More Information Needed"];
 
   useEffect(() => {
     base44.entities.ChangeRequest.list("-created_date", 200).then(async rs => {
@@ -27,6 +30,7 @@ export default function ChangeRequests() {
   }, [filterProject]);
 
   const filtered = requests.filter(r => {
+    if (urlFilter === "needing_review" && !NEEDING_REVIEW.includes(r.status)) return false;
     if (!filter) return true;
     const q = filter.toLowerCase();
     return (r.original_item_name || "").toLowerCase().includes(q) || (r.requested_item_name || "").toLowerCase().includes(q);

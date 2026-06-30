@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
-import { Link, useOutletContext } from "react-router-dom";
+import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 import { AlertTriangle, Clock, PackageX, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -31,6 +31,9 @@ export default function Procurement() {
   const [fCategory, setFCategory] = useState("all");
   const [fDate, setFDate] = useState("");
   const [fOverdue, setFOverdue] = useState(false);
+  const [searchParams] = useSearchParams();
+  const urlFilter = searchParams.get("filter");
+  const WARNING_STATUSES = ["Backordered", "Delayed", "Substitution Required"];
 
   useEffect(() => {
     (async () => {
@@ -55,6 +58,7 @@ export default function Procurement() {
   const suppliers = useMemo(() => [...new Set(items.map(p => p.supplier).filter(Boolean))].sort(), [items]);
 
   const filtered = useMemo(() => items.filter(p => {
+    if (urlFilter === "warnings" && !WARNING_STATUSES.includes(p.status)) return false;
     if (fProject !== "all" && p.project_id !== fProject) return false;
     if (fSupplier !== "all" && p.supplier !== fSupplier) return false;
     if (fStatus !== "all" && p.status !== fStatus) return false;
@@ -63,7 +67,7 @@ export default function Procurement() {
     if (fDate && p.expected_delivery_date !== fDate) return false;
     if (fOverdue && !isOverdue(p)) return false;
     return true;
-  }), [items, fProject, fSupplier, fStatus, fArea, fCategory, fDate, fOverdue]);
+  }), [items, fProject, fSupplier, fStatus, fArea, fCategory, fDate, fOverdue, urlFilter]);
 
   const counts = useMemo(() => ({
     "Ready to Order": items.filter(p => p.status === "Ready to Order").length,

@@ -78,14 +78,14 @@ export default function StaffDashboard() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-        <WidgetStat icon={AlertTriangle} label="Overdue" value={overdue.length} color="bg-red-50 text-red-600" />
-        <WidgetStat icon={Clock} label="Pending Approvals" value={pendingApprovals.length} color="bg-blue-50 text-blue-600" />
-        <WidgetStat icon={RefreshCw} label="Change Requests" value={crNeedingReview.length} color="bg-orange-50 text-orange-600" />
-        <WidgetStat icon={PackageX} label="Procurement Warnings" value={procurementWarnings.length} color="bg-purple-50 text-purple-600" />
-        <WidgetStat icon={Calendar} label="Due This Week" value={dueThisWeek.length} color="bg-amber-50 text-amber-600" />
-        <WidgetStat icon={Hourglass} label="Pending Customer" value={pendingCustomerAction.length} color="bg-sky-50 text-sky-600" />
-        <WidgetStat icon={TrendingUp} label="Over Allowance" value={overAllowanceSelections.length} color="bg-rose-50 text-rose-600" />
-        <WidgetStat icon={Star} label="Missing Suggested Options" value={missingSuggestedOptions.length} color="bg-violet-50 text-violet-600" />
+        <WidgetStat icon={AlertTriangle} label="Overdue" value={overdue.length} color="bg-red-50 text-red-600" to="/selections-tracker?filter=overdue" />
+        <WidgetStat icon={Clock} label="Pending Approvals" value={pendingApprovals.length} color="bg-blue-50 text-blue-600" to="/selections-tracker?filter=pending_approval" />
+        <WidgetStat icon={RefreshCw} label="Change Requests" value={crNeedingReview.length} color="bg-orange-50 text-orange-600" to="/change-requests?filter=needing_review" />
+        <WidgetStat icon={PackageX} label="Procurement Warnings" value={procurementWarnings.length} color="bg-purple-50 text-purple-600" to="/procurement?filter=warnings" />
+        <WidgetStat icon={Calendar} label="Due This Week" value={dueThisWeek.length} color="bg-amber-50 text-amber-600" to="/selections-tracker?filter=due_this_week" />
+        <WidgetStat icon={Hourglass} label="Pending Customer" value={pendingCustomerAction.length} color="bg-sky-50 text-sky-600" to="/selections-tracker?filter=pending_customer" />
+        <WidgetStat icon={TrendingUp} label="Over Allowance" value={overAllowanceSelections.length} color="bg-rose-50 text-rose-600" to="/selections-tracker?filter=over_allowance" />
+        <WidgetStat icon={Star} label="Missing Suggested Options" value={missingSuggestedOptions.length} color="bg-violet-50 text-violet-600" to="/selections-tracker?filter=missing_suggested" />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -177,14 +177,22 @@ export default function StaffDashboard() {
   );
 }
 
-function WidgetStat({ icon: Icon, label, value, color }) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4">
+function WidgetStat({ icon: Icon, label, value, color, to }) {
+  const content = (
+    <>
       <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${color} mb-2`}><Icon size={16} /></div>
       <p className="text-xl sm:text-2xl font-bold text-gray-900">{value}</p>
       <p className="text-xs text-gray-500">{label}</p>
-    </div>
+    </>
   );
+  if (to) {
+    return (
+      <Link to={to} className="block bg-white rounded-xl border border-gray-200 p-3 sm:p-4 hover:border-gray-300 hover:shadow-sm transition-all">
+        {content}
+      </Link>
+    );
+  }
+  return <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4">{content}</div>;
 }
 
 function Widget({ title, link, items, renderItem }) {

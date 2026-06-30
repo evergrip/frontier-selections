@@ -9,6 +9,7 @@ import { CATEGORIES, SELECTION_STATUSES, hasPermission } from "@/lib/constants";
 
 const DONE_STATUSES = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
 const TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
+const WEEK_END = new Date(TODAY); WEEK_END.setDate(WEEK_END.getDate() + 7);
 
 export default function SelectionsTracker() {
   const { selectedProject } = useOutletContext() || {};
@@ -138,6 +139,12 @@ export default function SelectionsTracker() {
       if (filterQuick) {
         switch (filterQuick) {
           case "overdue": if (!row.isOverdue) return false; break;
+          case "due_this_week": {
+            if (!row.req.due_date || DONE_STATUSES.includes(row.req.status)) return false;
+            const due = new Date(row.req.due_date + "T00:00:00");
+            if (due < TODAY || due > WEEK_END) return false;
+            break;
+          }
           case "pending_customer": if (!["Not Started", "Viewed", "In Progress", "Revision Requested"].includes(row.req.status)) return false; break;
           case "pending_approval": if (row.sel?.status !== "Pending") return false; break;
           case "approved": if (row.req.status !== "Approved") return false; break;
