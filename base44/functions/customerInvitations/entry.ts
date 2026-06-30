@@ -9,6 +9,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const action = body.action;
+    const debugMode = body.debug === true || Deno.env.get("DEBUG_MODE") === "true";
     // Use the app's configured base URL - hardcoded for production app
     const appBaseUrl = Deno.env.get("BASE44_APP_BASE_URL") || Deno.env.get("VITE_BASE44_APP_BASE_URL") || "https://archetypal-frontier-build-flow.base44.app";
     const portalUrl = `${appBaseUrl}/login`;
@@ -84,7 +85,8 @@ Deno.serve(async (req) => {
       } catch (e) { emailError = e.message; }
 
       const inviteLink = `${portalUrl}?invite=${invitation.id}`;
-      const auditExtra = { severity: 'high', invitation_id: invitation.id, email_sent: emailResult?.email_sent || false, email_error: emailError, invite_link: inviteLink };
+      const auditExtra = { severity: 'high', invitation_id: invitation.id, email_sent: emailResult?.email_sent || false, email_error: emailError };
+      if (debugMode) auditExtra.invite_link = inviteLink;
       
       if (emailError) {
         await createAuditLog(base44.asServiceRole, 'customer_invited_email_failed',
@@ -121,7 +123,8 @@ Deno.serve(async (req) => {
       } catch (e) { emailError = e.message; }
 
       const inviteLink = `${portalUrl}?invite=${invitation.id}`;
-      const auditExtra = { invitation_id, email_sent: emailResult?.email_sent || false, email_error: emailError, invite_link: inviteLink };
+      const auditExtra = { invitation_id, email_sent: emailResult?.email_sent || false, email_error: emailError };
+      if (debugMode) auditExtra.invite_link = inviteLink;
 
       if (emailError) {
         await createAuditLog(base44.asServiceRole, 'invitation_resent_email_failed',

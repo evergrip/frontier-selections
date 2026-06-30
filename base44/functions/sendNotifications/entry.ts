@@ -3,15 +3,22 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me().catch(() => null);
+    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    if (user.active === false) return Response.json({ error: "Account deactivated" }, { status: 403 });
+
     const body = await req.json().catch(() => ({}));
     const action = body.action;
+    const isStaff = user.role === "admin" || user.role === "staff";
     
     if (action === "checkConfig") {
+      if (!isStaff) return Response.json({ error: "Forbidden" }, { status: 403 });
       const apiKey = Deno.env.get("EMAIL_API_KEY");
       return Response.json({ configured: !!apiKey, provider: apiKey ? "Resend" : "Not configured" });
     }
     
     if (action === "sendEmail") {
+      if (!isStaff) return Response.json({ error: "Forbidden" }, { status: 403 });
       const { to, subject, body: emailBody, from_name } = body;
       if (!to || !subject || !emailBody) {
         return Response.json({ error: "Missing required fields: to, subject, body" }, { status: 400 });
@@ -48,6 +55,7 @@ Deno.serve(async (req) => {
       }
     }
     
+    if (!isStaff) return Response.json({ error: "Forbidden" }, { status: 403 });
     const { user_ids, project_id, type, title, message, link, target_all_staff, skip_email } = body;
     const users = await base44.asServiceRole.entities.User.list();
     let targets = target_all_staff ? users.filter(u => u.role === "admin" || u.role === "staff") : users.filter(u => user_ids?.includes(u.id));

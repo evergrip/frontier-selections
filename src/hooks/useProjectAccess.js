@@ -11,14 +11,7 @@ export function useProjectAccess(projectId) {
     let cancelled = false;
     (async () => {
       try {
-        const [user, project] = await Promise.all([
-          base44.auth.me(),
-          base44.entities.Project.get(projectId)
-        ]);
-        if (cancelled) return;
-        const hasAccess = isStaff(user) ||
-          (project.assigned_customers || []).includes(user.id) ||
-          (project.assigned_customers || []).includes(user.email);
+        const user = await base44.auth.me();
 
         // During impersonation, treat the user as a customer so portal pages show the customer view
         const session = getImpersonationSession();
@@ -27,6 +20,11 @@ export function useProjectAccess(projectId) {
           effectiveUser = { ...user, role: 'customer', _impersonating: true, _staffUser: user };
         }
 
+        // Use server-side access verification
+        const res = await base44.functions.invoke("projectAccess", { project_id: projectId });
+        const hasAccess = res.data?.has_access === true;
+
+        if (cancelled) return;
         setState({ loading: false, hasAccess, user: effectiveUser });
       } catch {
         if (!cancelled) setState({ loading: false, hasAccess: false, user: null });

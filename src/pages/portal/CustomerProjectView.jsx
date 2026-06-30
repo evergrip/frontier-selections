@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, AlertCircle, CheckCircle, MessageSquare, Package, ArrowRight } from "lucide-react";
+import { ArrowLeft, AlertCircle, CheckCircle, MessageSquare, Package, ArrowRight, AlertTriangle } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
 import CommentThread from "@/components/comments/CommentThread";
 import ProjectTimeline from "@/components/comments/ProjectTimeline";
 import { useProjectAccess } from "@/hooks/useProjectAccess";
+import { useCustomerPortal } from "@/components/CustomerPortalContext";
 
 const DONE = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
 
@@ -15,22 +16,30 @@ export default function CustomerProjectView() {
   const [areas, setAreas] = useState([]);
   const [requirements, setRequirements] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const { loading: accessLoading, hasAccess } = useProjectAccess(projectId);
+  const { isPreviewMode } = useCustomerPortal();
 
   useEffect(() => {
+    if (accessLoading || !hasAccess) return;
     async function load() {
-      const [p, a, r] = await Promise.all([
-        base44.entities.Project.get(projectId),
-        base44.entities.ProjectArea.filter({ project_id: projectId }),
-        base44.entities.SelectionRequirement.filter({ project_id: projectId })
-      ]);
-      setProject(p);
-      setAreas(a);
-      setRequirements(r);
-      setLoading(false);
+      try {
+        const [p, a, r] = await Promise.all([
+          base44.entities.Project.get(projectId),
+          base44.entities.ProjectArea.filter({ project_id: projectId }),
+          base44.entities.SelectionRequirement.filter({ project_id: projectId })
+        ]);
+        setProject(p);
+        setAreas(a);
+        setRequirements(r);
+      } catch (err) {
+        setLoadError(err.message || "Failed to load project data");
+      } finally {
+        setLoading(false);
+      }
     }
     load();
-  }, [projectId]);
+  }, [projectId, accessLoading, hasAccess]);
 
   const reqByArea = useMemo(() => {
     const map = {};
@@ -62,7 +71,7 @@ export default function CustomerProjectView() {
     const overdue = notDone.find(r => r.due_date && new Date(r.due_date + "T00:00:00") < today);
     if (overdue) return { req: overdue, type: "overdue", label: "Overdue" };
     
-    const withDueDate = notDone.filter(r => r.due_date).sort((a, b) => new Date(a.due_date) - new Date(b.dueDate));
+    const withDueDate = notDone.filter(r => r.due_date).sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
     if (withDueDate.length > 0) return { req: withDueDate[0], type: "upcoming", label: "Up next" };
     
     const required = notDone.find(r => r.is_required);
@@ -73,6 +82,13 @@ export default function CustomerProjectView() {
 
   if (loading || accessLoading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
   if (!hasAccess) return <div className="p-8 text-center text-gray-400">You don't have access to this project.</div>;
+  if (loadError) return (
+    <div className="p-8 text-center">
+      <AlertTriangle size={32} className="mx-auto text-red-400 mb-2" />
+      <p className="text-red-600 text-sm font-medium">Failed to load project</p>
+      <p className="text-gray-400 text-xs mt-1">{loadError}</p>
+    </div>
+  );
   if (!project) return <div className="p-8 text-center text-gray-400">Project not found</div>;
 
   return (
@@ -176,7 +192,7 @@ export default function CustomerProjectView() {
 
       <div className="bg-white rounded-xl border border-gray-200 p-5">
         <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><MessageSquare size={18} className="text-gray-500" /> Project Messages</h2>
-        <CommentThread projectId={projectId} targetType="project" targetId={projectId} staff={false} title="" />
+        <CommentThread projectId={projectId} targetType="project" targetId={projectId} staff={false} title="" readOnly={isPreviewMode} />
       </div>
 
       <ProjectTimeline projectId={projectId} staff={false} />

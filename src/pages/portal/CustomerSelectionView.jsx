@@ -59,69 +59,76 @@ export default function CustomerSelectionView() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterBrand, setFilterBrand] = useState("");
   const [suggestedOptions, setSuggestedOptions] = useState([]);
+  const [loadError, setLoadError] = useState(null);
   const { loading: accessLoading, hasAccess } = useProjectAccess(projectId);
   const { isPreviewMode } = useCustomerPortal();
 
   useEffect(() => {
+    if (accessLoading || !hasAccess) return;
     async function load() {
-      const [req, proj, sels, crs] = await Promise.all([
-        base44.entities.SelectionRequirement.get(requirementId),
-        base44.entities.Project.get(projectId),
-        base44.entities.CustomerSelection.filter({ requirement_id: requirementId }),
-        base44.entities.ChangeRequest.filter({ requirement_id: requirementId })
-      ]);
-      if (req.project_id !== projectId) { setRequirement(null); setLoading(false); return; }
-      setRequirement(req);
-      setProject(proj);
-      if (areaId) {
-        try { setArea(await base44.entities.ProjectArea.get(areaId)); } catch {}
-      }
-      setAllSelections(sels);
-      setChangeRequests(crs);
-      const current = sels.find(s => s.is_current);
-      setExistingSelection(current || null);
-
-      const itemFilter = req.category ? { category: req.category } : {};
-      const [rawItems, groups, values, rules, suggested] = await Promise.all([
-        base44.entities.CatalogueItem.filter(itemFilter, "name", 100),
-        base44.entities.CatalogueOptionGroup.filter({ is_active: true }, null, 500),
-        base44.entities.CatalogueOptionValue.filter({ is_active: true }, null, 500),
-        base44.entities.CatalogueOptionRule.filter({ is_active: true }, null, 500),
-        base44.entities.ProjectAvailableCatalogueItem.filter({ requirement_id: requirementId })
-      ]);
-      const suggestedSorted = suggested.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-      setSuggestedOptions(suggestedSorted);
-
-      const accessMode = req.customer_catalogue_access_mode || "suggested_only";
-      let visibleItems = rawItems.filter(i => i.status !== "Discontinued" && i.status !== "Draft");
-
-      if (accessMode === "suggested_only" || accessMode === "suggested_plus_request") {
-        const suggestedItemIds = suggestedSorted
-          .filter(s => s.is_available !== false)
-          .map(s => s.catalogue_item_id);
-        visibleItems = visibleItems.filter(i => suggestedItemIds.includes(i.id));
-      } else if (accessMode === "staff_only") {
-        visibleItems = [];
-      }
-
-      const items = visibleItems.map(item => assembleItem(item, groups, values, rules));
-      setCatalogueItems(items);
-
-      if (current && ["Revision Requested", "Rejected"].includes(current.status)) {
-        const item = items.find(i => i.id === current.catalogue_item_id);
-        if (item) {
-          setSelectedItem(item);
-          const opts = {};
-          (current.selected_options || []).forEach(o => { opts[o.group_id] = o.option_id; });
-          setSelectedOptions(opts);
-          setCustomerNotes(current.customer_notes || "");
-          setStep("configure");
+      try {
+        const [req, proj, sels, crs] = await Promise.all([
+          base44.entities.SelectionRequirement.get(requirementId),
+          base44.entities.Project.get(projectId),
+          base44.entities.CustomerSelection.filter({ requirement_id: requirementId }),
+          base44.entities.ChangeRequest.filter({ requirement_id: requirementId })
+        ]);
+        if (req.project_id !== projectId) { setRequirement(null); setLoading(false); return; }
+        setRequirement(req);
+        setProject(proj);
+        if (areaId) {
+          try { setArea(await base44.entities.ProjectArea.get(areaId)); } catch {}
         }
+        setAllSelections(sels);
+        setChangeRequests(crs);
+        const current = sels.find(s => s.is_current);
+        setExistingSelection(current || null);
+
+        const itemFilter = req.category ? { category: req.category } : {};
+        const [rawItems, groups, values, rules, suggested] = await Promise.all([
+          base44.entities.CatalogueItem.filter(itemFilter, "name", 100),
+          base44.entities.CatalogueOptionGroup.filter({ is_active: true }, null, 500),
+          base44.entities.CatalogueOptionValue.filter({ is_active: true }, null, 500),
+          base44.entities.CatalogueOptionRule.filter({ is_active: true }, null, 500),
+          base44.entities.ProjectAvailableCatalogueItem.filter({ requirement_id: requirementId })
+        ]);
+        const suggestedSorted = suggested.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+        setSuggestedOptions(suggestedSorted);
+
+        const accessMode = req.customer_catalogue_access_mode || "suggested_only";
+        let visibleItems = rawItems.filter(i => i.status !== "Discontinued" && i.status !== "Draft");
+
+        if (accessMode === "suggested_only" || accessMode === "suggested_plus_request") {
+          const suggestedItemIds = suggestedSorted
+            .filter(s => s.is_available !== false)
+            .map(s => s.catalogue_item_id);
+          visibleItems = visibleItems.filter(i => suggestedItemIds.includes(i.id));
+        } else if (accessMode === "staff_only") {
+          visibleItems = [];
+        }
+
+        const items = visibleItems.map(item => assembleItem(item, groups, values, rules));
+        setCatalogueItems(items);
+
+        if (current && ["Revision Requested", "Rejected"].includes(current.status)) {
+          const item = items.find(i => i.id === current.catalogue_item_id);
+          if (item) {
+            setSelectedItem(item);
+            const opts = {};
+            (current.selected_options || []).forEach(o => { opts[o.group_id] = o.option_id; });
+            setSelectedOptions(opts);
+            setCustomerNotes(current.customer_notes || "");
+            setStep("configure");
+          }
+        }
+      } catch (err) {
+        setLoadError(err.message || "Failed to load selection data");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
     load();
-  }, [requirementId]);
+  }, [requirementId, accessLoading, hasAccess]);
 
   function getAvailableOptions(item, groupId, selections = selectedOptions) {
     const group = item?.option_groups?.find(g => g.id === groupId);
@@ -227,49 +234,32 @@ export default function CustomerSelectionView() {
 
   async function handleSubmit() {
     setSubmitting(true);
-    const optionsArray = Object.entries(selectedOptions).map(([groupId, optionId]) => {
-      const group = selectedItem.option_groups.find(g => g.id === groupId);
-      const option = group?.options.find(o => o.id === optionId);
-      return {
-        group_id: groupId, group_name: group?.name || "",
-        option_id: optionId, option_name: option?.name || "",
-        price_modifier: option?.price_modifier || 0
-      };
-    });
-
-    if (existingSelection && ["Pending", "Revision Requested", "Rejected"].includes(existingSelection.status)) {
-      await base44.entities.CustomerSelection.update(existingSelection.id, {
-        catalogue_item_id: selectedItem.id, selected_options: optionsArray,
-        calculated_price: calculatedPrice, allowance_amount: allowance,
-        over_allowance: overAllowance, under_allowance: underAllowance,
-        customer_notes: customerNotes, status: "Pending",
-        submitted_date: new Date().toISOString()
+    try {
+      const optionsArray = Object.entries(selectedOptions).map(([groupId, optionId]) => {
+        const group = selectedItem.option_groups.find(g => g.id === groupId);
+        const option = group?.options.find(o => o.id === optionId);
+        return {
+          group_id: groupId, group_name: group?.name || "",
+          option_id: optionId, option_name: option?.name || "",
+          price_modifier: option?.price_modifier || 0
+        };
       });
-    } else {
-      if (existingSelection) {
-        await base44.entities.CustomerSelection.update(existingSelection.id, { is_current: false, status: "Superseded" });
-      }
-      await base44.entities.CustomerSelection.create({
+
+      const res = await base44.functions.invoke("selectionWorkflow", {
+        action: "submit_selection",
         project_id: projectId, area_id: areaId, requirement_id: requirementId,
         catalogue_item_id: selectedItem.id, selected_options: optionsArray,
-        calculated_price: calculatedPrice, allowance_amount: allowance,
-        over_allowance: overAllowance, under_allowance: underAllowance,
-        customer_notes: customerNotes, status: "Pending", is_current: true,
-        submitted_date: new Date().toISOString(),
-        version: (existingSelection?.version || 0) + 1
+        customer_notes: customerNotes,
+        existing_selection_id: existingSelection && ["Pending", "Revision Requested", "Rejected"].includes(existingSelection.status) ? existingSelection.id : null
       });
-    }
 
-    await base44.entities.AllowanceLedger.create({
-      project_id: projectId, area_id: areaId, requirement_id: requirementId,
-      event_type: existingSelection ? "Selection Changed" : "Selection Submitted",
-      amount: calculatedPrice, running_balance: calculatedPrice - allowance,
-      description: `${selectedItem.name} submitted at $${calculatedPrice.toLocaleString()}`,
-      performed_by: "customer"
-    });
-    await base44.entities.SelectionRequirement.update(requirementId, { status: "Submitted" });
-    setSubmitting(false);
-    navigate(`/portal/project/${projectId}/area/${areaId}`);
+      if (res.data?.error) throw new Error(res.data.error);
+      navigate(`/portal/project/${projectId}/area/${areaId}`);
+    } catch (err) {
+      alert("Failed to submit selection: " + (err.message || "Unknown error"));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function startChangeRequest() {
@@ -287,35 +277,38 @@ export default function CustomerSelectionView() {
   async function handleRequestChange() {
     if (!selectedItem || !changeReason.trim()) return;
     setSubmitting(true);
-    const optionsArray = Object.entries(selectedOptions).map(([groupId, optionId]) => {
-      const group = selectedItem.option_groups.find(g => g.id === groupId);
-      const option = group?.options.find(o => o.id === optionId);
-      return { group_id: groupId, group_name: group?.name || "", option_id: optionId, option_name: option?.name || "", price_modifier: option?.price_modifier || 0 };
-    });
-    const originalItem = catalogueItems.find(i => i.id === existingSelection.catalogue_item_id);
-    const originalPrice = existingSelection.calculated_price || 0;
-    const priceDiff = calculatedPrice - originalPrice;
-    const allowanceImpact = calculatedPrice - allowance;
-    const cr = await base44.entities.ChangeRequest.create({
-      project_id: projectId, area_id: areaId, requirement_id: requirementId,
-      selection_id: existingSelection.id, original_item_name: originalItem?.name || "",
-      original_price: originalPrice, requested_item_id: selectedItem.id, requested_item_name: selectedItem.name,
-      requested_options: optionsArray, requested_price: calculatedPrice,
-      reason: changeReason, price_impact: priceDiff, allowance_impact: allowanceImpact,
-      customer_note: customerNotes, status: "Requested"
-    });
-    await base44.entities.AuditLog.create({
-      target_type: "change_request", target_id: cr.id, action: "change_requested",
-      field: "selection", old_value: existingSelection.catalogue_item_id, new_value: selectedItem.id,
-      changed_by: "customer", reason: changeReason
-    });
-    await base44.entities.SelectionRequirement.update(requirementId, { status: "Change Requested" });
-    setSubmitting(false);
-    navigate(`/portal/project/${projectId}/area/${areaId}`);
+    try {
+      const optionsArray = Object.entries(selectedOptions).map(([groupId, optionId]) => {
+        const group = selectedItem.option_groups.find(g => g.id === groupId);
+        const option = group?.options.find(o => o.id === optionId);
+        return { group_id: groupId, group_name: group?.name || "", option_id: optionId, option_name: option?.name || "", price_modifier: option?.price_modifier || 0 };
+      });
+
+      const res = await base44.functions.invoke("selectionWorkflow", {
+        action: "request_change",
+        project_id: projectId, area_id: areaId, requirement_id: requirementId,
+        selection_id: existingSelection.id, catalogue_item_id: selectedItem.id,
+        selected_options: optionsArray, reason: changeReason, customer_note: customerNotes
+      });
+
+      if (res.data?.error) throw new Error(res.data.error);
+      navigate(`/portal/project/${projectId}/area/${areaId}`);
+    } catch (err) {
+      alert("Failed to submit change request: " + (err.message || "Unknown error"));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (loading || accessLoading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
   if (!hasAccess) return <div className="text-center py-20 text-gray-400">You don't have access to this project.</div>;
+  if (loadError) return (
+    <div className="text-center py-20">
+      <AlertTriangle size={32} className="mx-auto text-red-400 mb-2" />
+      <p className="text-red-600 text-sm font-medium">Failed to load selection</p>
+      <p className="text-gray-400 text-xs mt-1">{loadError}</p>
+    </div>
+  );
   if (!requirement) return <div className="text-center py-20 text-gray-400">Selection not found</div>;
 
   const isApproved = existingSelection?.status === "Approved" || requirement.status === "Approved";
@@ -334,7 +327,7 @@ export default function CustomerSelectionView() {
       setExistingSelection(sels.find(s => s.is_current) || null);
       setShowSignOff(false);
       setSignOffNote("");
-    } catch (e) { alert("Sign-off failed"); }
+    } catch (e) { alert("Sign-off failed: " + (e.message || "Unknown error")); }
     setSubmitting(false);
   }
 
@@ -399,11 +392,11 @@ export default function CustomerSelectionView() {
       )}
 
       {existingSelection && (
-        <CustomerSubstitution projectId={projectId} selectionId={existingSelection.id} showPricing={showPricing} />
+        <CustomerSubstitution projectId={projectId} selectionId={existingSelection.id} showPricing={showPricing} readOnly={isPreviewMode} />
       )}
 
       {existingSelection && (
-        <CommentThread projectId={projectId} targetType="selection" targetId={existingSelection.id} staff={false} title="Comments" />
+        <CommentThread projectId={projectId} targetType="selection" targetId={existingSelection.id} staff={false} title="Comments" readOnly={isPreviewMode} />
       )}
 
       {step === "browse" && (changeMode || (canEdit && !isApproved)) && (

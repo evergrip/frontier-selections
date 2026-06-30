@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Heart, Trash2, MessageCircle, CheckCircle, Link2 } from "lucide-react";
 
-export default function MoodBoardCard({ item, areas, requirements, staff, onUpdate, onDelete, onComments, commentCount }) {
+export default function MoodBoardCard({ item, areas, requirements, staff, onUpdate, onDelete, onComments, commentCount, readOnly = false }) {
   const [showLink, setShowLink] = useState(false);
   const [linkVal, setLinkVal] = useState(item.linked_requirement_id || "");
   const [internalNotes, setInternalNotes] = useState(item.internal_notes || "");
@@ -11,6 +11,7 @@ export default function MoodBoardCard({ item, areas, requirements, staff, onUpda
   const req = item.linked_requirement_id ? requirements[item.linked_requirement_id] : null;
 
   async function toggleFavourite() {
+    if (readOnly) return;
     const updated = await base44.entities.MoodBoardItem.update(item.id, { is_favourite: !item.is_favourite });
     onUpdate(updated);
   }

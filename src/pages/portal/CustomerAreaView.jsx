@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, AlertCircle } from "lucide-react";
+import { ArrowLeft, AlertCircle, AlertTriangle } from "lucide-react";
 import SelectionCard from "@/components/portal/SelectionCard";
 import { useProjectAccess } from "@/hooks/useProjectAccess";
 
@@ -34,40 +34,54 @@ export default function CustomerAreaView() {
   const [selections, setSelections] = useState([]);
   const [catalogueItems, setCatalogueItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const { loading: accessLoading, hasAccess } = useProjectAccess(projectId);
 
   useEffect(() => {
+    if (accessLoading || !hasAccess) return;
     async function load() {
-      const [a, r, s] = await Promise.all([
-        base44.entities.ProjectArea.get(areaId),
-        base44.entities.SelectionRequirement.filter({ area_id: areaId }),
-        base44.entities.CustomerSelection.filter({ area_id: areaId })
-      ]);
-      if (a.project_id !== projectId) { setArea(null); setLoading(false); return; }
-      setArea(a);
-      setRequirements(r);
-      const currentSels = s.filter(sel => sel.is_current);
-      setSelections(currentSels);
-      const itemIds = [...new Set(currentSels.map(sel => sel.catalogue_item_id).filter(Boolean))];
-      
-      if (itemIds.length > 0) {
-        const [rawItems, groups, values, rules] = await Promise.all([
-          base44.entities.CatalogueItem.list(null, 100),
-          base44.entities.CatalogueOptionGroup.filter({ is_active: true }, null, 500),
-          base44.entities.CatalogueOptionValue.filter({ is_active: true }, null, 500),
-          base44.entities.CatalogueOptionRule.filter({ is_active: true }, null, 500)
+      try {
+        const [a, r, s] = await Promise.all([
+          base44.entities.ProjectArea.get(areaId),
+          base44.entities.SelectionRequirement.filter({ area_id: areaId }),
+          base44.entities.CustomerSelection.filter({ area_id: areaId })
         ]);
-        const filteredItems = rawItems.filter(i => itemIds.includes(i.id) && i.status !== "Discontinued");
-        const assembled = filteredItems.map(item => assembleItem(item, groups, values, rules));
-        setCatalogueItems(assembled);
+        if (a.project_id !== projectId) { setArea(null); setLoading(false); return; }
+        setArea(a);
+        setRequirements(r);
+        const currentSels = s.filter(sel => sel.is_current);
+        setSelections(currentSels);
+        const itemIds = [...new Set(currentSels.map(sel => sel.catalogue_item_id).filter(Boolean))];
+        
+        if (itemIds.length > 0) {
+          const [rawItems, groups, values, rules] = await Promise.all([
+            base44.entities.CatalogueItem.list(null, 100),
+            base44.entities.CatalogueOptionGroup.filter({ is_active: true }, null, 500),
+            base44.entities.CatalogueOptionValue.filter({ is_active: true }, null, 500),
+            base44.entities.CatalogueOptionRule.filter({ is_active: true }, null, 500)
+          ]);
+          const filteredItems = rawItems.filter(i => itemIds.includes(i.id) && i.status !== "Discontinued");
+          const assembled = filteredItems.map(item => assembleItem(item, groups, values, rules));
+          setCatalogueItems(assembled);
+        }
+      } catch (err) {
+        setLoadError(err.message || "Failed to load area data");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
     load();
-  }, [areaId, projectId]);
+  }, [areaId, projectId, accessLoading, hasAccess]);
 
   if (loading || accessLoading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
   if (!hasAccess) return <div className="p-8 text-center text-gray-400">You don't have access to this project.</div>;
+  if (loadError) return (
+    <div className="p-8 text-center">
+      <AlertTriangle size={32} className="mx-auto text-red-400 mb-2" />
+      <p className="text-red-600 text-sm font-medium">Failed to load area</p>
+      <p className="text-gray-400 text-xs mt-1">{loadError}</p>
+    </div>
+  );
   if (!area) return <div className="text-center py-20 text-gray-400">Area not found</div>;
 
   const completed = requirements.filter(r => DONE.includes(r.status)).length;

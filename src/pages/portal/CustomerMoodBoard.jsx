@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
-import { Plus, Image, Heart, Upload } from "lucide-react";
+import { Plus, Image, Heart, Upload, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import MoodBoardCard from "@/components/moodboard/MoodBoardCard";
 import MoodBoardComments from "@/components/moodboard/MoodBoardComments";
 import { MOOD_BOARD_TAGS, CATEGORIES } from "@/lib/constants";
+import { useCustomerPortal } from "@/components/CustomerPortalContext";
 
 export default function CustomerMoodBoard() {
   const [items, setItems] = useState([]);
@@ -23,6 +24,8 @@ export default function CustomerMoodBoard() {
   const [fFav, setFFav] = useState(false);
   const [commentTarget, setCommentTarget] = useState(null);
   const [commentCounts, setCommentCounts] = useState({});
+  const [loadError, setLoadError] = useState(null);
+  const { isPreviewMode } = useCustomerPortal();
 
   useEffect(() => {
     (async () => {
@@ -41,16 +44,21 @@ export default function CustomerMoodBoard() {
     if (!projectId) return;
     (async () => {
       setLoading(true);
-      const [mb, ar] = await Promise.all([
-        base44.entities.MoodBoardItem.filter({ project_id: projectId }, "-created_date", 200),
-        base44.entities.ProjectArea.filter({ project_id: projectId }, null, 200)
-      ]);
-      setItems(mb);
-      const aMap = {}; ar.forEach(a => aMap[a.id] = a); setAreas(aMap);
-      const cs = await base44.entities.Comment.filter({ project_id: projectId, target_type: "mood_board" });
-      const counts = {}; cs.forEach(c => { counts[c.target_id] = (counts[c.target_id] || 0) + 1; });
-      setCommentCounts(counts);
-      setLoading(false);
+      try {
+        const [mb, ar] = await Promise.all([
+          base44.entities.MoodBoardItem.filter({ project_id: projectId }, "-created_date", 200),
+          base44.entities.ProjectArea.filter({ project_id: projectId }, null, 200)
+        ]);
+        setItems(mb);
+        const aMap = {}; ar.forEach(a => aMap[a.id] = a); setAreas(aMap);
+        const cs = await base44.entities.Comment.filter({ project_id: projectId, target_type: "mood_board" });
+        const counts = {}; cs.forEach(c => { counts[c.target_id] = (counts[c.target_id] || 0) + 1; });
+        setCommentCounts(counts);
+      } catch (err) {
+        setLoadError(err.message || "Failed to load mood board");
+      } finally {
+        setLoading(false);
+      }
     })();
   }, [projectId]);
 
@@ -64,9 +72,24 @@ export default function CustomerMoodBoard() {
   }), [items, fTag, fArea, fFav]);
 
   function updateItem(updated) { setItems(items.map(i => i.id === updated.id ? updated : i)); }
-  async function handleDelete(id) { await base44.entities.MoodBoardItem.delete(id); setItems(items.filter(i => i.id !== id)); }
+  async function handleDelete(id) {
+    if (isPreviewMode) return;
+    try {
+      await base44.entities.MoodBoardItem.delete(id);
+      setItems(items.filter(i => i.id !== id));
+    } catch (err) {
+      alert("Failed to delete item: " + (err.message || "Unknown error"));
+    }
+  }
 
   if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
+  if (loadError) return (
+    <div className="p-8 text-center">
+      <AlertTriangle size={32} className="mx-auto text-red-400 mb-2" />
+      <p className="text-red-600 text-sm font-medium">Failed to load mood board</p>
+      <p className="text-gray-400 text-xs mt-1">{loadError}</p>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -75,7 +98,7 @@ export default function CustomerMoodBoard() {
           <h1 className="text-2xl font-bold text-gray-900">Mood Board</h1>
           <p className="text-sm text-gray-500 mt-1">Upload and organize inspiration for your project</p>
         </div>
-        <Button onClick={() => setShowAdd(true)} className="gap-2"><Plus size={16} /> Add Inspiration</Button>
+        <Button onClick={() => setShowAdd(true)} className="gap-2" disabled={isPreviewMode}>{isPreviewMode ? "Preview mode" : "Add Inspiration"}</Button>
       </div>
 
       {projects.length > 1 && (
@@ -108,13 +131,14 @@ export default function CustomerMoodBoard() {
           {filtered.map(item => (
             <MoodBoardCard key={item.id} item={item} areas={areas} requirements={{}} staff={false}
               onUpdate={updateItem} onDelete={handleDelete}
-              onComments={() => setCommentTarget(item.id)} commentCount={commentCounts[item.id] || 0} />
+              onComments={() => setCommentTarget(item.id)} commentCount={commentCounts[item.id] || 0}
+              readOnly={isPreviewMode} />
           ))}
         </div>
       )}
 
       <AddMoodBoardDialog open={showAdd} onClose={() => setShowAdd(false)} projectId={projectId} areas={areas} onAdded={(item) => { setItems([item, ...items]); setShowAdd(false); }} />
-      <MoodBoardComments open={!!commentTarget} onClose={() => setCommentTarget(null)} projectId={projectId} targetId={commentTarget} staff={false} />
+      <MoodBoardComments open={!!commentTarget} onClose={() => setCommentTarget(null)} projectId={projectId} targetId={commentTarget} staff={false} readOnly={isPreviewMode} />
     </div>
   );
 }
@@ -132,16 +156,26 @@ function AddMoodBoardDialog({ open, onClose, projectId, areas, onAdded }) {
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    setImageUrl(file_url);
-    setUploading(false);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setImageUrl(file_url);
+    } catch (err) {
+      alert("Upload failed: " + (err.message || "Unknown error"));
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function handleSave() {
     setSaving(true);
-    const item = await base44.entities.MoodBoardItem.create({ ...form, project_id: projectId, image_url: imageUrl });
-    setSaving(false);
-    onAdded(item);
+    try {
+      const item = await base44.entities.MoodBoardItem.create({ ...form, project_id: projectId, image_url: imageUrl });
+      onAdded(item);
+    } catch (err) {
+      alert("Failed to save: " + (err.message || "Unknown error"));
+    } finally {
+      setSaving(false);
+    }
   }
 
   function addTag(t) {

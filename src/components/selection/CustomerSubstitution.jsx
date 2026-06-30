@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import StatusBadge from "@/components/ui/StatusBadge";
 import CommentThread from "@/components/comments/CommentThread";
 
-export default function CustomerSubstitution({ projectId, selectionId, showPricing }) {
+export default function CustomerSubstitution({ projectId, selectionId, showPricing, readOnly = false }) {
   const [recs, setRecs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [note, setNote] = useState("");
@@ -70,7 +70,7 @@ export default function CustomerSubstitution({ projectId, selectionId, showPrici
 
         {active.reason && <p className="text-sm text-gray-600"><span className="font-medium">Reason:</span> {active.reason}</p>}
 
-        {canDecide && (
+        {canDecide && !readOnly && (
           <div className="space-y-3 pt-2 border-t border-gray-100">
             <div><Label>Comment (optional)</Label><Textarea value={note} onChange={e => setNote(e.target.value)} rows={2} placeholder="Any questions or comments..." /></div>
             <div className="flex gap-2">
@@ -79,12 +79,13 @@ export default function CustomerSubstitution({ projectId, selectionId, showPrici
             </div>
           </div>
         )}
+        {canDecide && readOnly && <p className="text-xs text-gray-400 pt-2 border-t border-gray-100">Preview mode — substitution actions disabled.</p>}
         {active.status === "Customer accepted" && <p className="text-sm text-emerald-700">You accepted this substitution. Staff will review and apply it.</p>}
         {active.status === "Customer rejected" && <p className="text-sm text-gray-500">You rejected this substitution.</p>}
         {active.customer_note && <p className="text-xs text-gray-500">Your note: {active.customer_note}</p>}
       </div>
 
-      <CommentThread projectId={projectId} targetType="substitution" targetId={active.id} staff={false} title="Comments" />
+      <CommentThread projectId={projectId} targetType="substitution" targetId={active.id} staff={false} title="Comments" readOnly={readOnly} />
     </div>
   );
 }
