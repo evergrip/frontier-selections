@@ -449,20 +449,41 @@ Deno.serve(async (req) => {
 
     async function getScopedSelections() {
       if (body.selection_id) {
-        const s = await base44.asServiceRole.entities.CustomerSelection.get(body.selection_id);
-        return [s];
+        const s = await base44.asServiceRole.entities.CustomerSelection.get(body.selection_id).catch(() => null);
+        if (!s) return { ok: false, error: "Selection not found", status: 404 };
+        return { ok: true, selections: [s] };
       }
-      let reqs;
-      if (body.area_id) reqs = await base44.asServiceRole.entities.SelectionRequirement.filter({ area_id: body.area_id }, null, 1000);
-      else if (body.project_id) reqs = await base44.asServiceRole.entities.SelectionRequirement.filter({ project_id: body.project_id }, null, 1000);
-      else return [];
+
+      let scopedProjectId;
+      if (body.area_id) {
+        const area = await base44.asServiceRole.entities.ProjectArea.get(body.area_id).catch(() => null);
+        if (!area) return { ok: false, error: "Area not found", status: 404 };
+        scopedProjectId = area.project_id;
+      } else if (body.project_id) {
+        scopedProjectId = body.project_id;
+      } else {
+        return { ok: false, error: "selection_id, area_id, or project_id is required", status: 400 };
+      }
+
+      const filterKey = body.area_id ? "area_id" : "project_id";
+      const filterVal = body.area_id ? body.area_id : scopedProjectId;
+      const reqs = await base44.asServiceRole.entities.SelectionRequirement.filter(
+        { [filterKey]: filterVal }, null, 1000
+      );
       const reqIds = reqs.map(r => r.id);
-      const sels = await base44.asServiceRole.entities.CustomerSelection.filter({ project_id: body.project_id }, null, 1000);
-      return sels.filter(s => s.is_current && reqIds.includes(s.requirement_id));
+      if (reqIds.length === 0) return { ok: true, selections: [] };
+
+      const sels = await base44.asServiceRole.entities.CustomerSelection.filter(
+        { project_id: scopedProjectId }, null, 1000
+      );
+      const scoped = sels.filter(s => s.is_current && reqIds.includes(s.requirement_id));
+      return { ok: true, selections: scoped, project_id: scopedProjectId };
     }
 
     if (action === "request_signoff") {
-      const sels = await getScopedSelections();
+      const scoped = await getScopedSelections();
+      if (!scoped.ok) return Response.json({ error: scoped.error }, { status: scoped.status });
+      const sels = scoped.selections;
       for (const s of sels) {
         const a = await verifyProjectAccess(s.project_id);
         if (!a.ok) return Response.json({ error: a.error }, { status: a.status });
@@ -476,21 +497,26 @@ Deno.serve(async (req) => {
           "Sign-off requested", s.project_id, { severity: 'medium' });
         count++;
       }
-      if (body.project_id && count > 0) {
-        const project = await base44.asServiceRole.entities.Project.get(body.project_id);
-        for (const cid of (project.assigned_customers || [])) {
-          await base44.asServiceRole.entities.Notification.create({
-            user_id: cid, project_id: body.project_id, type: "sign_off_request",
-            title: "Sign-off requested", message: `Sign-off has been requested for ${count} selection(s) in ${project.name}.`,
-            link: `/portal/project/${body.project_id}`
-          });
+      const notifyProjectId = scoped.project_id || body.project_id;
+      if (notifyProjectId && count > 0) {
+        const project = await base44.asServiceRole.entities.Project.get(notifyProjectId).catch(() => null);
+        if (project) {
+          for (const cid of (project.assigned_customers || [])) {
+            await base44.asServiceRole.entities.Notification.create({
+              user_id: cid, project_id: notifyProjectId, type: "sign_off_request",
+              title: "Sign-off requested", message: `Sign-off has been requested for ${count} selection(s) in ${project.name}.`,
+              link: `/portal/project/${notifyProjectId}`
+            });
+          }
         }
       }
       return Response.json({ ok: true, count });
     }
 
     if (action === "lock") {
-      const sels = await getScopedSelections();
+      const scoped = await getScopedSelections();
+      if (!scoped.ok) return Response.json({ error: scoped.error }, { status: scoped.status });
+      const sels = scoped.selections;
       for (const s of sels) {
         const a = await verifyProjectAccess(s.project_id);
         if (!a.ok) return Response.json({ error: a.error }, { status: a.status });
