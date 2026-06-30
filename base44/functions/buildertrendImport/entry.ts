@@ -256,12 +256,43 @@ Deno.serve(async (req) => {
       const dupIndex = buildDuplicateIndex(existingItems);
 
       for (const row of confirmed_rows) {
-        if (row._action === "skip" || row._action === "update") {
+        if (row._action === "skip") {
           skipped.push(row);
           continue;
         }
 
         try {
+          // Handle "update existing" action
+          if (row._action === "update" && row._update_target_id) {
+            const target = await base44.asServiceRole.entities.CatalogueItem.get(row._update_target_id).catch(() => null);
+            if (!target) { errors.push({ row: { Title: row.Title }, error: "Target item not found for update" }); continue; }
+            const taxVal = String(row.Tax || "").trim();
+            await base44.asServiceRole.entities.CatalogueItem.update(row._update_target_id, {
+              name: String(row.Title || "").trim() || target.name,
+              description: String(row.Description || ""),
+              customer_description: String(row.Description || ""),
+              supplier: "Supplier" in row ? String(row.Supplier || "") : target.supplier,
+              sku: "SKU" in row ? String(row.SKU || "") : target.sku,
+              base_price: Number(row["Unit Cost"] || 0),
+              default_quantity: row.Quantity !== "" && row.Quantity != null ? Number(row.Quantity) : target.default_quantity,
+              unit_of_measure: String(row.Unit || ""),
+              cost_code: String(row["Cost Code"] || ""),
+              cost_type: String(row["Cost Type"] || ""),
+              parent_group: String(row["Parent Group"] || ""),
+              parent_group_description: String(row["Parent Group Description"] || ""),
+              subgroup: String(row["Subgroup"] || ""),
+              subgroup_description: String(row["Subgroup Description"] || ""),
+              markup: Number(row.Markup || 0),
+              markup_type: String(row["Markup Type"] || ""),
+              line_item_type: String(row["Line Item Type"] || ""),
+              tax_status: taxVal || "Taxable",
+              taxable: taxVal ? taxVal === "Taxable" : true,
+              internal_notes: String(row["Internal Notes"] || "")
+            });
+            created.push({ id: target.id, name: target.name, type: "updated_item" });
+            continue;
+          }
+
           const hasSku = "SKU" in row;
           const hasSupplier = "Supplier" in row;
           const title = String(row.Title || "").trim();

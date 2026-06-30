@@ -62,6 +62,61 @@ Deno.serve(async (req) => {
       };
     }
 
+    function showItemPricing(pricingVisibility) {
+      return pricingVisibility === "show_item_prices" || pricingVisibility === "show_item_allowance";
+    }
+
+    function sanitizeCatalogueItemForCustomer(item, showPricing) {
+      const safe = {
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        brand: item.brand,
+        collection: item.collection,
+        description: item.description,
+        customer_description: item.customer_description,
+        default_image: item.default_image,
+        gallery_images: item.gallery_images || [],
+        product_url: item.product_url || "",
+        spec_sheet_url: item.spec_sheet_url || "",
+        lead_time: item.lead_time || "",
+        warranty_info: item.warranty_info || "",
+        customer_notes: item.customer_notes || "",
+        status: item.status,
+        option_groups: (item.option_groups || [])
+          .filter(g => g.is_active !== false && g.customer_visible !== false && g.staff_only !== true)
+          .map(g => ({
+            id: g.id,
+            name: g.name,
+            description: g.description,
+            display_order: g.display_order,
+            is_required: g.is_required,
+            min_selections: g.min_selections,
+            max_selections: g.max_selections,
+            customer_visible: g.customer_visible,
+            options: (g.options || [])
+              .filter(v => v.is_active !== false && !["Inactive", "Discontinued"].includes(v.status))
+              .map(v => {
+                const opt = {
+                  id: v.id,
+                  name: v.name,
+                  image: v.image,
+                  image_url: v.image_url,
+                  description: v.description,
+                  customer_note: v.customer_note,
+                  requires_approval: v.requires_approval,
+                  display_order: v.display_order,
+                  status: v.status
+                };
+                if (showPricing) opt.price_modifier = v.price_modifier;
+                return opt;
+              })
+          }))
+      };
+      if (showPricing) safe.base_price = item.base_price;
+      return safe;
+    }
+
     // ==================== LIST MY PROJECTS ====================
     if (action === "list_my_projects") {
       if (isStaff) {
@@ -133,7 +188,8 @@ Deno.serve(async (req) => {
           base44.asServiceRole.entities.CatalogueOptionRule.filter({ is_active: true }, null, 500)
         ]);
         const filteredItems = rawItems.filter(i => itemIds.includes(i.id) && i.status !== "Discontinued");
-        catalogueItems = filteredItems.map(item => assembleItem(item, groups, values, rules));
+        const assembled = filteredItems.map(item => assembleItem(item, groups, values, rules));
+        catalogueItems = access.isStaff ? assembled : assembled.map(item => sanitizeCatalogueItemForCustomer(item, showItemPricing(access.project.pricing_visibility)));
       }
 
       return Response.json({ area, requirements, selections: currentSelections, catalogueItems });
@@ -184,7 +240,8 @@ Deno.serve(async (req) => {
         visibleItems = [];
       }
 
-      const catalogueItems = visibleItems.map(item => assembleItem(item, groups, values, rules));
+      const assembledItems = visibleItems.map(item => assembleItem(item, groups, values, rules));
+      const catalogueItems = access.isStaff ? assembledItems : assembledItems.map(item => sanitizeCatalogueItemForCustomer(item, showItemPricing(access.project.pricing_visibility)));
 
       // For customers, strip internal notes from requirements and areas
       const safeRequirement = access.isStaff ? requirement : {

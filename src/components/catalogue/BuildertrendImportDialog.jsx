@@ -53,7 +53,14 @@ export default function BuildertrendImportDialog({ open, onOpenChange, projectId
   function setRowAction(rowIndex, action) {
     setPreview(prev => ({
       ...prev,
-      rows: prev.rows.map((r, i) => i === rowIndex ? { ...r, _action: action } : r)
+      rows: prev.rows.map((r, i) => i === rowIndex ? { ...r, _action: action, _update_target_id: action === "update" ? (r._duplicate_matches[0]?.id || "") : "" } : r)
+    }));
+  }
+
+  function setRowUpdateTarget(rowIndex, targetId) {
+    setPreview(prev => ({
+      ...prev,
+      rows: prev.rows.map((r, i) => i === rowIndex ? { ...r, _update_target_id: targetId } : r)
     }));
   }
 
@@ -62,7 +69,7 @@ export default function BuildertrendImportDialog({ open, onOpenChange, projectId
     setConfirming(true);
     setError("");
     try {
-      const rowsToImport = preview.rows.filter(r => r._action === "create" || r._action === "update");
+      const rowsToImport = preview.rows.filter(r => r._action === "create" || (r._action === "update" && r._update_target_id));
       const res = await base44.functions.invoke("buildertrendImport", {
         action: "confirm", import_mode: importMode, project_id: projectId,
         confirmed_rows: rowsToImport
@@ -127,45 +134,101 @@ export default function BuildertrendImportDialog({ open, onOpenChange, projectId
               <span>{preview.totalRows} rows parsed</span>
               <span className="text-amber-600">{preview.duplicateCount} duplicates detected</span>
             </div>
-            <div className="border border-gray-200 rounded-lg overflow-x-auto max-h-96 overflow-y-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-gray-50 sticky top-0">
+            <div className="border border-gray-200 rounded-lg overflow-x-auto max-h-[50vh] overflow-y-auto">
+              <table className="w-full text-xs whitespace-nowrap">
+                <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
                     <th className="text-left p-2 font-medium text-gray-600">Title</th>
-                    <th className="text-left p-2 font-medium text-gray-600">Supplier</th>
+                    <th className="text-left p-2 font-medium text-gray-600">Description</th>
+                    <th className="text-left p-2 font-medium text-gray-600">Parent Group</th>
+                    <th className="text-left p-2 font-medium text-gray-600">Subgroup</th>
+                    <th className="text-left p-2 font-medium text-gray-600">Cost Code</th>
+                    <th className="text-right p-2 font-medium text-gray-600">Qty</th>
+                    <th className="text-left p-2 font-medium text-gray-600">Unit</th>
                     <th className="text-right p-2 font-medium text-gray-600">Unit Cost</th>
-                    <th className="text-left p-2 font-medium text-gray-600">Duplicate?</th>
-                    <th className="text-left p-2 font-medium text-gray-600">Action</th>
+                    <th className="text-right p-2 font-medium text-gray-600">Total</th>
+                    <th className="text-right p-2 font-medium text-gray-600">Markup</th>
+                    <th className="text-left p-2 font-medium text-gray-600">M. Type</th>
+                    <th className="text-left p-2 font-medium text-gray-600">Line Type</th>
+                    <th className="text-left p-2 font-medium text-gray-600">Tax</th>
+                    <th className="text-left p-2 font-medium text-gray-600">Warnings</th>
+                    <th className="text-left p-2 font-medium text-gray-600">Duplicates</th>
+                    <th className="text-left p-2 font-medium text-gray-600 min-w-[140px]">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {preview.rows.map((r, i) => (
-                    <tr key={i} className="border-t border-gray-100">
-                      <td className="p-2">{r.Title}</td>
-                      <td className="p-2 text-gray-500">{r.Supplier || "—"}</td>
-                      <td className="p-2 text-right">${Number(r["Unit Cost"] || 0).toLocaleString()}</td>
-                      <td className="p-2">
-                        {r._is_duplicate ? (
-                          <span className="text-amber-600">{r._duplicate_matches.length} match(es): {r._duplicate_matches.map(m => m.name).join(", ")}</span>
-                        ) : <span className="text-green-600">New</span>}
-                      </td>
-                      <td className="p-2">
-                        <Select value={r._action} onValueChange={v => setRowAction(i, v)}>
-                          <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="create">Create new</SelectItem>
-                            <SelectItem value="skip">Skip</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </td>
-                    </tr>
-                  ))}
+                  {preview.rows.map((r, i) => {
+                    const qty = Number(r.Quantity || 0);
+                    const unitCost = Number(r["Unit Cost"] || 0);
+                    const total = qty * unitCost;
+                    return (
+                      <tr key={i} className="border-t border-gray-100 align-top">
+                        <td className="p-2 font-medium">{r.Title || <span className="text-red-500 italic">missing</span>}</td>
+                        <td className="p-2 text-gray-500 max-w-[120px] truncate" title={r.Description}>{r.Description || "—"}</td>
+                        <td className="p-2 text-gray-500">{r["Parent Group"] || <span className="text-red-400">—</span>}</td>
+                        <td className="p-2 text-gray-500">{r["Subgroup"] || <span className="text-red-400">—</span>}</td>
+                        <td className="p-2 text-gray-500">{r["Cost Code"] || <span className="text-red-400">—</span>}</td>
+                        <td className="p-2 text-right">{r.Quantity !== "" && r.Quantity != null ? qty : <span className="text-red-400">—</span>}</td>
+                        <td className="p-2 text-gray-500">{r.Unit || <span className="text-red-400">—</span>}</td>
+                        <td className="p-2 text-right">{r["Unit Cost"] !== "" ? `$${unitCost.toLocaleString()}` : <span className="text-red-400">—</span>}</td>
+                        <td className="p-2 text-right font-medium">${total.toLocaleString()}</td>
+                        <td className="p-2 text-right">{r.Markup || "—"}</td>
+                        <td className="p-2 text-gray-500">{r["Markup Type"] || "—"}</td>
+                        <td className="p-2 text-gray-500">{r["Line Item Type"] || <span className="text-red-400">—</span>}</td>
+                        <td className="p-2 text-gray-500">{r.Tax || <span className="text-red-400">—</span>}</td>
+                        <td className="p-2">
+                          {r._warnings && r._warnings.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {r._warnings.map((w, wi) => (
+                                <span key={wi} className="inline-block bg-amber-100 text-amber-700 rounded px-1 py-0.5 text-[10px] leading-tight">{w}</span>
+                              ))}
+                            </div>
+                          ) : <span className="text-green-500">✓</span>}
+                        </td>
+                        <td className="p-2">
+                          {r._is_duplicate ? (
+                            <div className="space-0.5">
+                              {r._duplicate_matches.slice(0, 3).map((m, mi) => (
+                                <div key={mi} className="text-amber-600 text-[10px] leading-tight" title={`${m.match_type}: ${m.name}`}>{m.name}</div>
+                              ))}
+                              {r._duplicate_matches.length > 3 && <div className="text-gray-400 text-[10px]">+{r._duplicate_matches.length - 3} more</div>}
+                            </div>
+                          ) : <span className="text-green-600">New</span>}
+                        </td>
+                        <td className="p-2">
+                          <Select value={r._action} onValueChange={v => setRowAction(i, v)}>
+                            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="create">Create new</SelectItem>
+                              <SelectItem value="skip">Skip</SelectItem>
+                              {r._is_duplicate && <SelectItem value="update">Update existing</SelectItem>}
+                            </SelectContent>
+                          </Select>
+                          {r._action === "update" && r._is_duplicate && (
+                            <Select value={r._update_target_id || ""} onValueChange={v => setRowUpdateTarget(i, v)}>
+                              <SelectTrigger className="h-7 text-xs mt-1"><SelectValue placeholder="Pick item..." /></SelectTrigger>
+                              <SelectContent>
+                                {r._duplicate_matches.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
               <Button variant="outline" onClick={() => setStep("upload")}>Back</Button>
-              <Button onClick={handleConfirm} disabled={confirming}>{confirming ? "Importing..." : `Import ${preview.rows.filter(r => r._action === "create").length} Items`}</Button>
+              <div className="text-right">
+                <p className="text-xs text-gray-500 mb-1">
+                  {preview.rows.filter(r => r._action === "create").length} create · {preview.rows.filter(r => r._action === "update").length} update · {preview.rows.filter(r => r._action === "skip").length} skip
+                </p>
+                <Button onClick={handleConfirm} disabled={confirming || preview.rows.filter(r => r._action === "create" || (r._action === "update" && r._update_target_id)).length === 0}>
+                  {confirming ? "Importing..." : `Import ${preview.rows.filter(r => r._action === "create" || (r._action === "update" && r._update_target_id)).length} Items`}
+                </Button>
+              </div>
             </div>
           </div>
         )}
