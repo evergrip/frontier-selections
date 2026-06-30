@@ -150,13 +150,16 @@ Deno.serve(async (req) => {
       const access = await verifyProjectAccess(project_id);
       if (!access.ok) return Response.json({ error: access.error }, { status: access.status });
 
-      const [areas, requirements] = await Promise.all([
+      const [areas, requirements, allSelections] = await Promise.all([
         base44.asServiceRole.entities.ProjectArea.filter({ project_id }, null, 500),
-        base44.asServiceRole.entities.SelectionRequirement.filter({ project_id }, null, 500)
+        base44.asServiceRole.entities.SelectionRequirement.filter({ project_id }, null, 500),
+        base44.asServiceRole.entities.CustomerSelection.filter({ project_id }, null, 500)
       ]);
 
+      const currentSelections = allSelections.filter(s => s.is_current === true);
+
       const project = access.isStaff ? access.project : sanitizeProjectForCustomer(access.project);
-      return Response.json({ project, areas, requirements });
+      return Response.json({ project, areas, requirements, selections: currentSelections });
     }
 
     // ==================== GET PROJECT AREA ====================
