@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import StatusBadge from "@/components/ui/StatusBadge";
 import CommentThread from "@/components/comments/CommentThread";
+import NextActionPanel from "@/components/staff/NextActionPanel";
 import { CATEGORIES, SELECTION_STATUSES, CATALOGUE_ACCESS_MODES } from "@/lib/constants";
 
 export default function AreaDetail() {
@@ -47,6 +48,18 @@ export default function AreaDetail() {
     setLoading(false);
   }
 
+  const areaActions = [];
+  const pendingSel = selections.filter(s => s.is_current && s.status === "Pending");
+  const missingReqs = requirements.filter(r => !selections.find(s => s.requirement_id === r.id && s.is_current) && !["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"].includes(r.status));
+  if (pendingSel.length > 0) {
+    const s = pendingSel[0];
+    const r = requirements.find(req => req.id === s.requirement_id);
+    areaActions.push({ label: `Review submitted selection: "${r?.name || "Selection"}"`, to: r ? `/projects/${projectId}/area/${areaId}/requirement/${r.id}` : "#", priority: "high", buttonLabel: "Review" });
+  }
+  if (missingReqs.length > 0) {
+    areaActions.push({ label: `${missingReqs.length} requirement(s) need selections`, to: "#", priority: "medium", buttonLabel: "View below", description: missingReqs.map(r => r.name).slice(0, 3).join(", ") });
+  }
+
   if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
   if (!area) return <div className="p-8 text-center text-gray-400">Area not found</div>;
 
@@ -65,6 +78,8 @@ export default function AreaDetail() {
       {area.customer_notes && (
         <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-800">{area.customer_notes}</div>
       )}
+
+      {areaActions.length > 0 && <NextActionPanel actions={areaActions} />}
 
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="font-semibold text-gray-900">Selection Requirements ({requirements.length})</h2>

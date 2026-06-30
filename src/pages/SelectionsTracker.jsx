@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { Link, useSearchParams, useOutletContext } from "react-router-dom";
-import { Search, X, Download, ExternalLink, Eye, Star, AlertTriangle, Clock, CheckCircle, Package, Loader2, Filter } from "lucide-react";
+import { Search, X, Download, ExternalLink, Eye, Star, AlertTriangle, Clock, CheckCircle, Package, Loader2, Filter, ListChecks, Table as TableIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -30,6 +30,7 @@ export default function SelectionsTracker() {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterQuick, setFilterQuick] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState("table");
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
@@ -217,6 +218,34 @@ export default function SelectionsTracker() {
     URL.revokeObjectURL(url);
   }
 
+  const workQueueGroups = useMemo(() => {
+    const groups = [
+      { key: "missing_suggested", label: "Needs Suggested Options", color: "border-violet-300 bg-violet-50", items: [] },
+      { key: "waiting_customer", label: "Waiting on Customer", color: "border-sky-300 bg-sky-50", items: [] },
+      { key: "review_needed", label: "Customer Submitted — Review Needed", color: "border-blue-300 bg-blue-50", items: [] },
+      { key: "revision_requested", label: "Revision Requested", color: "border-amber-300 bg-amber-50", items: [] },
+      { key: "signoff_needed", label: "Approved — Sign-off Needed", color: "border-cyan-300 bg-cyan-50", items: [] },
+      { key: "lock_needed", label: "Signed Off — Lock Needed", color: "border-indigo-300 bg-indigo-50", items: [] },
+      { key: "ready_to_order", label: "Ready to Order", color: "border-teal-300 bg-teal-50", items: [] },
+      { key: "procurement_issue", label: "Procurement Issue", color: "border-red-300 bg-red-50", items: [] },
+      { key: "complete", label: "Installed / Complete", color: "border-green-300 bg-green-50", items: [] },
+    ];
+    const groupMap = {}; groups.forEach(g => groupMap[g.key] = g);
+
+    filtered.forEach(row => {
+      if (row.req.status === "Installed") { groupMap.complete.items.push(row); return; }
+      if (row.proc && ["Backordered", "Delayed", "Substitution Required"].includes(row.proc.status)) { groupMap.procurement_issue.items.push(row); return; }
+      if (row.req.status === "Ready to Order") { groupMap.ready_to_order.items.push(row); return; }
+      if (row.sel?.signed_off && !row.sel?.locked) { groupMap.lock_needed.items.push(row); return; }
+      if (row.sel?.status === "Approved" && !row.sel?.signed_off) { groupMap.signoff_needed.items.push(row); return; }
+      if (row.req.status === "Revision Requested") { groupMap.revision_requested.items.push(row); return; }
+      if (row.sel?.status === "Pending") { groupMap.review_needed.items.push(row); return; }
+      if (row.missingSuggested) { groupMap.missing_suggested.items.push(row); return; }
+      if (["Not Started", "Viewed", "In Progress"].includes(row.req.status)) { groupMap.waiting_customer.items.push(row); return; }
+    });
+    return groups.filter(g => g.items.length > 0);
+  }, [filtered]);
+
   if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
 
   return (
@@ -226,14 +255,20 @@ export default function SelectionsTracker() {
           <h1 className="text-2xl font-bold text-gray-900">Selections Tracker</h1>
           <p className="text-sm text-gray-500 mt-1">All selection requirements across all projects</p>
         </div>
-        {selectedProject && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">Viewing: <span className="font-medium">{selectedProject.name}</span></span>
-            <button onClick={() => setFilterProject("")} className="text-sm text-blue-600 hover:underline flex items-center gap-1">
-              Clear filter <X size={14} />
-            </button>
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+            <button onClick={() => setViewMode("table")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium ${viewMode === "table" ? "bg-white shadow-sm" : "text-gray-400"}`}><TableIcon size={14} /> Table</button>
+            <button onClick={() => setViewMode("queue")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium ${viewMode === "queue" ? "bg-white shadow-sm" : "text-gray-400"}`}><ListChecks size={14} /> Work Queue</button>
           </div>
-        )}
+          {selectedProject && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Viewing: <span className="font-medium">{selectedProject.name}</span></span>
+              <button onClick={() => setFilterProject("")} className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                Clear filter <X size={14} />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -305,7 +340,46 @@ export default function SelectionsTracker() {
         </div>
       </div>
 
-      {/* Table */}
+      {viewMode === "queue" ? (
+        <div className="space-y-4">
+          {workQueueGroups.length === 0 ? (
+            <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
+              <CheckCircle size={48} className="mx-auto text-gray-300 mb-3" />
+              <p className="text-gray-400 text-sm">No items need attention</p>
+            </div>
+          ) : workQueueGroups.map(group => (
+            <div key={group.key} className={`rounded-xl border-l-4 ${group.color} bg-white overflow-hidden`}>
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <h3 className="font-semibold text-sm text-gray-900">{group.label}</h3>
+                <span className="text-xs text-gray-500">{group.items.length}</span>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {group.items.map(row => (
+                  <div key={row.req.id} className="px-4 py-3 hover:bg-gray-50 flex items-center justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Link to={`/projects/${row.req.project_id}/area/${row.req.area_id}/requirement/${row.req.id}`} className="font-medium text-gray-900 hover:text-blue-600 text-sm">{row.req.name}</Link>
+                        <StatusBadge status={row.req.status} />
+                        {row.isOverdue && <span className="text-xs text-red-500 font-medium">Overdue</span>}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                        <span>{row.project?.name || "—"}</span><span>•</span>
+                        <span>{row.customerName}</span><span>•</span>
+                        <span>{row.area?.name || "—"}</span>
+                        {row.req.due_date && <><span>•</span><span className={row.isOverdue ? "text-red-500" : ""}>Due {row.req.due_date}</span></>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Link to={`/projects/${row.req.project_id}/area/${row.req.area_id}/requirement/${row.req.id}`} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gray-900 text-white text-xs font-medium hover:bg-gray-800">Open</Link>
+                      <Link to={`/projects/${row.req.project_id}`} className="p-1.5 rounded hover:bg-gray-100 text-gray-400" title="Project"><Package size={14} /></Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -380,6 +454,7 @@ export default function SelectionsTracker() {
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 }

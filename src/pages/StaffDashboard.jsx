@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { Link } from "react-router-dom";
 import { Clock, AlertTriangle, ArrowRight, Calendar, FileEdit, RefreshCw, Hourglass, PackageX, FolderKanban, TrendingUp, ClipboardCheck, Star, Eye } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
+import NextActionPanel from "@/components/staff/NextActionPanel";
 
 const DONE = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
 
@@ -63,6 +64,29 @@ export default function StaffDashboard() {
     !DONE.includes(r.status)
   );
 
+  const reqMap = {}; requirements.forEach(r => reqMap[r.id] = r);
+
+  const dashboardActions = [];
+  if (overdue.length > 0) {
+    const r = overdue[0];
+    dashboardActions.push({ label: `Review overdue: "${r.name}"`, to: `/projects/${r.project_id}/area/${r.area_id}/requirement/${r.id}`, priority: "urgent", buttonLabel: "Open", description: `${projectMap[r.project_id]?.name || "Project"} • Due ${r.due_date}` });
+  }
+  if (pendingApprovals.length > 0) {
+    const s = pendingApprovals[0];
+    const r = reqMap[s.requirement_id];
+    dashboardActions.push({ label: "Review submitted selection", to: r ? `/projects/${r.project_id}/area/${r.area_id}/requirement/${r.id}` : `/projects/${s.project_id}`, priority: "high", buttonLabel: "Review", description: projectMap[s.project_id]?.name || "" });
+  }
+  if (missingSuggestedOptions.length > 0) {
+    const r = missingSuggestedOptions[0];
+    dashboardActions.push({ label: "Add suggested options", to: `/projects/${r.project_id}/area/${r.area_id}/requirement/${r.id}`, priority: "high", buttonLabel: "Add", description: `${projectMap[r.project_id]?.name || ""} • ${r.name}` });
+  }
+  if (crNeedingReview.length > 0) {
+    dashboardActions.push({ label: "Resolve change request", to: `/change-requests/${crNeedingReview[0].id}`, priority: "medium", buttonLabel: "Review" });
+  }
+  if (procurementWarnings.length > 0) {
+    dashboardActions.push({ label: "Check procurement warning", to: `/procurement/${procurementWarnings[0].id}`, priority: "medium", buttonLabel: "Open" });
+  }
+
   const projectIdsWithIssues = new Set([
     ...overdue.map(r => r.project_id),
     ...pendingApprovals.map(s => s.project_id),
@@ -76,6 +100,8 @@ export default function StaffDashboard() {
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-sm text-gray-500 mt-1">Frontier Building Group — Selections Overview</p>
       </div>
+
+      <NextActionPanel actions={dashboardActions} />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <WidgetStat icon={AlertTriangle} label="Overdue" value={overdue.length} color="bg-red-50 text-red-600" to="/selections-tracker?filter=overdue" />
@@ -113,24 +139,32 @@ export default function StaffDashboard() {
             <StatusBadge status={r.status} />
           </Link>
         )} />
-        <Widget title="Pending Staff Approvals" items={pendingApprovals.slice(0, 6)} renderItem={s => (
-          <Link key={s.id} to={`/projects/${s.project_id}`} className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50">
-            <div><p className="text-sm font-medium text-gray-900">Selection Submitted</p><p className="text-xs text-gray-500">{projectMap[s.project_id]?.name || ""}</p></div>
+        <Widget title="Pending Staff Approvals" items={pendingApprovals.slice(0, 6)} renderItem={s => {
+          const r = reqMap[s.requirement_id];
+          const to = r ? `/projects/${r.project_id}/area/${r.area_id}/requirement/${r.id}` : `/projects/${s.project_id}`;
+          return (
+          <Link key={s.id} to={to} className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50">
+            <div><p className="text-sm font-medium text-gray-900">{r?.name || "Selection Submitted"}</p><p className="text-xs text-gray-500">{projectMap[s.project_id]?.name || ""}</p></div>
             <StatusBadge status="Pending" />
           </Link>
-        )} />
+          );
+        }} />
         <Widget title="Change Requests Needing Review" link="/change-requests" items={crNeedingReview.slice(0, 6)} renderItem={c => (
           <Link key={c.id} to={`/change-requests/${c.id}`} className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50">
             <div><p className="text-sm font-medium text-gray-900">{c.original_item_name} → {c.requested_item_name}</p><p className="text-xs text-gray-500">{projectMap[c.project_id]?.name || ""}</p></div>
             <StatusBadge status={c.status} />
           </Link>
         )} />
-        <Widget title="Over Allowance Selections" items={overAllowanceSelections.slice(0, 6)} renderItem={s => (
-          <Link key={s.id} to={`/projects/${s.project_id}`} className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50">
+        <Widget title="Over Allowance Selections" items={overAllowanceSelections.slice(0, 6)} renderItem={s => {
+          const r = reqMap[s.requirement_id];
+          const to = r ? `/projects/${r.project_id}/area/${r.area_id}/requirement/${r.id}` : `/projects/${s.project_id}`;
+          return (
+          <Link key={s.id} to={to} className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50">
             <div><p className="text-sm font-medium text-gray-900">Over by ${s.over_allowance.toLocaleString()}</p><p className="text-xs text-gray-500">{projectMap[s.project_id]?.name || ""}</p></div>
             <StatusBadge status="Approved" />
           </Link>
-        )} />
+          );
+        }} />
         <Widget title="Procurement Warnings" link="/procurement" items={procurementWarnings.slice(0, 6)} renderItem={p => (
           <Link key={p.id} to={`/procurement/${p.id}`} className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50">
             <div><p className="text-sm font-medium text-gray-900">{p.item_name}</p><p className="text-xs text-gray-500">{projectMap[p.project_id]?.name || ""}</p></div>
@@ -143,12 +177,16 @@ export default function StaffDashboard() {
             <StatusBadge status={p.status} />
           </Link>
         )} />
-        <Widget title="Recent Customer Submissions" items={recentSubmissions} renderItem={s => (
-          <Link key={s.id} to={`/projects/${s.project_id}`} className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50">
-            <div><p className="text-sm font-medium text-gray-900">Selection Submitted</p><p className="text-xs text-gray-500">{projectMap[s.project_id]?.name || ""}</p></div>
+        <Widget title="Recent Customer Submissions" items={recentSubmissions} renderItem={s => {
+          const r = reqMap[s.requirement_id];
+          const to = r ? `/projects/${r.project_id}/area/${r.area_id}/requirement/${r.id}` : `/projects/${s.project_id}`;
+          return (
+          <Link key={s.id} to={to} className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50">
+            <div><p className="text-sm font-medium text-gray-900">{r?.name || "Selection Submitted"}</p><p className="text-xs text-gray-500">{projectMap[s.project_id]?.name || ""}</p></div>
             <StatusBadge status="Pending" />
           </Link>
-        )} />
+          );
+        }} />
         <Widget title="Projects Needing Attention" link="/projects" items={projectsNeedingAttention.slice(0, 6)} renderItem={p => (
           <Link key={p.id} to={`/projects/${p.id}`} className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50">
             <div><p className="text-sm font-medium text-gray-900">{p.name}</p><p className="text-xs text-gray-500">{p.client_name || "No client"}</p></div>
@@ -202,7 +240,7 @@ function Widget({ title, link, items, renderItem }) {
         <h2 className="font-semibold text-gray-900">{title}</h2>
         {link && <Link to={link} className="text-sm text-gray-500 hover:text-gray-900 flex items-center gap-1">View all <ArrowRight size={14} /></Link>}
       </div>
-      {items.length === 0 ? <div className="px-5 py-10 text-center text-sm text-gray-400">Nothing here</div> : (
+      {items.length === 0 ? <div className="px-5 py-10 text-center text-sm text-gray-400">Nothing needs attention here</div> : (
         <div className="divide-y divide-gray-50">{items.map(renderItem)}</div>
       )}
     </div>

@@ -3,8 +3,12 @@ import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, FolderKanban, ClipboardCheck, Package, Bell, RefreshCw, Truck, 
-  FileText, GraduationCap, Shield, LogOut, Menu, X, ChevronDown, UserCircle
+  FileText, GraduationCap, Shield, LogOut, Menu, X, ChevronDown, UserCircle,
+  MoreHorizontal, PackageCheck, Palette, FileBox, LayoutTemplate, FlaskConical
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import ProjectSidebar from "@/components/ProjectSidebar";
 import WalkthroughManager from "@/components/training/WalkthroughManager";
@@ -19,6 +23,18 @@ const TOP_NAV_ITEMS = [
   { label: "Procurement", path: "/procurement", icon: Truck, navId: "procurement" },
   { label: "Reports", path: "/reports", icon: FileText, navId: "reports" },
   { label: "Training", path: "/training", icon: GraduationCap, navId: "training" },
+];
+
+const MORE_NAV_ITEMS = [
+  { label: "Supplier Orders", path: "/supplier-orders", icon: PackageCheck },
+  { label: "Mood Board", path: "/staff-mood-board", icon: Palette },
+  { label: "Final Packages", path: "/final-package", icon: FileBox },
+  { label: "Templates", path: "/templates", icon: LayoutTemplate },
+  { label: "Notifications", path: "/notifications", icon: Bell },
+];
+
+const ADMIN_ONLY_ITEMS = [
+  { label: "Test Scenarios", path: "/test-scenarios", icon: FlaskConical },
 ];
 
 export default function StaffLayout() {
@@ -149,6 +165,36 @@ export default function StaffLayout() {
                 </Link>
               );
             })}
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+                <MoreHorizontal size={18} />
+                <span>More</span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-52">
+                {MORE_NAV_ITEMS.map(item => {
+                  const Icon = item.icon;
+                  const isActive = location.pathname.startsWith(item.path);
+                  return (
+                    <DropdownMenuItem key={item.path} asChild>
+                      <Link to={item.path} className={`flex items-center gap-2 cursor-pointer ${isActive ? "font-medium" : ""}`}>
+                        <Icon size={16} /> {item.label}
+                      </Link>
+                    </DropdownMenuItem>
+                  );
+                })}
+                {showAdmin && <DropdownMenuSeparator />}
+                {showAdmin && ADMIN_ONLY_ITEMS.map(item => {
+                  const Icon = item.icon;
+                  return (
+                    <DropdownMenuItem key={item.path} asChild>
+                      <Link to={item.path} className="flex items-center gap-2 cursor-pointer">
+                        <Icon size={16} /> {item.label}
+                      </Link>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </nav>
 
           {/* Mobile top nav toggle */}
@@ -191,7 +237,7 @@ export default function StaffLayout() {
         {showTopNavMobile && (
           <div className="lg:hidden border-b border-gray-200 bg-white px-4 py-2">
             <nav className="flex flex-col gap-1">
-              {navItems.map((item) => {
+              {[...navItems, ...MORE_NAV_ITEMS, ...(showAdmin ? ADMIN_ONLY_ITEMS : [])].map((item) => {
                 const isActive = item.path === "/" 
                   ? location.pathname === "/" 
                   : location.pathname.startsWith(item.path);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, AlertTriangle, Upload, X, Save } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Upload, X, Save, ExternalLink, FolderKanban, ClipboardCheck, Package, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -107,10 +107,16 @@ export default function ProcurementDetail() {
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-3xl">
       <div className="flex items-center gap-3">
-        <Link to="/procurement" className="p-2 rounded-lg hover:bg-gray-100"><ArrowLeft size={18} /></Link>
+        <Link to="/procurement" className="p-2 rounded-lg hover:bg-gray-100" title="Back to Procurement"><ArrowLeft size={18} /></Link>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">{item.item_name}</h1>
           <p className="text-sm text-gray-500">{project?.name || ""} {area ? `• ${area.name}` : ""}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {project && <Link to={`/projects/${project.id}`} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50"><FolderKanban size={12} /> Project</Link>}
+          {requirement && <Link to={`/projects/${item.project_id}/area/${item.area_id}/requirement/${requirement.id}`} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50"><ClipboardCheck size={12} /> Requirement</Link>}
+          {catItem && <Link to={`/catalogue/${catItem.id}`} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50"><Package size={12} /> Catalogue Item</Link>}
+          <button onClick={() => window.print()} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50"><Download size={12} /> Print</button>
         </div>
         <StatusBadge status={item.status} />
         <ContextualHelpLink category="Procurement" label="How to track ordered and received items" />
@@ -124,9 +130,10 @@ export default function ProcurementDetail() {
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2 text-sm">
         <div className="grid grid-cols-2 gap-3">
-          <div><span className="text-gray-500">Project:</span> <span className="ml-1">{project?.name || "—"}</span></div>
-          <div><span className="text-gray-500">Area/Room:</span> <span className="ml-1">{area?.name || "—"}</span></div>
-          <div><span className="text-gray-500">Requirement:</span> <span className="ml-1">{requirement?.name || "—"}</span></div>
+          <div><span className="text-gray-500">Project:</span> {project ? <Link to={`/projects/${project.id}`} className="ml-1 text-blue-600 hover:underline">{project.name}</Link> : <span className="ml-1">—</span>}</div>
+          <div><span className="text-gray-500">Area/Room:</span> {area ? <Link to={`/projects/${item.project_id}/areas/${area.id}`} className="ml-1 text-blue-600 hover:underline">{area.name}</Link> : <span className="ml-1">—</span>}</div>
+          <div><span className="text-gray-500">Requirement:</span> {requirement ? <Link to={`/projects/${item.project_id}/area/${item.area_id}/requirement/${requirement.id}`} className="ml-1 text-blue-600 hover:underline">{requirement.name}</Link> : <span className="ml-1">—</span>}</div>
+          <div><span className="text-gray-500">Catalogue Item:</span> {catItem ? <Link to={`/catalogue/${catItem.id}`} className="ml-1 text-blue-600 hover:underline">{catItem.name}</Link> : <span className="ml-1">—</span>}</div>
           <div><span className="text-gray-500">Category:</span> <span className="ml-1">{item.category || catItem?.category || "—"}</span></div>
         </div>
         {selection?.selected_options?.length > 0 && (

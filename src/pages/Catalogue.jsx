@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { Link } from "react-router-dom";
-import { Plus, Search, Package, Edit2, Copy, Eye, Download, Upload, LayoutDashboard, CheckSquare, Square, Trash2, Grid, List, CheckCircle } from "lucide-react";
+import { Plus, Search, Package, Edit2, Copy, Eye, Download, Upload, LayoutDashboard, CheckSquare, Square, Trash2, Grid, List, CheckCircle, Archive, Ban, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -30,6 +30,11 @@ export default function Catalogue() {
   const [duplicating, setDuplicating] = useState(null);
   const [viewMode, setViewMode] = useState("table");
   const [bulkAction, setBulkAction] = useState(null);
+  const [showHardDelete, setShowHardDelete] = useState(false);
+  const [hardDeleteReason, setHardDeleteReason] = useState("");
+  const [user, setUser] = useState(null);
+
+  useEffect(() => { base44.auth.me().then(u => setUser(u)).catch(() => {}); }, []);
 
   useEffect(() => { load(); }, []);
 
@@ -64,13 +69,24 @@ export default function Catalogue() {
 
   async function handleBulkAction(action) {
     if (bulkAction || selected.length === 0) return;
-    if (action === "delete") {
-      if (!window.confirm(`Delete ${selected.length} item(s)? This will also remove their option groups, values, and project assignments. This cannot be undone.`)) return;
+    if (action === "hard_delete") {
+      if (!hardDeleteReason.trim()) { alert("A reason is required for hard delete."); return; }
+      if (!window.confirm(`Permanently delete ${selected.length} item(s)? This cannot be undone. Consider Archive or Discontinue instead.`)) return;
     }
     setBulkAction(action);
     try {
-      if (action === "delete") {
-        await base44.functions.invoke("catalogueManagement", { action: "bulk_delete", item_ids: selected });
+      if (action === "hard_delete") {
+        const res = await base44.functions.invoke("catalogueManagement", { action: "bulk_delete", item_ids: selected, reason: hardDeleteReason.trim() });
+        if (res.data?.results?.some(r => !r.ok)) {
+          const failed = res.data.results.filter(r => !r.ok);
+          alert(`${failed.length} item(s) could not be deleted:\n${failed.map(f => f.error).join("\n")}\n\nUse Archive or Discontinue instead.`);
+        }
+        setHardDeleteReason("");
+        setShowHardDelete(false);
+      } else if (action === "archive") {
+        await base44.functions.invoke("catalogueManagement", { action: "archive", item_ids: selected });
+      } else if (action === "discontinue") {
+        await base44.functions.invoke("catalogueManagement", { action: "discontinue", item_ids: selected });
       } else if (action === "mark_reviewed") {
         await base44.functions.invoke("catalogueManagement", { action: "mark_reviewed", item_ids: selected });
       } else {
@@ -195,9 +211,27 @@ export default function Catalogue() {
             <Button size="sm" variant="outline" onClick={() => handleBulkAction("activate")} disabled={!!bulkAction}>Activate</Button>
             <Button size="sm" variant="outline" onClick={() => handleBulkAction("deactivate")} disabled={!!bulkAction}>Deactivate</Button>
             <Button size="sm" variant="outline" onClick={() => handleBulkAction("mark_reviewed")} disabled={!!bulkAction} className="gap-1"><CheckCircle size={14} /> Mark Reviewed</Button>
-            <Button size="sm" variant="destructive" onClick={() => handleBulkAction("delete")} disabled={!!bulkAction} className="gap-1"><Trash2 size={14} /> Delete</Button>
+            <Button size="sm" variant="outline" onClick={() => handleBulkAction("archive")} disabled={!!bulkAction} className="gap-1"><Archive size={14} /> Archive</Button>
+            <Button size="sm" variant="outline" onClick={() => handleBulkAction("discontinue")} disabled={!!bulkAction} className="gap-1"><Ban size={14} /> Discontinue</Button>
+            {user?.role === "admin" && (
+              <Button size="sm" variant="ghost" onClick={() => setShowHardDelete(!showHardDelete)} disabled={!!bulkAction} className="gap-1 text-red-600"><Trash2 size={14} /> Hard Delete</Button>
+            )}
             <Button size="sm" variant="ghost" onClick={() => setSelected([])}>Clear</Button>
           </div>
+          {showHardDelete && user?.role === "admin" && (
+            <div className="w-full mt-2 p-3 bg-red-50 border border-red-200 rounded-lg space-y-2">
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={14} className="text-red-600 mt-0.5 shrink-0" />
+                <p className="text-xs text-red-700">Hard delete permanently removes items and their option groups. If items are referenced by selections, procurement, or project assignments, deletion will be blocked. <strong>Archive or Discontinue is recommended</strong> to preserve history.</p>
+              </div>
+              <div className="flex gap-2">
+                <Input placeholder="Reason for hard delete (required)..." value={hardDeleteReason} onChange={e => setHardDeleteReason(e.target.value)} className="flex-1 h-8 text-sm" />
+                <Button size="sm" variant="destructive" onClick={() => handleBulkAction("hard_delete")} disabled={!!bulkAction || !hardDeleteReason.trim()}>
+                  {bulkAction === "hard_delete" ? "Deleting..." : "Confirm Hard Delete"}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

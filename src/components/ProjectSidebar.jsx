@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { Link, useLocation } from "react-router-dom";
-import { ChevronDown, ChevronRight, Search, Filter, AlertTriangle, Clock, CheckCircle, AlertCircle } from "lucide-react";
+import { ChevronDown, ChevronRight, Search, Filter, AlertTriangle, Clock, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { hasPermission, PROJECT_STATUSES } from "@/lib/constants";
@@ -25,13 +25,21 @@ export default function ProjectSidebar({ selectedProject, onProjectSelect, colla
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedGroups, setExpandedGroups] = useState(["Active", "Waiting on Customer", "Waiting on Staff"]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadProjects();
   }, []);
 
+  // Listen for entity events to refresh sidebar counts
+  useEffect(() => {
+    const unsubReq = base44.entities.SelectionRequirement.subscribe(() => loadProjects());
+    const unsubSel = base44.entities.CustomerSelection.subscribe(() => loadProjects());
+    const unsubPaci = base44.entities.ProjectAvailableCatalogueItem.subscribe(() => loadProjects());
+    return () => { unsubReq?.(); unsubSel?.(); unsubPaci?.(); };
+  }, []);
+
   async function loadProjects() {
-    setLoading(true);
     try {
       const [proj, req, sel] = await Promise.all([
         base44.entities.Project.list("-updated_date", 200),
@@ -45,6 +53,12 @@ export default function ProjectSidebar({ selectedProject, onProjectSelect, colla
       console.error("Failed to load projects", e);
     }
     setLoading(false);
+    setRefreshing(false);
+  }
+
+  function handleRefresh() {
+    setRefreshing(true);
+    loadProjects();
   }
 
   const projectStats = useMemo(() => {
@@ -167,8 +181,11 @@ export default function ProjectSidebar({ selectedProject, onProjectSelect, colla
               placeholder="Search projects..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 h-9 text-sm"
+              className="pl-8 h-9 text-sm pr-8"
             />
+            <button onClick={handleRefresh} disabled={refreshing} title="Refresh" className="absolute right-2 top-2 text-gray-400 hover:text-gray-600 disabled:opacity-50">
+              <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+            </button>
           </div>
         </div>
       )}

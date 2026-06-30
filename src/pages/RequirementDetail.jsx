@@ -15,6 +15,7 @@ import { SELECTION_STATUSES, CATALOGUE_ACCESS_MODES, hasPermission } from "@/lib
 import ContextualHelpLink from "@/components/training/ContextualHelpLink";
 import SuggestedOptionsManager from "@/components/selection/SuggestedOptionsManager";
 import AssignCatalogueDialog from "@/components/catalogue/AssignCatalogueDialog";
+import NextActionPanel from "@/components/staff/NextActionPanel";
 
 function assembleItem(item, groups, values, rules) {
   const itemGroups = (groups || [])

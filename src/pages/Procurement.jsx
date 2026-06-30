@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { Link, useOutletContext, useSearchParams } from "react-router-dom";
-import { AlertTriangle, Clock, PackageX, Search, X } from "lucide-react";
+import { AlertTriangle, Clock, PackageX, Search, X, CheckSquare, Square, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { PROCUREMENT_STATUSES, CATEGORIES, AREA_TYPES } from "@/lib/constants";
@@ -31,6 +32,10 @@ export default function Procurement() {
   const [fCategory, setFCategory] = useState("all");
   const [fDate, setFDate] = useState("");
   const [fOverdue, setFOverdue] = useState(false);
+  const [selected, setSelected] = useState([]);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkSupplier, setBulkSupplier] = useState("");
+  const [bulkDate, setBulkDate] = useState("");
   const [searchParams] = useSearchParams();
   const urlFilter = searchParams.get("filter");
   const WARNING_STATUSES = ["Backordered", "Delayed", "Substitution Required"];
@@ -79,6 +84,34 @@ export default function Procurement() {
     overdue: items.filter(isOverdue).length,
     missing: items.filter(missingInfo).length,
   }), [items]);
+
+  async function handleBulkStatus(newStatus) {
+    if (bulkSaving || selected.length === 0) return;
+    setBulkSaving(true);
+    try {
+      await base44.entities.ProcurementItem.bulkUpdate(selected.map(id => ({ id, status: newStatus, order_date: newStatus === "Ordered" ? new Date().toISOString().slice(0, 10) : undefined, actual_received_date: newStatus === "Received" ? new Date().toISOString().slice(0, 10) : undefined, delivered_to_site_date: newStatus === "Delivered to Site" ? new Date().toISOString().slice(0, 10) : undefined, installed_date: newStatus === "Installed" ? new Date().toISOString().slice(0, 10) : undefined })));
+      setSelected([]);
+      setBulkSupplier(""); setBulkDate("");
+      await reload();
+    } catch (e) { alert("Bulk update failed: " + (e.message || "")); }
+    setBulkSaving(false);
+  }
+
+  async function handleBulkField(field, value) {
+    if (bulkSaving || selected.length === 0 || !value) return;
+    setBulkSaving(true);
+    try {
+      await base44.entities.ProcurementItem.bulkUpdate(selected.map(id => ({ id, [field]: value })));
+      setSelected([]); setBulkSupplier(""); setBulkDate("");
+      await reload();
+    } catch (e) { alert("Bulk update failed: " + (e.message || "")); }
+    setBulkSaving(false);
+  }
+
+  async function reload() {
+    const ps = await base44.entities.ProcurementItem.list("-created_date", 500);
+    setItems(ps);
+  }
 
   if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
 
@@ -165,13 +198,42 @@ export default function Procurement() {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-xl border border-gray-200 text-gray-400 text-sm">No procurement items</div>
+        <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
+          <PackageX size={48} className="mx-auto text-gray-300 mb-3" />
+          <p className="text-gray-400 text-sm">No procurement items yet</p>
+          <p className="text-gray-400 text-xs mt-1">Approved selections will appear here once they are ready to order.</p>
+        </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          {selected.length > 0 && (
+            <div className="bg-blue-50 border-b border-blue-200 p-3 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm text-blue-700 font-medium">{selected.length} item(s) selected</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => handleBulkStatus("Ordered")} disabled={bulkSaving}>Mark Ordered</Button>
+                <Button size="sm" variant="outline" onClick={() => handleBulkStatus("Received")} disabled={bulkSaving}>Mark Received</Button>
+                <Button size="sm" variant="outline" onClick={() => handleBulkStatus("Delivered to Site")} disabled={bulkSaving}>Mark Delivered</Button>
+                <Button size="sm" variant="outline" onClick={() => handleBulkStatus("Installed")} disabled={bulkSaving}>Mark Installed</Button>
+                <div className="flex items-center gap-1">
+                  <Input placeholder="Supplier..." value={bulkSupplier} onChange={e => setBulkSupplier(e.target.value)} className="h-8 text-xs w-32" />
+                  <Button size="sm" variant="outline" onClick={() => handleBulkField("supplier", bulkSupplier)} disabled={bulkSaving || !bulkSupplier.trim()}>Set</Button>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Input type="date" value={bulkDate} onChange={e => setBulkDate(e.target.value)} className="h-8 text-xs w-36" />
+                  <Button size="sm" variant="outline" onClick={() => handleBulkField("expected_delivery_date", bulkDate)} disabled={bulkSaving || !bulkDate}>Set</Button>
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => setSelected([])}>Clear</Button>
+              </div>
+            </div>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
+                  <th className="px-4 py-3 w-8">
+                    <button onClick={() => setSelected(selected.length === filtered.length ? [] : filtered.map(p => p.id))}>
+                      {selected.length === filtered.length && filtered.length > 0 ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} className="text-gray-300" />}
+                    </button>
+                  </th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Item</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Project / Area</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Supplier</th>
@@ -196,6 +258,11 @@ export default function Procurement() {
                   if (p.status === "Not Ready to Order") warns.push("Not ready to order");
                   return (
                     <tr key={p.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <button onClick={() => setSelected(prev => prev.includes(p.id) ? prev.filter(i => i !== p.id) : [...prev, p.id])}>
+                          {selected.includes(p.id) ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} className="text-gray-300" />}
+                        </button>
+                      </td>
                       <td className="px-4 py-3">
                         <Link to={`/procurement/${p.id}`} className="font-medium text-gray-900 hover:underline">{p.item_name}</Link>
                         {p.category && <p className="text-xs text-gray-400">{p.category}</p>}
