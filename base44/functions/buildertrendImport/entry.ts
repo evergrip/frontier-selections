@@ -230,6 +230,22 @@ Deno.serve(async (req) => {
         return Response.json({ error: "confirmed_rows array is required" }, { status: 400 });
       }
 
+      // Verify project access for project-writing import modes
+      if (project_id && ["suggested_options", "allowance_placeholders", "estimate_lines"].includes(import_mode)) {
+        const project = await base44.asServiceRole.entities.Project.get(project_id).catch(() => null);
+        if (!project) return Response.json({ error: "Project not found" }, { status: 404 });
+        if (user.role !== "admin") {
+          const perms = user.permissions || [];
+          const hasAccess = perms.includes("view_all_projects") || perms.includes("manage_catalogue");
+          if (!hasAccess) {
+            const assigned = project.assigned_staff || [];
+            if (!assigned.includes(user.id) && !assigned.includes(user.email)) {
+              return Response.json({ error: "Forbidden - project not assigned" }, { status: 403 });
+            }
+          }
+        }
+      }
+
       const actor = user.full_name || user.email || "user";
       const created = [];
       const skipped = [];
