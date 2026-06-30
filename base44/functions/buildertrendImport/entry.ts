@@ -24,8 +24,89 @@ const COLUMN_ALIASES = {
   "markup": "Markup",
   "markup type": "Markup Type", "markuptype": "Markup Type",
   "line item type": "Line Item Type", "lineitemtype": "Line Item Type", "type": "Line Item Type",
-  "tax": "Tax", "taxable": "Tax"
+  "tax": "Tax", "taxable": "Tax",
+  "sku": "SKU", "model": "SKU", "model number": "SKU",
+  "supplier": "Supplier", "vendor": "Supplier", "brand": "Supplier"
 };
+
+// Cost Code values that are placeholders, not real identifiers — never used for duplicate matching alone.
+const PLACEHOLDER_COST_CODES = ["buildertrend flat rate", "flat rate", "n/a", "na", "none", ""];
+
+function norm(val) {
+  return String(val || "").toLowerCase().trim();
+}
+
+function numStr(val) {
+  return String(Number(val || 0));
+}
+
+// ---- Duplicate detection index ----
+// Composite keys only. Cost Code is NEVER used alone.
+function buildDuplicateIndex(items) {
+  const index = {};
+  function add(key, item) {
+    if (!key) return;
+    if (!index[key]) index[key] = [];
+    index[key].push(item);
+  }
+  for (const item of items) {
+    const name = norm(item.name);
+    if (!name) continue;
+    const pg = norm(item.parent_group);
+    const sg = norm(item.subgroup);
+    const uc = numStr(item.base_price);
+    const cc = norm(item.cost_code);
+
+    add(`title::${name}`, item);
+    add(`title_pg_sg::${name}::${pg}::${sg}`, item);
+    add(`title_uc::${name}::${uc}`, item);
+    add(`title_cc::${name}::${cc}`, item);
+    add(`title_pg_sg_uc::${name}::${pg}::${sg}::${uc}`, item);
+
+    if (item.sku) add(`sku::${norm(item.sku)}`, item);
+    if (item.supplier) add(`supplier_title::${norm(item.supplier)}::${name}`, item);
+  }
+  return index;
+}
+
+function detectDuplicates(row, index, hasSkuColumn, hasSupplierColumn) {
+  const title = norm(row.Title);
+  const pg = norm(row["Parent Group"]);
+  const sg = norm(row["Subgroup"]);
+  const cc = norm(row["Cost Code"]);
+  const uc = numStr(row["Unit Cost"]);
+  const sku = hasSkuColumn ? norm(row.SKU) : "";
+  const supplier = hasSupplierColumn ? norm(row.Supplier) : "";
+
+  // Composite match definitions — Cost Code never used alone.
+  const defs = [
+    { type: "exact_title", key: `title::${title}` },
+    { type: "title+parent+subgroup", key: `title_pg_sg::${title}::${pg}::${sg}` },
+    { type: "title+unit_cost", key: `title_uc::${title}::${uc}` },
+    { type: "title+cost_code", key: `title_cc::${title}::${cc}` },
+    { type: "title+parent+subgroup+unit_cost", key: `title_pg_sg_uc::${title}::${pg}::${sg}::${uc}` }
+  ];
+  if (hasSkuColumn && sku) defs.push({ type: "sku", key: `sku::${sku}` });
+  if (hasSupplierColumn && supplier && title) defs.push({ type: "supplier+title", key: `supplier_title::${supplier}::${title}` });
+
+  const matches = [];
+  const seenIds = new Set();
+  for (const def of defs) {
+    if (!def.key) continue;
+    const found = index[def.key];
+    if (!found) continue;
+    for (const m of found) {
+      if (seenIds.has(m.id)) continue;
+      seenIds.add(m.id);
+      matches.push({
+        id: m.id, name: m.name, supplier: m.supplier, sku: m.sku,
+        base_price: m.base_price, parent_group: m.parent_group, subgroup: m.subgroup,
+        cost_code: m.cost_code, match_type: def.type
+      });
+    }
+  }
+  return matches;
+}
 
 Deno.serve(async (req) => {
   try {
@@ -45,12 +126,22 @@ Deno.serve(async (req) => {
 
     // ===== PREVIEW: Parse XLSX and detect duplicates =====
     if (action === "preview") {
-      // Fetch the file
-      const fileResponse = await fetch(file_url);
+      let fileResponse;
+      try {
+        fileResponse = await fetch(file_url);
+      } catch (fetchErr) {
+        return Response.json({ error: "Failed to fetch file" }, { status: 400 });
+      }
       if (!fileResponse.ok) return Response.json({ error: "Failed to fetch file" }, { status: 400 });
-      const arrayBuffer = await fileResponse.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, { type: "array" });
 
+      let arrayBuffer;
+      try {
+        arrayBuffer = await fileResponse.arrayBuffer();
+      } catch (bufErr) {
+        return Response.json({ error: "Failed to fetch file" }, { status: 400 });
+      }
+
+      const workbook = XLSX.read(arrayBuffer, { type: "array" });
       const sheetName = workbook.SheetNames[0];
       if (!sheetName) return Response.json({ error: "No worksheets found in file" }, { status: 400 });
       const sheet = workbook.Sheets[sheetName];
@@ -75,76 +166,42 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Check for required columns
       const mappedColumns = new Set(Object.values(headerMap));
       const missingColumns = REQUIRED_COLUMNS.filter(c => !mappedColumns.has(c));
 
-      // Build normalized rows
+      // Detect optional columns — only use SKU/Supplier if they actually exist in the file
+      const hasSkuColumn = mappedColumns.has("SKU");
+      const hasSupplierColumn = mappedColumns.has("Supplier");
+
+      // Build normalized rows, preserving blank values (defval: "" already preserves them)
       const normalizedRows = rawRows.map((rawRow, idx) => {
         const row = {};
         for (const [rawHeader, mappedCol] of Object.entries(headerMap)) {
           row[mappedCol] = rawRow[rawHeader];
         }
         return { _rowIndex: idx + 2, ...row };
-      }).filter(r => r.Title || r["Unit Cost"] || r["Cost Code"]);
+      }).filter(r => String(r.Title || "").trim() || String(r["Unit Cost"] || "").trim());
 
       // Fetch existing catalogue items for duplicate detection
       const existingItems = await base44.asServiceRole.entities.CatalogueItem.list("-updated_date", 2000);
-      const existingByName = {};
-      const existingBySku = {};
-      const existingBySupplierName = {};
-
-      for (const item of existingItems) {
-        if (item.name) {
-          const key = item.name.toLowerCase().trim();
-          if (!existingByName[key]) existingByName[key] = [];
-          existingByName[key].push(item);
-        }
-        if (item.sku) {
-          const key = item.sku.toLowerCase().trim();
-          existingBySku[key] = item;
-        }
-        if (item.supplier && item.name) {
-          const key = `${item.supplier.toLowerCase().trim()}__${item.name.toLowerCase().trim()}`;
-          existingBySupplierName[key] = item;
-        }
-      }
+      const dupIndex = buildDuplicateIndex(existingItems);
 
       // Detect duplicates for each row
       const rowsWithMatches = normalizedRows.map(row => {
-        const title = String(row.Title || "").trim();
-        const supplier = String(row.Supplier || "").trim();
-        const sku = String(row.SKU || row["Cost Code"] || "").trim();
-        const unitCost = Number(row["Unit Cost"] || 0);
+        const matches = detectDuplicates(row, dupIndex, hasSkuColumn, hasSupplierColumn);
 
-        const matches = [];
-        if (title && existingByName[title.toLowerCase()]) {
-          matches.push(...existingByName[title.toLowerCase()].map(m => ({
-            id: m.id, name: m.name, supplier: m.supplier, sku: m.sku,
-            base_price: m.base_price, match_type: "name"
-          })));
-        }
-        if (sku && existingBySku[sku.toLowerCase()]) {
-          const m = existingBySku[sku.toLowerCase()];
-          if (!matches.find(x => x.id === m.id)) {
-            matches.push({ id: m.id, name: m.name, supplier: m.supplier, sku: m.sku, base_price: m.base_price, match_type: "sku" });
-          }
-        }
-        if (supplier && title && existingBySupplierName[`${supplier.toLowerCase()}__${title.toLowerCase()}`]) {
-          const m = existingBySupplierName[`${supplier.toLowerCase()}__${title.toLowerCase()}`];
-          if (!matches.find(x => x.id === m.id)) {
-            matches.push({ id: m.id, name: m.name, supplier: m.supplier, sku: m.sku, base_price: m.base_price, match_type: "supplier+name" });
-          }
-        }
-
-        // Validation warnings
+        // Validation warnings — separate Unit and Unit Cost, preserve blanks without crashing
         const rowWarnings = [];
+        const title = String(row.Title || "").trim();
         if (!title) rowWarnings.push("Missing Title");
-        if (!row["Unit"] && !row["Unit Cost"]) rowWarnings.push("Missing Unit");
-        if (!unitCost && unitCost !== 0) rowWarnings.push("Missing Unit Cost");
-        if (!row["Line Item Type"]) rowWarnings.push("Missing Line Item Type");
-        if (!row["Tax"]) rowWarnings.push("Missing Tax Status");
-        if (!row["Parent Group"]) rowWarnings.push("Missing Parent Group");
+        if (!String(row["Unit"] || "").trim()) rowWarnings.push("Missing Unit");
+        if (String(row["Unit Cost"] || "").trim() === "") rowWarnings.push("Missing Unit Cost");
+        if (!String(row["Line Item Type"] || "").trim()) rowWarnings.push("Missing Line Item Type");
+        if (!String(row["Tax"] || "").trim()) rowWarnings.push("Missing Tax Status");
+        if (!String(row["Parent Group"] || "").trim()) rowWarnings.push("Missing Parent Group");
+        if (!String(row["Subgroup"] || "").trim()) rowWarnings.push("Missing Subgroup");
+        if (!String(row["Cost Code"] || "").trim()) rowWarnings.push("Missing Cost Code");
+        if (PLACEHOLDER_COST_CODES.includes(norm(row["Cost Code"]))) rowWarnings.push("Cost Code is placeholder");
 
         return {
           ...row,
@@ -159,7 +216,9 @@ Deno.serve(async (req) => {
         ok: true,
         sheetName,
         totalRows: normalizedRows.length,
-        columns: { mapped: Object.values(headerMap), missing: missingColumns, unmatched: unmatchedHeaders },
+        hasSkuColumn,
+        hasSupplierColumn,
+        columns: { mapped: [...new Set(Object.values(headerMap))], missing: missingColumns, unmatched: unmatchedHeaders },
         rows: rowsWithMatches,
         duplicateCount: rowsWithMatches.filter(r => r._is_duplicate).length
       });
@@ -176,6 +235,10 @@ Deno.serve(async (req) => {
       const skipped = [];
       const errors = [];
 
+      // Fetch existing items once for confirm-time re-check
+      const existingItems = await base44.asServiceRole.entities.CatalogueItem.list("-updated_date", 2000);
+      const dupIndex = buildDuplicateIndex(existingItems);
+
       for (const row of confirmed_rows) {
         if (row._action === "skip" || row._action === "update") {
           skipped.push(row);
@@ -183,33 +246,32 @@ Deno.serve(async (req) => {
         }
 
         try {
-          if (import_mode === "new_items" || !import_mode) {
-            // Check for duplicate one more time
-            const title = String(row.Title || "").trim();
-            if (title) {
-              const existing = await base44.asServiceRole.entities.CatalogueItem.filter({ name: title }, null, 10);
-              const sku = String(row.SKU || row["Cost Code"] || "").trim();
-              const exactMatch = existing.find(e =>
-                (e.sku && sku && e.sku.toLowerCase() === sku.toLowerCase()) ||
-                (e.supplier && row.Supplier && e.supplier.toLowerCase() === String(row.Supplier).toLowerCase())
-              );
-              if (exactMatch) {
-                skipped.push({ ...row, _skip_reason: "Duplicate detected on confirm" });
-                continue;
-              }
-            }
+          const hasSku = "SKU" in row;
+          const hasSupplier = "Supplier" in row;
+          const title = String(row.Title || "").trim();
 
+          // Confirm-time duplicate re-check using composite keys (not Cost Code as SKU)
+          if (title) {
+            const matches = detectDuplicates(row, dupIndex, hasSku, hasSupplier);
+            if (matches.length > 0) {
+              skipped.push({ ...row, _skip_reason: `Duplicate detected: ${matches[0].match_type}` });
+              continue;
+            }
+          }
+
+          if (import_mode === "new_items" || !import_mode) {
+            const taxVal = String(row.Tax || "").trim();
             const newItem = await base44.asServiceRole.entities.CatalogueItem.create({
               name: title,
               description: String(row.Description || ""),
               customer_description: String(row.Description || ""),
               category: "Other",
-              supplier: String(row.Supplier || ""),
-              sku: String(row.SKU || row["Cost Code"] || ""),
+              supplier: hasSupplier ? String(row.Supplier || "") : "",
+              sku: hasSku ? String(row.SKU || "") : "",
               base_price: Number(row["Unit Cost"] || 0),
-              default_quantity: Number(row.Quantity || 1),
-              unit_of_measure: String(row.Unit || "ea"),
-              cost_code: String(row["Cost Code"] || "Buildertrend Flat Rate"),
+              default_quantity: row.Quantity !== "" && row.Quantity != null ? Number(row.Quantity) : 1,
+              unit_of_measure: String(row.Unit || ""),
+              cost_code: String(row["Cost Code"] || ""),
               cost_type: String(row["Cost Type"] || ""),
               parent_group: String(row["Parent Group"] || ""),
               parent_group_description: String(row["Parent Group Description"] || ""),
@@ -218,8 +280,8 @@ Deno.serve(async (req) => {
               markup: Number(row.Markup || 0),
               markup_type: String(row["Markup Type"] || ""),
               line_item_type: String(row["Line Item Type"] || ""),
-              tax_status: String(row.Tax || "Taxable"),
-              taxable: String(row.Tax || "Taxable") === "Taxable",
+              tax_status: taxVal || "Taxable",
+              taxable: taxVal ? taxVal === "Taxable" : true,
               internal_notes: String(row["Internal Notes"] || ""),
               is_active: true,
               status: "Active"
@@ -227,11 +289,8 @@ Deno.serve(async (req) => {
             created.push({ id: newItem.id, name: newItem.name, type: "catalogue_item" });
 
           } else if (import_mode === "suggested_options" && project_id) {
-            // Create as project suggested options
-            const title = String(row.Title || "").trim();
             if (!title) { errors.push({ row, error: "Missing title" }); continue; }
 
-            // Find or create a catalogue item
             let catItem = null;
             const existing = await base44.asServiceRole.entities.CatalogueItem.filter({ name: title }, null, 5);
             if (existing.length > 0) catItem = existing[0];
@@ -241,10 +300,11 @@ Deno.serve(async (req) => {
                 name: title,
                 description: String(row.Description || ""),
                 category: "Other",
-                supplier: String(row.Supplier || ""),
+                supplier: hasSupplier ? String(row.Supplier || "") : "",
+                sku: hasSku ? String(row.SKU || "") : "",
                 base_price: Number(row["Unit Cost"] || 0),
-                unit_of_measure: String(row.Unit || "ea"),
-                cost_code: String(row["Cost Code"] || "Buildertrend Flat Rate"),
+                unit_of_measure: String(row.Unit || ""),
+                cost_code: String(row["Cost Code"] || ""),
                 parent_group: String(row["Parent Group"] || ""),
                 subgroup: String(row["Subgroup"] || ""),
                 line_item_type: String(row["Line Item Type"] || ""),
@@ -254,7 +314,6 @@ Deno.serve(async (req) => {
               });
             }
 
-            // Check for duplicate assignment
             const existingAssign = await base44.asServiceRole.entities.ProjectAvailableCatalogueItem.filter({
               project_id, catalogue_item_id: catItem.id,
               ...(requirement_id ? { requirement_id } : {})
@@ -276,36 +335,33 @@ Deno.serve(async (req) => {
             created.push({ id: catItem.id, name: catItem.name, type: "suggested_option" });
 
           } else if (import_mode === "allowance_placeholders" && project_id) {
-            // Create as allowance placeholder catalogue items
-            const title = String(row.Title || "").trim();
+            const taxVal = String(row.Tax || "").trim();
             const newItem = await base44.asServiceRole.entities.CatalogueItem.create({
               name: title || "Allowance Placeholder",
               description: String(row.Description || ""),
               category: "Other",
               base_price: Number(row["Unit Cost"] || 0),
-              default_quantity: Number(row.Quantity || 1),
-              unit_of_measure: String(row.Unit || "allowance"),
-              cost_code: String(row["Cost Code"] || "Buildertrend Flat Rate"),
+              default_quantity: row.Quantity !== "" && row.Quantity != null ? Number(row.Quantity) : 1,
+              unit_of_measure: String(row.Unit || ""),
+              cost_code: String(row["Cost Code"] || ""),
               parent_group: String(row["Parent Group"] || ""),
               subgroup: String(row["Subgroup"] || ""),
               line_item_type: "Allowance",
-              tax_status: String(row.Tax || "Taxable"),
+              tax_status: taxVal || "Taxable",
               is_active: true,
               status: "Active"
             });
             created.push({ id: newItem.id, name: newItem.name, type: "allowance_placeholder" });
 
           } else if (import_mode === "estimate_lines" && project_id) {
-            // Create as procurement/estimate line items
-            const title = String(row.Title || "").trim();
             await base44.asServiceRole.entities.ProcurementItem.create({
               project_id,
               area_id: area_id || null,
               item_name: title || "Imported Estimate Line",
               category: String(row["Parent Group"] || ""),
-              supplier: String(row.Supplier || ""),
-              quantity: Number(row.Quantity || 1),
-              unit_of_measure: String(row.Unit || "ea"),
+              supplier: hasSupplier ? String(row.Supplier || "") : "",
+              quantity: row.Quantity !== "" && row.Quantity != null ? Number(row.Quantity) : 1,
+              unit_of_measure: String(row.Unit || ""),
               status: "Not Ready to Order",
               procurement_notes: String(row["Internal Notes"] || "")
             });

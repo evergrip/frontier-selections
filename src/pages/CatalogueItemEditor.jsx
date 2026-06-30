@@ -97,7 +97,7 @@ export default function CatalogueItemEditor() {
   }
 
   async function handleSave() {
-    if (!form.name.trim()) return;
+    if (saving || !form.name.trim()) return;
     setSaving(true);
     try {
       const itemData = { ...form };

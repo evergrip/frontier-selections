@@ -7,6 +7,62 @@ const EXPORT_COLUMNS = [
   "Total Cost", "Internal Notes", "Markup", "Markup Type", "Line Item Type", "Tax"
 ];
 
+/**
+ * Build Buildertrend cost fields (quantity, unitCost, totalCost) for a selection.
+ *
+ * Buildertrend expects: Quantity × Unit Cost = Total Cost.
+ *
+ * CustomerSelection.calculated_price represents the FULL configured selection price
+ * (base price + all option price modifiers). It is NOT a per-unit price. So when
+ * calculated_price is present we export:
+ *   Quantity = 1, Unit Cost = calculated_price, Total Cost = calculated_price
+ *
+ * Only when there is no calculated price do we fall back to true catalogue unit
+ * pricing (default_quantity × base_price).
+ *
+ * Returns { quantity, unitCost, totalCost, warning } where `warning` is non-null
+ * when the pricing basis is uncertain.
+ */
+function buildBuildertrendCost(selection, catalogueItem) {
+  // Staff override is an explicit total price for the selection.
+  if (selection.staff_price_override != null && Number(selection.staff_price_override) > 0) {
+    return {
+      quantity: 1,
+      unitCost: Number(selection.staff_price_override),
+      totalCost: Number(selection.staff_price_override),
+      warning: "Staff price override used as total (qty=1, unit cost=override)"
+    };
+  }
+
+  const calculatedPrice = Number(selection.calculated_price || 0);
+
+  // calculated_price is the full configured price — export as qty=1 so total matches.
+  if (calculatedPrice > 0) {
+    return {
+      quantity: 1,
+      unitCost: calculatedPrice,
+      totalCost: calculatedPrice,
+      warning: null
+    };
+  }
+
+  // No selection price — fall back to catalogue unit pricing.
+  const quantity = Number(catalogueItem.default_quantity || 1);
+  const unitCost = Number(catalogueItem.base_price || 0);
+  const totalCost = quantity * unitCost;
+
+  const warnings = [];
+  warnings.push("No calculated selection price — used catalogue base price × default quantity");
+  if (unitCost === 0) warnings.push("Unit cost is 0");
+
+  return {
+    quantity,
+    unitCost,
+    totalCost,
+    warning: warnings.join("; ")
+  };
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -83,6 +139,7 @@ Deno.serve(async (req) => {
     // Build export rows
     const rows = [];
     const warnings = [];
+    const costWarnings = [];
 
     for (const sel of selections) {
       const cat = catMap[sel.catalogue_item_id];
@@ -95,7 +152,7 @@ Deno.serve(async (req) => {
       // Apply option overrides
       let title = cat.name;
       let description = cat.customer_description || cat.description || "";
-      let costCode = cat.cost_code || "Buildertrend Flat Rate";
+      let costCode = cat.cost_code || "";
       let costType = cat.cost_type || "";
       let markup = cat.markup || 0;
       let markupType = cat.markup_type || "";
@@ -115,9 +172,11 @@ Deno.serve(async (req) => {
         }
       }
 
-      const quantity = sel.calculated_price > 0 ? (cat.default_quantity || 1) : (cat.default_quantity || 1);
-      const unitCost = sel.staff_price_override != null ? sel.staff_price_override : (sel.calculated_price || cat.base_price || 0);
-      const totalCost = quantity * unitCost;
+      // Build cost using the dedicated helper (Quantity × Unit Cost = Total Cost)
+      const cost = buildBuildertrendCost(sel, cat);
+      if (cost.warning) {
+        costWarnings.push({ selection_id: sel.id, title, warning: cost.warning });
+      }
 
       const parentGroup = cat.parent_group || "";
       const subgroupVal = cat.subgroup || "";
@@ -134,27 +193,29 @@ Deno.serve(async (req) => {
 
       // Check for missing required fields
       const rowWarnings = [];
-      if (!unitCost) rowWarnings.push("Missing Unit Cost");
+      if (!cost.unitCost) rowWarnings.push("Missing Unit Cost");
       if (!cat.unit_of_measure) rowWarnings.push("Missing Unit");
       if (!cat.line_item_type) rowWarnings.push("Missing Line Item Type");
       if (!taxStatus) rowWarnings.push("Missing Tax Status");
       if (!parentGroup) rowWarnings.push("Missing Parent Group");
       if (!subgroupVal) rowWarnings.push("Missing Subgroup");
       if (!costCode) rowWarnings.push("Missing Cost Code");
-      if (!quantity) rowWarnings.push("Missing Quantity");
+      if (!cost.quantity) rowWarnings.push("Missing Quantity");
       if (!description) rowWarnings.push("No description");
       if (!cat.default_image) rowWarnings.push("No image");
+      if (cost.warning) rowWarnings.push("Pricing basis uncertain");
 
       rows.push({
         title, description,
         parentGroup, parentGroupDescription: cat.parent_group_description || "",
         subgroup: subgroupVal, subgroupDescription: cat.subgroup_description || "",
-        costCode, quantity, unit: cat.unit_of_measure || "ea",
-        unitCost, costType, totalCost,
+        costCode, quantity: cost.quantity, unit: cat.unit_of_measure || "ea",
+        unitCost: cost.unitCost, costType, totalCost: cost.totalCost,
         internalNotes, markup, markupType,
         lineItemType: cat.line_item_type || "",
         tax: taxStatus,
         warnings: rowWarnings,
+        costWarning: cost.warning,
         selection_id: sel.id,
         catalogue_item_id: cat.id,
         catalogue_item_name: cat.name
@@ -171,13 +232,15 @@ Deno.serve(async (req) => {
         ok: true,
         rows,
         warnings,
+        costWarnings,
         summary: {
           totalRows: rows.length,
           totalCost,
           totalAllowance,
           taxableTotal,
           nonTaxableTotal,
-          rowsWithWarnings: rows.filter(r => r.warnings.length > 0).length
+          rowsWithWarnings: rows.filter(r => r.warnings.length > 0).length,
+          rowsWithCostWarnings: costWarnings.length
         }
       });
     }

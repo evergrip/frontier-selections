@@ -174,6 +174,7 @@ export default function ProjectDetail() {
         open={showViewPortal} 
         onOpenChange={setShowViewPortal} 
       />
+      <BuildertrendExportDialog open={showBtExport} onOpenChange={setShowBtExport} projectId={projectId} projectName={project.name} />
     </div>
   );
 }

@@ -44,12 +44,15 @@ export default function BuildertrendExportDialog({ open, onOpenChange, projectId
     setDownloading(true);
     setError("");
     try {
-      const response = await fetch(`/api/functions/buildertrendExport`, {
+      const response = await base44.functions.fetch("buildertrendExport", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ project_id: projectId, scope, parent_group: parentGroup || undefined, subgroup: subgroup || undefined })
       });
-      if (!response.ok) throw new Error("Export failed");
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Export failed");
+      }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

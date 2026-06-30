@@ -14,6 +14,7 @@ import SignOffControls from "@/components/selection/SignOffControls";
 import { SELECTION_STATUSES, CATALOGUE_ACCESS_MODES, hasPermission } from "@/lib/constants";
 import ContextualHelpLink from "@/components/training/ContextualHelpLink";
 import SuggestedOptionsManager from "@/components/selection/SuggestedOptionsManager";
+import AssignCatalogueDialog from "@/components/catalogue/AssignCatalogueDialog";
 
 function assembleItem(item, groups, values, rules) {
   const itemGroups = (groups || [])
@@ -69,6 +70,7 @@ export default function RequirementDetail() {
   const [user, setUser] = useState(null);
   const [reviewing, setReviewing] = useState(false);
   const [statusChanging, setStatusChanging] = useState(false);
+  const [showAssignCatalogue, setShowAssignCatalogue] = useState(false);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
@@ -286,8 +288,25 @@ export default function RequirementDetail() {
       </div>
 
       {hasPermission(user, "manage_suggested_options") || hasPermission(user, "preview_customer_view") ? (
-        <SuggestedOptionsManager requirement={requirement} projectId={projectId} areaId={areaId} user={user} onUpdated={load} />
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <h2 className="font-semibold text-gray-900 text-sm">Catalogue & Suggested Options</h2>
+            <Button variant="outline" size="sm" onClick={() => setShowAssignCatalogue(true)} className="gap-2">
+              <Tag size={12} /> Assign Catalogue Items
+            </Button>
+          </div>
+          <SuggestedOptionsManager requirement={requirement} projectId={projectId} areaId={areaId} user={user} onUpdated={load} />
+        </div>
       ) : null}
+
+      <AssignCatalogueDialog
+        open={showAssignCatalogue}
+        onOpenChange={setShowAssignCatalogue}
+        projectId={projectId}
+        areaId={areaId}
+        requirementId={requirementId}
+        onDone={load}
+      />
 
       {selection ? (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
