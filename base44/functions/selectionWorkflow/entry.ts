@@ -453,11 +453,11 @@ Deno.serve(async (req) => {
     }
 
     if (action === "request_signoff") {
-      if (body.project_id) {
-        const signoffAccess = await verifyProjectAccess(body.project_id);
-        if (!signoffAccess.ok) return Response.json({ error: signoffAccess.error }, { status: signoffAccess.status });
-      }
       const sels = await getScopedSelections();
+      for (const s of sels) {
+        const a = await verifyProjectAccess(s.project_id);
+        if (!a.ok) return Response.json({ error: a.error }, { status: a.status });
+      }
       const approved = sels.filter(s => s.status === "Approved" && !s.signed_off);
       let count = 0;
       for (const s of approved) {
@@ -480,11 +480,11 @@ Deno.serve(async (req) => {
     }
 
     if (action === "lock") {
-      if (body.project_id) {
-        const lockAccess = await verifyProjectAccess(body.project_id);
-        if (!lockAccess.ok) return Response.json({ error: lockAccess.error }, { status: lockAccess.status });
-      }
       const sels = await getScopedSelections();
+      for (const s of sels) {
+        const a = await verifyProjectAccess(s.project_id);
+        if (!a.ok) return Response.json({ error: a.error }, { status: a.status });
+      }
       const lockable = sels.filter(s => s.status === "Approved" && s.signed_off && !s.locked);
       let count = 0;
       for (const s of lockable) {
