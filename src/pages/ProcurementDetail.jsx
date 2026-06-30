@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, Link } from "react-router-dom";
+import { toast } from "@/components/ui/use-toast";
 import { ArrowLeft, AlertTriangle, Upload, X, Save, ExternalLink, FolderKanban, ClipboardCheck, Package, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,18 +65,24 @@ export default function ProcurementDetail() {
   async function handleSave() {
     if (saving) return;
     setSaving(true);
-    await base44.entities.ProcurementItem.update(procurementId, {
-      supplier: form.supplier, brand: form.brand, sku: form.sku,
-      quantity: Number(form.quantity) || 0, unit_of_measure: form.unit_of_measure,
-      status: form.status, purchase_order_number: form.purchase_order_number,
-      supplier_order_number: form.supplier_order_number,
-      order_date: form.order_date || null, expected_delivery_date: form.expected_delivery_date || null,
-      actual_received_date: form.actual_received_date || null,
-      delivered_to_site_date: form.delivered_to_site_date || null,
-      installed_date: form.installed_date || null,
-      procurement_notes: form.procurement_notes, site_notes: form.site_notes,
-      internal_staff_notes: form.internal_staff_notes, attachments: form.attachments
-    });
+    try {
+      await base44.entities.ProcurementItem.update(procurementId, {
+        supplier: form.supplier, brand: form.brand, sku: form.sku,
+        quantity: Number(form.quantity) || 0, unit_of_measure: form.unit_of_measure,
+        status: form.status, purchase_order_number: form.purchase_order_number,
+        supplier_order_number: form.supplier_order_number,
+        order_date: form.order_date || null, expected_delivery_date: form.expected_delivery_date || null,
+        actual_received_date: form.actual_received_date || null,
+        delivered_to_site_date: form.delivered_to_site_date || null,
+        installed_date: form.installed_date || null,
+        procurement_notes: form.procurement_notes, site_notes: form.site_notes,
+        internal_staff_notes: form.internal_staff_notes, attachments: form.attachments
+      });
+      toast({ title: "Procurement item saved", description: "Changes have been saved successfully." });
+      window.dispatchEvent(new Event("frontier:data-updated"));
+    } catch (e) {
+      toast({ title: "Failed to save", description: e.message || "Unknown error", variant: "destructive" });
+    }
     setSaving(false);
     load();
   }

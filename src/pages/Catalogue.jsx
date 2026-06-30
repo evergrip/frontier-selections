@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { Link, useSearchParams } from "react-router-dom";
+import { toast } from "@/components/ui/use-toast";
 import { Plus, Search, Package, Edit2, Copy, Eye, Download, Upload, LayoutDashboard, CheckSquare, Square, Trash2, Grid, List, CheckCircle, Archive, Ban, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,7 +95,7 @@ export default function Catalogue() {
   async function handleBulkAction(action) {
     if (bulkAction || selected.length === 0) return;
     if (action === "hard_delete") {
-      if (!hardDeleteReason.trim()) { alert("A reason is required for hard delete."); return; }
+      if (!hardDeleteReason.trim()) { toast({ title: "Reason required", description: "A reason is required for hard delete.", variant: "destructive" }); return; }
       if (!window.confirm(`Permanently delete ${selected.length} item(s)? This cannot be undone. Consider Archive or Discontinue instead.`)) return;
     }
     setBulkAction(action);
@@ -103,23 +104,29 @@ export default function Catalogue() {
         const res = await base44.functions.invoke("catalogueManagement", { action: "bulk_delete", item_ids: selected, reason: hardDeleteReason.trim() });
         if (res.data?.results?.some(r => !r.ok)) {
           const failed = res.data.results.filter(r => !r.ok);
-          alert(`${failed.length} item(s) could not be deleted:\n${failed.map(f => f.error).join("\n")}\n\nUse Archive or Discontinue instead.`);
+          toast({ title: `${failed.length} item(s) could not be deleted`, description: failed.map(f => f.error).join("; ") + ". Use Archive or Discontinue instead.", variant: "destructive" });
+        } else {
+          toast({ title: `${selected.length} item(s) permanently deleted` });
         }
         setHardDeleteReason("");
         setShowHardDelete(false);
       } else if (action === "archive") {
         await base44.functions.invoke("catalogueManagement", { action: "archive", item_ids: selected });
+        toast({ title: `${selected.length} item(s) archived` });
       } else if (action === "discontinue") {
         await base44.functions.invoke("catalogueManagement", { action: "discontinue", item_ids: selected });
+        toast({ title: `${selected.length} item(s) discontinued` });
       } else if (action === "mark_reviewed") {
         await base44.functions.invoke("catalogueManagement", { action: "mark_reviewed", item_ids: selected });
+        toast({ title: `${selected.length} item(s) marked as reviewed` });
       } else {
         await base44.functions.invoke("catalogueManagement", { action: "bulk_status", item_ids: selected, status: action });
+        toast({ title: `${selected.length} item(s) updated` });
       }
       await load();
       setSelected([]);
     } catch (e) {
-      alert(e.response?.data?.error || "Bulk action failed");
+      toast({ title: "Bulk action failed", description: e.response?.data?.error || e.message || "Unknown error", variant: "destructive" });
     } finally {
       setBulkAction(null);
     }
@@ -153,9 +160,10 @@ export default function Catalogue() {
       await base44.functions.invoke("catalogueManagement", {
         action: "duplicate_item", source_item_id: item.id, name: newName.trim()
       });
+      toast({ title: "Item duplicated", description: `"${newName.trim()}" has been created.` });
       await load();
     } catch (e) {
-      alert(e.response?.data?.error || "Failed to duplicate item");
+      toast({ title: "Failed to duplicate item", description: e.response?.data?.error || e.message || "Unknown error", variant: "destructive" });
     } finally {
       setDuplicating(null);
     }

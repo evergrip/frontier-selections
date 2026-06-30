@@ -85,9 +85,9 @@ export default function ProjectDetail() {
         break;
       case "send_reminders":
         try {
-          toast({ title: "Sending reminders...", description: "Processing deadline reminders for overdue selections." });
-          await base44.functions.invoke("deadlineReminders", { action: "check_and_send", project_id: projectId });
-          toast({ title: "Reminders sent", description: "Deadline reminders have been processed." });
+          toast({ title: "Processing reminders...", description: "Checking deadlines and sending reminders." });
+          await base44.functions.invoke("deadlineReminders", {});
+          toast({ title: "Reminders processed", description: "Deadline reminders have been sent for overdue selections." });
           window.dispatchEvent(new Event("frontier:data-updated"));
         } catch (e) {
           toast({ title: "Failed to send reminders", description: e.message || "Unknown error", variant: "destructive" });

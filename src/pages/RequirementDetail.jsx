@@ -130,7 +130,17 @@ export default function RequirementDetail() {
   }
 
   async function handleLinkItem(mbId) {
-    await base44.entities.MoodBoardItem.update(mbId, { linked_requirement_id: requirementId });
+    try {
+      await base44.functions.invoke("selectionWorkflow", {
+        action: "link_mood_board",
+        mood_board_item_id: mbId,
+        requirement_id: requirementId
+      });
+      toast({ title: "Mood board item linked" });
+      window.dispatchEvent(new Event("frontier:data-updated"));
+    } catch (e) {
+      toast({ title: "Failed to link", description: e.response?.data?.error || e.message || "Unknown error", variant: "destructive" });
+    }
     setLinking(false);
     load();
   }
@@ -625,11 +635,22 @@ function EditAllowanceDialog({ open, onClose, requirement, onUpdated }) {
   const [saving, setSaving] = useState(false);
   useEffect(() => { if (requirement) setAllowance(requirement.allowance_amount || 0); }, [requirement]);
   async function handleSave() {
+    if (saving) return;
     setSaving(true);
-    await base44.entities.SelectionRequirement.update(requirement.id, { allowance_amount: Number(allowance) || 0 });
+    try {
+      await base44.functions.invoke("selectionWorkflow", {
+        action: "update_requirement",
+        requirement_id: requirement.id,
+        allowance_amount: Number(allowance) || 0
+      });
+      toast({ title: "Allowance updated" });
+      window.dispatchEvent(new Event("frontier:data-updated"));
+      onUpdated();
+      onClose();
+    } catch (e) {
+      toast({ title: "Failed to save", description: e.response?.data?.error || e.message || "Unknown error", variant: "destructive" });
+    }
     setSaving(false);
-    onUpdated();
-    onClose();
   }
   return (
     <Dialog open={open} onOpenChange={onClose}>

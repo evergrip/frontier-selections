@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
+import { toast } from "@/components/ui/use-toast";
 import { FileSignature, Lock, Unlock, ShieldCheck, AlertTriangle, Truck, Wrench, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,9 +15,18 @@ export default function SignOffControls({ selection, procurement, audit, onDone 
   if (!selection || selection.status !== "Approved") return null;
 
   async function call(payload) {
+    if (busy) return;
     setBusy(true);
-    try { await base44.functions.invoke("selectionWorkflow", payload); await onDone(); }
-    catch (e) { alert("Action failed"); }
+    try {
+      const res = await base44.functions.invoke("selectionWorkflow", payload);
+      if (res.data?.error) throw new Error(res.data.error);
+      const actionLabel = payload.action === "request_signoff" ? "Sign-off requested" : payload.action === "lock" ? "Selection locked" : payload.action === "unlock" ? "Selection unlocked" : "Action completed";
+      toast({ title: actionLabel });
+      window.dispatchEvent(new Event("frontier:data-updated"));
+      await onDone();
+    } catch (e) {
+      toast({ title: "Action failed", description: e.message || "Unknown error", variant: "destructive" });
+    }
     setBusy(false);
   }
 

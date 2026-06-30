@@ -176,15 +176,25 @@ function AddRequirementDialog({ open, onClose, projectId, areaId, onAdded }) {
 
   async function handleAdd() {
     if (!form.name.trim()) return;
+    if (saving) return;
     setSaving(true);
-    await base44.entities.SelectionRequirement.create({
-      project_id: projectId, area_id: areaId, ...form,
-      allowance_amount: Number(form.allowance_amount) || 0, status: "Not Started"
-    });
+    try {
+      await base44.functions.invoke("selectionWorkflow", {
+        action: "create_requirement",
+        project_id: projectId, area_id: areaId,
+        name: form.name, category: form.category, is_required: form.is_required,
+        allowance_amount: form.allowance_amount, approval_required: form.approval_required,
+        due_date: form.due_date, customer_catalogue_access_mode: form.customer_catalogue_access_mode
+      });
+      toast({ title: "Requirement created", description: `"${form.name}" has been added.` });
+      window.dispatchEvent(new Event("frontier:data-updated"));
+      setForm({ name: "", category: "Other", is_required: true, allowance_amount: 0, approval_required: true, due_date: "", customer_catalogue_access_mode: "suggested_only" });
+      onAdded();
+      onClose();
+    } catch (e) {
+      toast({ title: "Failed to create requirement", description: e.response?.data?.error || e.message || "Unknown error", variant: "destructive" });
+    }
     setSaving(false);
-    setForm({ name: "", category: "Other", is_required: true, allowance_amount: 0, approval_required: true, due_date: "", customer_catalogue_access_mode: "suggested_only" });
-    onAdded();
-    onClose();
   }
 
   return (
@@ -228,11 +238,21 @@ function EditAllowanceDialog({ open, onClose, area, onUpdated }) {
   const [saving, setSaving] = useState(false);
   useEffect(() => { if (area) { setAllowance(area.allowance || 0); setDueDate(area.due_date || ""); } }, [area]);
   async function handleSave() {
+    if (saving) return;
     setSaving(true);
-    await base44.entities.ProjectArea.update(area.id, { allowance: Number(allowance) || 0, due_date: dueDate || null });
+    try {
+      await base44.functions.invoke("selectionWorkflow", {
+        action: "update_area",
+        area_id: area.id, allowance: Number(allowance) || 0, due_date: dueDate || null
+      });
+      toast({ title: "Area updated" });
+      window.dispatchEvent(new Event("frontier:data-updated"));
+      onUpdated();
+      onClose();
+    } catch (e) {
+      toast({ title: "Failed to save", description: e.response?.data?.error || e.message || "Unknown error", variant: "destructive" });
+    }
     setSaving(false);
-    onUpdated();
-    onClose();
   }
   return (
     <Dialog open={open} onOpenChange={onClose}>

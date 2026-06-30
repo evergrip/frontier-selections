@@ -6,6 +6,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import CommentThread from "@/components/comments/CommentThread";
 import ProjectTimeline from "@/components/comments/ProjectTimeline";
 import PortalBreadcrumb from "@/components/portal/PortalBreadcrumb";
+import SelectionJourney from "@/components/portal/SelectionJourney";
 import { useProjectAccess } from "@/hooks/useProjectAccess";
 import { useCustomerPortal } from "@/components/CustomerPortalContext";
 
@@ -100,6 +101,8 @@ export default function CustomerProjectView() {
       {project.customer_notes && (
         <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-800">{project.customer_notes}</div>
       )}
+
+      <SelectionJourney requirements={requirements} selections={[]} project={project} />
 
       {nextStep && (
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5">

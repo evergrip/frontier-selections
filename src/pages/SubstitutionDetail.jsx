@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { toast } from "@/components/ui/use-toast";
 import { ArrowLeft, Save, Send, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -110,7 +111,8 @@ export default function SubstitutionDetail() {
   }
 
   async function saveDraft() {
-    if (!recommendedItem) { alert("Select a recommended item"); return; }
+    if (!recommendedItem) { toast({ title: "Select a recommended item", variant: "destructive" }); return; }
+    if (busy) return;
     setBusy(true);
     try {
       if (isNew) {
@@ -122,35 +124,42 @@ export default function SubstitutionDetail() {
           reason, price_impact: priceImpact, allowance_impact: allowanceImpact, schedule_impact: scheduleImpact, staff_note: staffNote, customer_explanation: customerExplanation,
           status: "Draft", created_by: "staff"
         });
+        toast({ title: "Draft created", description: "Substitution recommendation saved as draft." });
         navigate(`/substitution/${created.id}`, { replace: true });
       } else {
         await base44.entities.SubstitutionRecommendation.update(id, {
           recommended_item_id: recommendedItem.id, recommended_item_name: recommendedItem.name, recommended_options: optionsArray(), recommended_price: recommendedPrice,
           reason, price_impact: priceImpact, allowance_impact: allowanceImpact, schedule_impact: scheduleImpact, staff_note: staffNote, customer_explanation: customerExplanation
         });
+        toast({ title: "Changes saved" });
+        window.dispatchEvent(new Event("frontier:data-updated"));
         load();
       }
-    } catch (e) { alert("Save failed"); }
+    } catch (e) { toast({ title: "Save failed", description: e.message || "Unknown error", variant: "destructive" }); }
     setBusy(false);
   }
 
   async function sendToCustomer() {
+    if (busy) return;
     setBusy(true);
-    try { await base44.functions.invoke("substitutionWorkflow", { action: "send", recommendation_id: id }); load(); } catch (e) { alert("Failed"); }
+    try { await base44.functions.invoke("substitutionWorkflow", { action: "send", recommendation_id: id }); toast({ title: "Sent to customer", description: "The substitution recommendation has been sent." }); window.dispatchEvent(new Event("frontier:data-updated")); load(); } catch (e) { toast({ title: "Failed to send", description: e.message || "Unknown error", variant: "destructive" }); }
     setBusy(false);
   }
   async function approve() {
+    if (busy) return;
     setBusy(true);
     try {
       await base44.functions.invoke("substitutionWorkflow", { action: "approve", recommendation_id: id, calculated_price: recommendedPrice });
-      alert("Substitution applied");
+      toast({ title: "Substitution applied", description: "The selection has been updated with the substitute item." });
+      window.dispatchEvent(new Event("frontier:data-updated"));
       navigate(`/projects/${rec.project_id}/area/${rec.area_id}/requirement/${rec.requirement_id}`);
-    } catch (e) { alert(e.response?.data?.error || "Failed"); }
+    } catch (e) { toast({ title: "Failed to apply", description: e.response?.data?.error || e.message || "Unknown error", variant: "destructive" }); }
     setBusy(false);
   }
   async function cancelRec() {
+    if (busy) return;
     setBusy(true);
-    try { await base44.functions.invoke("substitutionWorkflow", { action: "cancel", recommendation_id: id }); load(); } catch (e) { alert("Failed"); }
+    try { await base44.functions.invoke("substitutionWorkflow", { action: "cancel", recommendation_id: id }); toast({ title: "Substitution cancelled" }); window.dispatchEvent(new Event("frontier:data-updated")); load(); } catch (e) { toast({ title: "Failed to cancel", description: e.message || "Unknown error", variant: "destructive" }); }
     setBusy(false);
   }
 

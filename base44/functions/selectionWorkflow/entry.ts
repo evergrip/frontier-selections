@@ -447,6 +447,87 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true });
     }
 
+    if (action === "create_requirement") {
+      const { project_id, area_id, name, category, is_required, allowance_amount, approval_required, due_date, customer_catalogue_access_mode } = body;
+      if (!project_id || !area_id || !name) {
+        return Response.json({ error: "project_id, area_id, and name are required" }, { status: 400 });
+      }
+      const reqAccess = await verifyProjectAccess(project_id);
+      if (!reqAccess.ok) return Response.json({ error: reqAccess.error }, { status: reqAccess.status });
+      const created = await base44.asServiceRole.entities.SelectionRequirement.create({
+        project_id, area_id, name,
+        category: category || "Other",
+        is_required: is_required !== false,
+        allowance_amount: Number(allowance_amount) || 0,
+        approval_required: approval_required !== false,
+        due_date: due_date || null,
+        customer_catalogue_access_mode: customer_catalogue_access_mode || "suggested_only",
+        status: "Not Started"
+      });
+      await createAudit("requirement", created.id, "requirement_created", "name", null, name,
+        "Staff created selection requirement", project_id, { severity: 'medium' });
+      return Response.json({ ok: true, requirement_id: created.id });
+    }
+
+    if (action === "update_area") {
+      const area = await base44.asServiceRole.entities.ProjectArea.get(body.area_id).catch(() => null);
+      if (!area) return Response.json({ error: "Area not found" }, { status: 404 });
+      const areaAccess = await verifyProjectAccess(area.project_id);
+      if (!areaAccess.ok) return Response.json({ error: areaAccess.error }, { status: areaAccess.status });
+      const updates = {};
+      if (body.allowance != null) updates.allowance = Number(body.allowance) || 0;
+      if (body.due_date !== undefined) updates.due_date = body.due_date || null;
+      if (body.name) updates.name = body.name;
+      if (body.status) updates.status = body.status;
+      const oldValues = {};
+      for (const k of Object.keys(updates)) oldValues[k] = area[k];
+      await base44.asServiceRole.entities.ProjectArea.update(area.id, updates);
+      for (const [field, newVal] of Object.entries(updates)) {
+        await createAudit("area", area.id, "area_updated", field, oldValues[field], newVal,
+          "Staff updated area", area.project_id, { severity: 'low' });
+      }
+      return Response.json({ ok: true });
+    }
+
+    if (action === "update_requirement") {
+      const req = await base44.asServiceRole.entities.SelectionRequirement.get(body.requirement_id).catch(() => null);
+      if (!req) return Response.json({ error: "Not found" }, { status: 404 });
+      const reqAccess = await verifyProjectAccess(req.project_id);
+      if (!reqAccess.ok) return Response.json({ error: reqAccess.error }, { status: reqAccess.status });
+      const updates = {};
+      if (body.allowance_amount != null) updates.allowance_amount = Number(body.allowance_amount) || 0;
+      if (body.customer_catalogue_access_mode) updates.customer_catalogue_access_mode = body.customer_catalogue_access_mode;
+      if (body.due_date !== undefined) updates.due_date = body.due_date || null;
+      if (body.customer_instructions !== undefined) updates.customer_instructions = body.customer_instructions;
+      if (body.is_required !== undefined) updates.is_required = body.is_required;
+      if (body.approval_required !== undefined) updates.approval_required = body.approval_required;
+      const oldValues = {};
+      for (const k of Object.keys(updates)) oldValues[k] = req[k];
+      await base44.asServiceRole.entities.SelectionRequirement.update(req.id, updates);
+      for (const [field, newVal] of Object.entries(updates)) {
+        await createAudit("requirement", req.id, "requirement_updated", field, oldValues[field], newVal,
+          "Staff updated requirement", req.project_id, { severity: 'low' });
+      }
+      return Response.json({ ok: true });
+    }
+
+    if (action === "link_mood_board") {
+      const { mood_board_item_id, requirement_id } = body;
+      if (!mood_board_item_id || !requirement_id) {
+        return Response.json({ error: "mood_board_item_id and requirement_id are required" }, { status: 400 });
+      }
+      const req = await base44.asServiceRole.entities.SelectionRequirement.get(requirement_id).catch(() => null);
+      if (!req) return Response.json({ error: "Requirement not found" }, { status: 404 });
+      const mbAccess = await verifyProjectAccess(req.project_id);
+      if (!mbAccess.ok) return Response.json({ error: mbAccess.error }, { status: mbAccess.status });
+      const mb = await base44.asServiceRole.entities.MoodBoardItem.get(mood_board_item_id).catch(() => null);
+      if (!mb) return Response.json({ error: "Mood board item not found" }, { status: 404 });
+      await base44.asServiceRole.entities.MoodBoardItem.update(mood_board_item_id, { linked_requirement_id: requirement_id });
+      await createAudit("requirement", requirement_id, "mood_board_linked", "linked_requirement_id", null, mood_board_item_id,
+        "Staff linked mood board item to requirement", req.project_id, { severity: 'low' });
+      return Response.json({ ok: true });
+    }
+
     async function getScopedSelections() {
       if (body.selection_id) {
         const s = await base44.asServiceRole.entities.CustomerSelection.get(body.selection_id).catch(() => null);
