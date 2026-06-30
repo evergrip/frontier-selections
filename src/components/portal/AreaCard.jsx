@@ -2,14 +2,38 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { ChevronRight, Calendar, AlertCircle } from "lucide-react";
 
-const DONE = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
+const CUSTOMER_COMPLETE_STATUSES = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Delivered to Site", "Installed"];
 
-export default function AreaCard({ area, requirements, projectId }) {
+function getCurrentSelection(requirementId, selections) {
+  return selections.find(s => s.requirement_id === requirementId && s.is_current === true) || null;
+}
+
+function isRequirementCustomerComplete(requirement, currentSelection) {
+  if (currentSelection) {
+    if (currentSelection.status === "Approved") return true;
+    if (currentSelection.signed_off === true) return true;
+    if (currentSelection.locked === true) return true;
+  }
+  if (CUSTOMER_COMPLETE_STATUSES.includes(requirement.status)) return true;
+  return false;
+}
+
+export default function AreaCard({ area, requirements, selections = [], projectId }) {
   const areaReqs = requirements.filter(r => r.area_id === area.id);
-  const completed = areaReqs.filter(r => DONE.includes(r.status)).length;
+  const completed = areaReqs.filter(r => {
+    const currentSelection = getCurrentSelection(r.id, selections);
+    return isRequirementCustomerComplete(r, currentSelection);
+  }).length;
   const total = areaReqs.length;
   const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
-  const needsAction = areaReqs.filter(r => ["Revision Requested", "Rejected"].includes(r.status)).length;
+  
+  const needsAction = areaReqs.filter(r => {
+    const currentSelection = getCurrentSelection(r.id, selections);
+    if (currentSelection && ["Revision Requested", "Rejected"].includes(currentSelection.status)) return true;
+    if (["Revision Requested", "Rejected"].includes(r.status)) return true;
+    return false;
+  }).length;
+  
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const isOverdue = area.due_date && area.status !== "Complete" && new Date(area.due_date + "T00:00:00") < today;
 

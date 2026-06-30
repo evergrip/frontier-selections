@@ -323,7 +323,7 @@ function ProjectCard({ project }) {
         <div>
           <h3 className="font-semibold text-gray-900 text-sm mb-3">Rooms & Areas</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {sortedAreas.map(area => <AreaCard key={area.id} area={area} requirements={requirements} projectId={project.id} />)}
+            {sortedAreas.map(area => <AreaCard key={area.id} area={area} requirements={requirements} selections={selections} projectId={project.id} />)}
           </div>
         </div>
       )}
