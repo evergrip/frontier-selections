@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { Link } from "react-router-dom";
-import { Plus, Search, Package, Edit2, Copy, Eye, Download, Upload, LayoutDashboard, CheckSquare, Square } from "lucide-react";
+import { Plus, Search, Package, Edit2, Copy, Eye, Download, Upload, LayoutDashboard, CheckSquare, Square, Trash2, Grid, List, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,6 +28,8 @@ export default function Catalogue() {
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [duplicating, setDuplicating] = useState(null);
+  const [viewMode, setViewMode] = useState("table");
+  const [bulkAction, setBulkAction] = useState(null);
 
   useEffect(() => { load(); }, []);
 
@@ -60,6 +62,48 @@ export default function Catalogue() {
     setSelected(prev => prev.length === filtered.length ? [] : filtered.map(i => i.id));
   }
 
+  async function handleBulkAction(action) {
+    if (bulkAction || selected.length === 0) return;
+    if (action === "delete") {
+      if (!window.confirm(`Delete ${selected.length} item(s)? This will also remove their option groups, values, and project assignments. This cannot be undone.`)) return;
+    }
+    setBulkAction(action);
+    try {
+      if (action === "delete") {
+        await base44.functions.invoke("catalogueManagement", { action: "bulk_delete", item_ids: selected });
+      } else if (action === "mark_reviewed") {
+        await base44.functions.invoke("catalogueManagement", { action: "mark_reviewed", item_ids: selected });
+      } else {
+        await base44.functions.invoke("catalogueManagement", { action: "bulk_status", item_ids: selected, status: action });
+      }
+      await load();
+      setSelected([]);
+    } catch (e) {
+      alert(e.response?.data?.error || "Bulk action failed");
+    } finally {
+      setBulkAction(null);
+    }
+  }
+
+  function exportCSV() {
+    const headers = ["Name", "Category", "Supplier", "Brand", "SKU", "Base Price", "Quantity", "Unit", "Status", "Active", "Cost Code", "Cost Type", "Parent Group", "Subgroup", "Markup", "Markup Type", "Line Item Type", "Tax Status", "Tags"];
+    const rows = filtered.map(item => [
+      item.name || "", item.category || "", item.supplier || "", item.brand || "", item.sku || "",
+      item.base_price || 0, item.default_quantity || 1, item.unit_of_measure || "",
+      item.status || "", item.is_active !== false ? "Yes" : "No",
+      item.cost_code || "", item.cost_type || "", item.parent_group || "", item.subgroup || "",
+      item.markup || 0, item.markup_type || "", item.line_item_type || "", item.tax_status || "",
+      (item.tags || []).join("; ")
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `catalogue-export-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function handleDuplicate(item) {
     if (duplicating) return;
     const newName = prompt("Name for the duplicated item:", `${item.name} (Copy)`);
@@ -82,11 +126,11 @@ export default function Catalogue() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Catalogue</h1>
-          <p className="text-sm text-gray-500 mt-1">{filtered.length} of {items.length} items</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link to="/catalogue-dashboard"><Button variant="outline" className="gap-2"><LayoutDashboard size={16} /> Dashboard</Button></Link>
           <Button variant="outline" onClick={() => setShowImport(true)} className="gap-2"><Upload size={16} /> Import</Button>
+          <Button variant="outline" onClick={exportCSV} className="gap-2" disabled={filtered.length === 0}><Download size={16} /> Export CSV</Button>
           <Button onClick={() => setShowQuickAdd(true)} className="gap-2"><Plus size={16} /> Quick Add</Button>
           <Link to="/catalogue/new"><Button variant="outline" className="gap-2"><Edit2 size={16} /> Full Editor</Button></Link>
         </div>
@@ -133,12 +177,25 @@ export default function Catalogue() {
         </div>
       </div>
 
+      {/* View toggle */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-500">{filtered.length} of {items.length} items</p>
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+          <button onClick={() => setViewMode("table")} className={`p-1.5 rounded ${viewMode === "table" ? "bg-white shadow-sm" : "text-gray-400"}`}><List size={16} /></button>
+          <button onClick={() => setViewMode("grid")} className={`p-1.5 rounded ${viewMode === "grid" ? "bg-white shadow-sm" : "text-gray-400"}`}><Grid size={16} /></button>
+        </div>
+      </div>
+
       {/* Bulk actions bar */}
       {selected.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm text-blue-700 font-medium">{selected.length} item(s) selected</span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => setShowBulkEdit(true)}>Bulk Edit</Button>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => setShowBulkEdit(true)} disabled={!!bulkAction}>Bulk Edit</Button>
+            <Button size="sm" variant="outline" onClick={() => handleBulkAction("activate")} disabled={!!bulkAction}>Activate</Button>
+            <Button size="sm" variant="outline" onClick={() => handleBulkAction("deactivate")} disabled={!!bulkAction}>Deactivate</Button>
+            <Button size="sm" variant="outline" onClick={() => handleBulkAction("mark_reviewed")} disabled={!!bulkAction} className="gap-1"><CheckCircle size={14} /> Mark Reviewed</Button>
+            <Button size="sm" variant="destructive" onClick={() => handleBulkAction("delete")} disabled={!!bulkAction} className="gap-1"><Trash2 size={14} /> Delete</Button>
             <Button size="sm" variant="ghost" onClick={() => setSelected([])}>Clear</Button>
           </div>
         </div>
@@ -152,6 +209,39 @@ export default function Catalogue() {
           <Package size={48} className="mx-auto text-gray-300 mb-3" />
           <p className="text-gray-400 text-sm">No catalogue items found</p>
           <Button onClick={() => setShowQuickAdd(true)} variant="outline" className="mt-4 gap-2"><Plus size={16} /> Add your first item</Button>
+        </div>
+      ) : viewMode === "grid" ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filtered.map(item => (
+            <div key={item.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+              <Link to={`/catalogue/${item.id}`} className="block relative h-40 bg-gray-100">
+                {item.default_image ? (
+                  <img src={item.default_image} alt={item.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center"><Package size={32} className="text-gray-300" /></div>
+                )}
+                <div className="absolute top-2 left-2">
+                  <button onClick={(e) => { e.preventDefault(); toggleSelect(item.id); }} className="bg-white/90 rounded p-1 shadow-sm">
+                    {selected.includes(item.id) ? <CheckSquare size={14} className="text-blue-600" /> : <Square size={14} className="text-gray-400" />}
+                  </button>
+                </div>
+                <div className="absolute top-2 right-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${item.is_active !== false && item.status === "Active" ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+                    {item.is_active === false || ["Inactive", "Discontinued"].includes(item.status) ? "Inactive" : "Active"}
+                  </span>
+                </div>
+              </Link>
+              <div className="p-3 space-y-1">
+                <Link to={`/catalogue/${item.id}`} className="font-medium text-gray-900 text-sm hover:text-blue-600 line-clamp-1">{item.name}</Link>
+                <p className="text-xs text-gray-400">{item.category}{item.sku ? ` • ${item.sku}` : ""}</p>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="font-semibold text-gray-900">${(item.base_price || 0).toLocaleString()}</span>
+                  <span className="text-xs text-gray-400">{item.supplier || "—"}</span>
+                </div>
+                <MissingDataBadges item={item} />
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">

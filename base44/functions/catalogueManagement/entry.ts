@@ -290,6 +290,96 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ===== BULK DELETE: Delete multiple items + their option groups/values/rules =====
+    if (action === "bulk_delete") {
+      const { item_ids } = body;
+      if (!item_ids || !Array.isArray(item_ids) || item_ids.length === 0) {
+        return Response.json({ error: "item_ids array is required" }, { status: 400 });
+      }
+
+      const results = [];
+      for (const itemId of item_ids) {
+        try {
+          // Delete child entities first
+          await base44.asServiceRole.entities.CatalogueOptionValue.deleteMany({ catalogue_item_id: itemId }).catch(() => {});
+          await base44.asServiceRole.entities.CatalogueOptionGroup.deleteMany({ catalogue_item_id: itemId }).catch(() => {});
+          await base44.asServiceRole.entities.CatalogueOptionRule.deleteMany({ catalogue_item_id: itemId }).catch(() => {});
+          // Remove project assignments
+          await base44.asServiceRole.entities.ProjectAvailableCatalogueItem.deleteMany({ catalogue_item_id: itemId }).catch(() => {});
+          // Delete the item
+          await base44.asServiceRole.entities.CatalogueItem.delete(itemId);
+          results.push({ id: itemId, ok: true });
+        } catch (e) {
+          results.push({ id: itemId, ok: false, error: e.message });
+        }
+      }
+
+      await base44.asServiceRole.entities.AuditLog.create({
+        target_type: "catalogue_item", target_id: "bulk", action: "bulk_delete",
+        description: `Deleted ${results.filter(r => r.ok).length} catalogue items`,
+        actor_user_id: user.id, actor_name: actor, actor_role: user.role,
+        severity: "high"
+      }).catch(() => {});
+
+      return Response.json({ ok: true, results, deleted_count: results.filter(r => r.ok).length });
+    }
+
+    // ===== BULK STATUS: Activate / deactivate / discontinue multiple items =====
+    if (action === "bulk_status") {
+      const { item_ids, status } = body;
+      if (!item_ids || !Array.isArray(item_ids) || item_ids.length === 0) {
+        return Response.json({ error: "item_ids array is required" }, { status: 400 });
+      }
+      if (!["activate", "deactivate", "discontinue"].includes(status)) {
+        return Response.json({ error: "status must be activate, deactivate, or discontinue" }, { status: 400 });
+      }
+
+      const updates = status === "activate"
+        ? { is_active: true, is_discontinued: false, status: "Active" }
+        : status === "deactivate"
+        ? { is_active: false, status: "Inactive" }
+        : { is_active: false, is_discontinued: true, status: "Discontinued" };
+
+      const results = [];
+      for (const itemId of item_ids) {
+        try {
+          await base44.asServiceRole.entities.CatalogueItem.update(itemId, updates);
+          results.push({ id: itemId, ok: true });
+        } catch (e) {
+          results.push({ id: itemId, ok: false, error: e.message });
+        }
+      }
+
+      await base44.asServiceRole.entities.AuditLog.create({
+        target_type: "catalogue_item", target_id: "bulk", action: "bulk_status",
+        description: `Bulk ${status} ${results.filter(r => r.ok).length} catalogue items`,
+        actor_user_id: user.id, actor_name: actor, actor_role: user.role,
+        severity: "medium"
+      }).catch(() => {});
+
+      return Response.json({ ok: true, results, updated_count: results.filter(r => r.ok).length });
+    }
+
+    // ===== MARK REVIEWED: Update last_reviewed_date for single or multiple items =====
+    if (action === "mark_reviewed") {
+      const { item_ids } = body;
+      if (!item_ids || !Array.isArray(item_ids) || item_ids.length === 0) {
+        return Response.json({ error: "item_ids array is required" }, { status: 400 });
+      }
+
+      const results = [];
+      for (const itemId of item_ids) {
+        try {
+          await base44.asServiceRole.entities.CatalogueItem.update(itemId, { last_reviewed_date: now });
+          results.push({ id: itemId, ok: true });
+        } catch (e) {
+          results.push({ id: itemId, ok: false, error: e.message });
+        }
+      }
+
+      return Response.json({ ok: true, updated_count: results.filter(r => r.ok).length });
+    }
+
     // ===== DASHBOARD STATS: Get catalogue dashboard statistics =====
     if (action === "dashboard_stats") {
       const items = await base44.asServiceRole.entities.CatalogueItem.list("-updated_date", 2000);
