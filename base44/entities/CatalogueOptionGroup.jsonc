@@ -64,16 +64,6 @@
           "user_condition": {
             "role": "staff"
           }
-        },
-        {
-          "user_condition": {
-            "role": "customer"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "user"
-          }
         }
       ]
     },
