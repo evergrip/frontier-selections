@@ -6,19 +6,21 @@
 import { getSelectionTruthState, getCustomerSelectionDisplayState } from './selectionTruth';
 
 const TEST_CASES = [
-  {
-    name: "Not Started, no selection, required",
-    input: {
-      requirement: { id: "r1", status: "Not Started", is_required: true },
-      currentSelection: null,
-      changeRequests: []
-    },
-    expected: {
-      countsAsComplete: false,
-      needsCustomerAction: true,
-      customerStatusLabel: "Select Item"
-    }
+{
+  name: "Not Started, no selection, required",
+  input: {
+    requirement: { id: "r1", status: "Not Started", is_required: true },
+    currentSelection: null,
+    changeRequests: []
   },
+  expected: {
+    countsAsComplete: false,
+    needsCustomerAction: true,
+    customerStatusLabel: "Select Item",
+    canEdit: true,
+    actionMessage: "Please choose a product to continue."
+  }
+},
   {
     name: "Not Started, no selection, optional",
     input: {

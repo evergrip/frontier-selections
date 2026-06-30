@@ -8,6 +8,7 @@ const CUSTOMER_COMPLETE_STATUSES = [
   "Received", "Delivered to Site", "Installed"
 ];
 
+// Used in finalization logic - a selection is final when it reaches any of these states
 const FINAL_STATUSES = ["Locked", "Ready to Order", "Ordered", "Received", "Delivered to Site", "Installed"];
 
 export function getSelectionTruthState({ requirement, currentSelection, changeRequests = [], procurementItem = null }) {
@@ -90,8 +91,13 @@ export function getSelectionTruthState({ requirement, currentSelection, changeRe
       needsStaffAction = true;
       canStaffApprove = true;
     } else if (selStatus === "Approved" && reqStatus === "Changed After Approval") {
-      staffStatusLabel = "Changed After Approval";
-      needsStaffAction = hasOpenChangeRequest;
+      if (hasOpenChangeRequest) {
+        staffStatusLabel = "Changed After Approval";
+        needsStaffAction = true;
+      } else {
+        staffStatusLabel = "Approved with Change History";
+        needsStaffAction = false;
+      }
       if (!isSignedOff && !isLocked) {
         canStaffRequestSignOff = true;
         canStaffLock = requirement?.lock_after_approval !== false;
@@ -258,8 +264,26 @@ export function getCustomerSelectionDisplayState({ requirement, currentSelection
     finalStepLabel = "In Progress";
   }
   
-  // Action message for customer
-  let actionMessage = null;
+  // showSignOffPrompt: true when sign_off_requested and not signed_off and selection is approved
+  const showSignOffPrompt = currentSelection?.sign_off_requested === true && 
+                              currentSelection?.signed_off !== true && 
+                              (truth.isApproved || truth.countsAsComplete);
+  
+  // isReadOnly: true when signed off, locked, finalized, ordered, received, delivered, or installed
+  const isReadOnly = truth.isSignedOff || truth.isLocked || truth.isFinalized || 
+                     truth.isOrdered || truth.isReceived || truth.isInstalled ||
+                     truth.isWaitingForFrontier;
+  
+  // canRequestChange: only when approved and not finalized
+  const canRequestChange = truth.countsAsComplete && !truth.isFinalized && !truth.isWaitingForFrontier && 
+                           requirement?.can_request_change_after_approval !== false;
+  
+  // canEdit: only when revision requested, rejected, or not started (no selection)
+  const canEdit = (!currentSelection && requirement?.status === "Not Started") ||
+                  truth.customerStatusLabel === "Action Needed";
+  
+  // Action message - always return a useful default
+  let actionMessage = "Please choose a product to continue.";
   if (truth.needsCustomerAction) {
     if (truth.customerStatusLabel === "Action Needed") {
       actionMessage = "Frontier has requested changes to your selection. Please review the feedback and make updates.";
@@ -268,8 +292,16 @@ export function getCustomerSelectionDisplayState({ requirement, currentSelection
     }
   } else if (truth.isWaitingForFrontier) {
     actionMessage = "Your selection has been submitted and is being reviewed by Frontier. You'll be notified once approved.";
-  } else if (truth.countsAsComplete && !truth.isFinalized) {
-    actionMessage = "This selection is approved and will be finalized once all selections are complete.";
+  } else if (truth.isSignedOff) {
+    actionMessage = "You have signed off on this selection.";
+  } else if (truth.isFinalized || truth.isLocked) {
+    actionMessage = "This selection is finalized.";
+  } else if (truth.isApproved && showSignOffPrompt) {
+    actionMessage = "Please review and sign off on this approved selection.";
+  } else if (truth.isApproved) {
+    actionMessage = "Frontier has approved this selection.";
+  } else if (currentSelection && !truth.countsAsComplete) {
+    actionMessage = "Your selection is being prepared.";
   }
   
   return {
@@ -277,7 +309,12 @@ export function getCustomerSelectionDisplayState({ requirement, currentSelection
     displayStatus,
     finalStepLabel,
     actionMessage,
-    stepNumber
+    stepNumber,
+    showSignOffPrompt,
+    isReadOnly,
+    canRequestChange,
+    canEdit,
+    customerStatusLabel: truth.customerStatusLabel
   };
 }
 

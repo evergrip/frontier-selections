@@ -9,7 +9,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import StatusBadge from "@/components/ui/StatusBadge";
-import { customerDisplayStatus } from "@/lib/constants";
 import CustomerSubstitution from "@/components/selection/CustomerSubstitution";
 import StepIndicator from "@/components/portal/StepIndicator";
 import PortalBreadcrumb from "@/components/portal/PortalBreadcrumb";
@@ -340,10 +339,6 @@ export default function CustomerSelectionView() {
   );
   if (!requirement) return <div className="text-center py-20 text-gray-400">Selection not found</div>;
 
-  const isApproved = existingSelection?.status === "Approved" || requirement.status === "Approved";
-  const isLocked = existingSelection?.locked || requirement.status === "Locked";
-  const canEdit = !isLocked && (!isApproved || requirement.can_request_change_after_approval);
-  const canRequestChange = isApproved && !!existingSelection && (canEdit || isLocked);
   const hasOpenChangeRequest = changeRequests.some(c => !["Approved", "Rejected", "Cancelled"].includes(c.status));
   // Unified display state for stepper and status consistency - powered by truth helper
   const displayState = getCustomerSelectionDisplayState({
@@ -352,6 +347,8 @@ export default function CustomerSelectionView() {
     changeRequests,
     currentStepMode: step
   });
+  const canEdit = displayState.canEdit && !isPreviewMode;
+  const canRequestChange = displayState.canRequestChange && !isPreviewMode;
 
   async function handleSignOff() {
     setSubmitting(true);
@@ -386,17 +383,21 @@ export default function CustomerSelectionView() {
 
       <StepIndicator currentStep={displayState.stepNumber} finalStepLabel={displayState.finalStepLabel} />
 
-      {/* Status message card based on display state */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 flex items-start gap-2">
-        <Info size={16} className="mt-0.5 shrink-0" />
-        <span>{displayState.actionMessage}</span>
-      </div>
+      {/* Status message card - only render if actionMessage exists */}
+      {displayState.actionMessage && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 flex items-start gap-2">
+          <Info size={16} className="mt-0.5 shrink-0" />
+          <span>{displayState.actionMessage}</span>
+        </div>
+      )}
 
       {displayState.showSignOffPrompt && (
         <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 space-y-3">
           <div className="flex items-center gap-2 text-violet-800 font-medium text-sm"><FileSignature size={16} /> Sign-off Requested</div>
           <p className="text-sm text-violet-700">Please review and sign off on this approved selection to confirm your final choice.</p>
-          <Button className="gap-2" onClick={() => setShowSignOff(true)} disabled={isPreviewMode || displayState.isReadOnly}><Check size={14} /> {isPreviewMode ? "Preview mode" : "Sign Off Now"}</Button>
+          <Button className="gap-2" onClick={() => setShowSignOff(true)} disabled={isPreviewMode || displayState.isReadOnly || !displayState.canEdit}>
+            <Check size={14} /> {isPreviewMode ? "Preview mode" : displayState.isReadOnly || !displayState.canEdit ? "Selection locked" : "Sign Off Now"}
+          </Button>
         </div>
       )}
 
@@ -422,7 +423,7 @@ export default function CustomerSelectionView() {
         </div>
       )}
 
-      {isApproved && existingSelection && !changeMode && (
+      {existingSelection && displayState.isApproved && !changeMode && (
         <>
           <ApprovedSelectionView 
             selection={existingSelection} 
@@ -450,7 +451,7 @@ export default function CustomerSelectionView() {
         <CommentThread projectId={projectId} targetType="selection" targetId={existingSelection.id} staff={false} title="Comments" readOnly={isPreviewMode} />
       )}
 
-      {step === "browse" && (changeMode || (canEdit && !isApproved)) && (
+      {step === "browse" && (changeMode || canEdit) && (
         <div>
           <h2 className="font-semibold text-gray-900 mb-4">Choose a Product</h2>
           {catalogueItems.length === 0 ? (
@@ -574,7 +575,7 @@ export default function CustomerSelectionView() {
         </div>
       )}
 
-      {step === "configure" && selectedItem && (changeMode || (canEdit && !isApproved)) && (
+      {step === "configure" && selectedItem && (changeMode || canEdit) && (
         <div className="space-y-6">
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <div className="flex gap-4 mb-4">
