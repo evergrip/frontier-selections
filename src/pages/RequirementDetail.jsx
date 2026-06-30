@@ -12,6 +12,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import CommentThread from "@/components/comments/CommentThread";
 import SignOffControls from "@/components/selection/SignOffControls";
 import { SELECTION_STATUSES, CATALOGUE_ACCESS_MODES, hasPermission } from "@/lib/constants";
+import { toast } from "@/components/ui/use-toast";
 import ContextualHelpLink from "@/components/training/ContextualHelpLink";
 import SuggestedOptionsManager from "@/components/selection/SuggestedOptionsManager";
 import AssignCatalogueDialog from "@/components/catalogue/AssignCatalogueDialog";
@@ -72,6 +73,8 @@ export default function RequirementDetail() {
   const [reviewing, setReviewing] = useState(false);
   const [statusChanging, setStatusChanging] = useState(false);
   const [showAssignCatalogue, setShowAssignCatalogue] = useState(false);
+  const [signOffLoading, setSignOffLoading] = useState(false);
+  const [lockLoading, setLockLoading] = useState(false);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
@@ -195,7 +198,11 @@ export default function RequirementDetail() {
         customer_comments: data.customerComments,
         internal_notes: data.internalNotes
       });
-    } catch (e) { alert("Review failed"); }
+      toast({ title: action === "Approved" ? "Selection Approved" : action === "Rejected" ? "Selection Rejected" : "Revision Requested", description: action === "Approved" ? "The customer will be notified." : "The customer has been notified of the decision." });
+      window.dispatchEvent(new Event("frontier:data-updated"));
+    } catch (e) {
+      toast({ title: "Review failed", description: e.message || "Unknown error", variant: "destructive" });
+    }
     setReviewing(false);
     load();
   }
@@ -209,8 +216,48 @@ export default function RequirementDetail() {
         requirement_id: requirementId,
         new_status: newStatus
       });
-    } catch (e) { alert("Status change failed"); }
+      toast({ title: "Status updated", description: `Requirement status changed to "${newStatus}"` });
+      window.dispatchEvent(new Event("frontier:data-updated"));
+    } catch (e) {
+      toast({ title: "Status change failed", description: e.message || "Unknown error", variant: "destructive" });
+    }
     setStatusChanging(false);
+    load();
+  }
+
+  async function handleRequestSignOff() {
+    if (signOffLoading || !selection) return;
+    setSignOffLoading(true);
+    try {
+      const res = await base44.functions.invoke("selectionWorkflow", {
+        action: "request_signoff",
+        selection_id: selection.id
+      });
+      if (res.data?.error) throw new Error(res.data.error);
+      toast({ title: "Sign-off requested", description: "The customer has been notified to sign off on this selection." });
+      window.dispatchEvent(new Event("frontier:data-updated"));
+    } catch (e) {
+      toast({ title: "Failed to request sign-off", description: e.message || "Unknown error", variant: "destructive" });
+    }
+    setSignOffLoading(false);
+    load();
+  }
+
+  async function handleLockSelection() {
+    if (lockLoading || !selection) return;
+    setLockLoading(true);
+    try {
+      const res = await base44.functions.invoke("selectionWorkflow", {
+        action: "lock",
+        selection_id: selection.id
+      });
+      if (res.data?.error) throw new Error(res.data.error);
+      toast({ title: "Selection locked", description: "This selection is now locked and cannot be changed." });
+      window.dispatchEvent(new Event("frontier:data-updated"));
+    } catch (e) {
+      toast({ title: "Failed to lock selection", description: e.message || "Unknown error", variant: "destructive" });
+    }
+    setLockLoading(false);
     load();
   }
 
@@ -231,7 +278,11 @@ export default function RequirementDetail() {
         new_value: newMode,
         severity: "medium"
       });
-    } catch (e) { alert("Failed to change access mode"); }
+      toast({ title: "Access mode updated", description: `Customer catalogue access changed to "${newMode}"` });
+      window.dispatchEvent(new Event("frontier:data-updated"));
+    } catch (e) {
+      toast({ title: "Failed to change access mode", description: e.message || "Unknown error", variant: "destructive" });
+    }
     load();
   }
 
@@ -243,10 +294,10 @@ export default function RequirementDetail() {
     reqActions.push({ label: "Review submitted selection", onClick: () => { setReviewAction("Approved"); setShowReview(true); }, priority: "urgent", buttonLabel: "Review", description: `Customer submitted — approve, reject, or request revision` });
   }
   if (selection?.status === "Approved" && !selection?.signed_off) {
-    reqActions.push({ label: "Request sign-off", to: "#", priority: "high", buttonLabel: "Request", description: "Selection is approved — request customer sign-off to lock it in" });
+    reqActions.push({ label: "Request sign-off", onClick: handleRequestSignOff, priority: "high", buttonLabel: signOffLoading ? "Requesting..." : "Request", description: "Selection is approved — request customer sign-off to lock it in" });
   }
   if (selection?.signed_off && !selection?.locked) {
-    reqActions.push({ label: "Lock signed-off selection", to: "#", priority: "high", buttonLabel: "Lock", description: "Selection is signed off — lock it to prevent further changes" });
+    reqActions.push({ label: "Lock signed-off selection", onClick: handleLockSelection, priority: "high", buttonLabel: lockLoading ? "Locking..." : "Lock", description: "Selection is signed off — lock it to prevent further changes" });
   }
   if (!selection && (requirement.customer_catalogue_access_mode || "suggested_only") === "suggested_only") {
     reqActions.push({ label: "Add suggested options", onClick: () => setShowAssignCatalogue(true), priority: "high", buttonLabel: "Add", description: "Give the customer catalogue items to choose from" });

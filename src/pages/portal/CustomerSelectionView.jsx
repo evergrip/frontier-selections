@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import CommentThread from "@/components/comments/CommentThread";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, Package, CheckCircle, AlertTriangle, RefreshCw, History, FileSignature, Lock, Search, X, Star } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
+import { ArrowLeft, Check, Package, CheckCircle, AlertTriangle, RefreshCw, History, FileSignature, Lock, Search, X, Star, GitCompare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,7 @@ import { customerDisplayStatus } from "@/lib/constants";
 import CustomerSubstitution from "@/components/selection/CustomerSubstitution";
 import StepIndicator from "@/components/portal/StepIndicator";
 import PortalBreadcrumb from "@/components/portal/PortalBreadcrumb";
+import CompareItems from "@/components/portal/CompareItems";
 import { useProjectAccess } from "@/hooks/useProjectAccess";
 import { useCustomerPortal } from "@/components/CustomerPortalContext";
 
@@ -61,6 +63,8 @@ export default function CustomerSelectionView() {
   const [filterBrand, setFilterBrand] = useState("");
   const [suggestedOptions, setSuggestedOptions] = useState([]);
   const [loadError, setLoadError] = useState(null);
+  const [compareItems, setCompareItems] = useState([]);
+  const [showCompare, setShowCompare] = useState(false);
   const { loading: accessLoading, hasAccess } = useProjectAccess(projectId);
   const { isPreviewMode } = useCustomerPortal();
 
@@ -124,6 +128,50 @@ export default function CustomerSelectionView() {
       available = available.filter(o => shownIds.has(o.id));
     }
     return available;
+  }
+
+  function getOptionExplanation(item, groupId) {
+    const group = item?.option_groups?.find(g => g.id === groupId);
+    if (!group) return null;
+    const rules = item.option_rules || [];
+    // Check if there are "show" rules that require a specific selection first
+    const showRules = rules.filter(r => r.target_group_id === groupId && r.action === "show" && r.target_option_id);
+    if (showRules.length > 0) {
+      const unmetConditions = showRules.filter(r => !selectedOptions[r.condition_group_id]);
+      if (unmetConditions.length > 0) {
+        const conditionGroup = item.option_groups.find(g => g.id === unmetConditions[0].condition_group_id);
+        const conditionOption = conditionGroup?.options?.find(o => o.id === unmetConditions[0].condition_option_id);
+        if (conditionGroup && !selectedOptions[conditionGroup.id]) {
+          return `Choose a ${conditionGroup.name.toLowerCase()} first to see available options here.`;
+        }
+        if (conditionOption) {
+          return `These options are available when you select "${conditionOption.name}" in ${conditionGroup.name}.`;
+        }
+      }
+      // Check if a different selection is hiding options
+      const metButRestricted = showRules.filter(r => selectedOptions[r.condition_group_id] && selectedOptions[r.condition_group_id] !== r.condition_option_id);
+      if (metButRestricted.length > 0) {
+        return `Some options are hidden based on your current selections. Try a different combination.`;
+      }
+    }
+    // Check hide rules
+    const hideRules = rules.filter(r => r.target_group_id === groupId && r.action === "hide" && r.target_option_id);
+    if (hideRules.length > 0) {
+      const activeHides = hideRules.filter(r => selectedOptions[r.condition_group_id] === r.condition_option_id);
+      if (activeHides.length > 0) {
+        const conditionGroup = item.option_groups.find(g => g.id === activeHides[0].condition_group_id);
+        const conditionOption = conditionGroup?.options?.find(o => o.id === activeHides[0].condition_option_id);
+        if (conditionOption) {
+          return `Some options are not available with your selection of "${conditionOption.name}".`;
+        }
+      }
+    }
+    // If group has no active options at all
+    const activeOptions = group.options?.filter(o => o.is_active !== false) || [];
+    if (activeOptions.length === 0) {
+      return `No options are currently available for ${group.name}. Please contact your project coordinator.`;
+    }
+    return `No options available for this combination. Try changing your other selections.`;
   }
 
   function selectOption(groupId, optionId) {
@@ -231,9 +279,10 @@ export default function CustomerSelectionView() {
       });
 
       if (res.data?.error) throw new Error(res.data.error);
+      toast({ title: "Selection submitted!", description: "Your selection has been sent to Frontier for review." });
       navigate(`/portal/project/${projectId}/area/${areaId}`);
     } catch (err) {
-      alert("Failed to submit selection: " + (err.message || "Unknown error"));
+      toast({ title: "Failed to submit selection", description: err.message || "Unknown error", variant: "destructive" });
     } finally {
       setSubmitting(false);
     }
@@ -269,9 +318,10 @@ export default function CustomerSelectionView() {
       });
 
       if (res.data?.error) throw new Error(res.data.error);
+      toast({ title: "Change request submitted", description: "Your change request has been sent to Frontier for review." });
       navigate(`/portal/project/${projectId}/area/${areaId}`);
     } catch (err) {
-      alert("Failed to submit change request: " + (err.message || "Unknown error"));
+      toast({ title: "Failed to submit change request", description: err.message || "Unknown error", variant: "destructive" });
     } finally {
       setSubmitting(false);
     }
@@ -306,7 +356,7 @@ export default function CustomerSelectionView() {
       setExistingSelection((res.data?.selections || []).find(s => s.is_current) || null);
       setShowSignOff(false);
       setSignOffNote("");
-    } catch (e) { alert("Sign-off failed: " + (e.message || "Unknown error")); }
+    } catch (e) { toast({ title: "Sign-off failed", description: e.message || "Unknown error", variant: "destructive" }); }
     setSubmitting(false);
   }
 
@@ -425,6 +475,16 @@ export default function CustomerSelectionView() {
                 )}
               </div>
 
+              {compareItems.length > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center justify-between gap-2">
+                  <span className="text-sm text-blue-700 font-medium">{compareItems.length} item(s) selected for comparison</span>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => setShowCompare(true)} disabled={compareItems.length < 2} className="gap-1"><GitCompare size={14} /> Compare</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setCompareItems([])}>Clear</Button>
+                  </div>
+                </div>
+              )}
+
               {filteredItems.length === 0 ? (
                 <div className="text-center py-16 bg-white rounded-xl border text-gray-400 text-sm">No products match your search</div>
               ) : (
@@ -435,12 +495,16 @@ export default function CustomerSelectionView() {
                     const customerNote = suggested?.customer_note;
                     const priceOverride = suggested?.price_override;
                     const displayPrice = priceOverride != null ? priceOverride : (item.base_price || 0);
+                    const isInCompare = compareItems.some(c => c.id === item.id);
                     return (
-                      <button
+                      <div
                         key={item.id}
-                        onClick={() => { setSelectedItem(item); setSelectedOptions({}); setStep("configure"); }}
-                        className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-lg hover:border-gray-300 transition-all text-left"
+                        className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-lg hover:border-gray-300 transition-all text-left relative"
                       >
+                        <button
+                          onClick={() => { setSelectedItem(item); setSelectedOptions({}); setStep("configure"); }}
+                          className="w-full text-left"
+                        >
                         <div className="aspect-square bg-gray-100 relative">
                           {item.default_image ? (
                             <img src={item.default_image} alt={item.name} className="w-full h-full object-cover" />
@@ -465,7 +529,25 @@ export default function CustomerSelectionView() {
                             )}
                           </div>
                         </div>
-                      </button>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isInCompare) {
+                              setCompareItems(prev => prev.filter(c => c.id !== item.id));
+                            } else if (compareItems.length < 3) {
+                              setCompareItems(prev => [...prev, item]);
+                            } else {
+                              toast({ title: "Maximum 3 items", description: "You can compare up to 3 items at a time.", variant: "destructive" });
+                            }
+                          }}
+                          className={`absolute bottom-2 right-2 text-[10px] px-2 py-1 rounded-full font-medium transition-colors ${
+                            isInCompare ? "bg-blue-600 text-white" : "bg-white/90 text-blue-600 border border-blue-200 hover:bg-blue-50"
+                          }`}
+                        >
+                          <GitCompare size={10} className="inline mr-0.5" /> {isInCompare ? "Added" : "Compare"}
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -508,8 +590,9 @@ export default function CustomerSelectionView() {
                   {group.name} {group.is_required && <span className="text-red-500">*</span>}
                 </h3>
                 {availableOpts.length === 0 ? (
-                  <div className="bg-gray-50 border border-dashed border-gray-200 rounded-xl p-4 text-sm text-gray-400">
-                    No options available for this combination.
+                  <div className="bg-gray-50 border border-dashed border-gray-200 rounded-xl p-4 text-sm text-gray-500">
+                    <p className="font-medium text-gray-600 mb-1">No options available</p>
+                    <p className="text-xs">{getOptionExplanation(selectedItem, group.id) || "Try changing your other selections."}</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -639,6 +722,16 @@ export default function CustomerSelectionView() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <CompareItems
+        open={showCompare}
+        onOpenChange={setShowCompare}
+        items={compareItems}
+        suggestedOptions={suggestedOptions}
+        showPricing={showItemPrices}
+        onSelect={(item) => { setSelectedItem(item); setSelectedOptions({}); setStep("configure"); setCompareItems([]); }}
+        onClear={() => setCompareItems([])}
+      />
     </div>
   );
 }

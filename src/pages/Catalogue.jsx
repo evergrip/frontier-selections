@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Plus, Search, Package, Edit2, Copy, Eye, Download, Upload, LayoutDashboard, CheckSquare, Square, Trash2, Grid, List, CheckCircle, Archive, Ban, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ export default function Catalogue() {
   const [missingBtFilter, setMissingBtFilter] = useState(false);
   const [missingPriceFilter, setMissingPriceFilter] = useState(false);
   const [missingImageFilter, setMissingImageFilter] = useState(false);
+  const [queryFilter, setQueryFilter] = useState(null);
   const [selected, setSelected] = useState([]);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showBulkEdit, setShowBulkEdit] = useState(false);
@@ -34,10 +35,23 @@ export default function Catalogue() {
   const [showHardDelete, setShowHardDelete] = useState(false);
   const [hardDeleteReason, setHardDeleteReason] = useState("");
   const [user, setUser] = useState(null);
+  const [searchParams] = useSearchParams();
 
   useEffect(() => { base44.auth.me().then(u => setUser(u)).catch(() => {}); }, []);
 
   useEffect(() => { load(); }, []);
+
+  // Apply query param filters from dashboard links
+  useEffect(() => {
+    const filter = searchParams.get("filter");
+    if (!filter) return;
+    setQueryFilter(filter);
+    if (filter === "missing_bt") setMissingBtFilter(true);
+    else if (filter === "missing_price") setMissingPriceFilter(true);
+    else if (filter === "missing_image") setMissingImageFilter(true);
+    else if (filter === "active") setActiveFilter("active");
+    else if (filter === "inactive") setActiveFilter("inactive");
+  }, [searchParams]);
 
   async function load() {
     setLoading(true);
@@ -58,7 +72,16 @@ export default function Catalogue() {
     const matchMissingBt = !missingBtFilter || !item.cost_code || !item.line_item_type || !item.tax_status || !item.parent_group || !item.subgroup;
     const matchMissingPrice = !missingPriceFilter || !item.base_price || item.base_price === 0;
     const matchMissingImage = !missingImageFilter || !item.default_image;
-    return matchSearch && matchCat && matchSupplier && matchLineItem && matchTax && matchActive && matchMissingBt && matchMissingPrice && matchMissingImage;
+    // Query param filters from dashboard
+    const matchQuery = !queryFilter || (
+      (queryFilter === "missing_description" && !item.customer_description) ||
+      (queryFilter === "incomplete_options" && (!item.option_groups || item.option_groups.length === 0)) ||
+      (queryFilter === "needs_review" && !item.last_reviewed_date) ||
+      (queryFilter === "not_assigned" && !item.is_active) ||
+      (queryFilter === "discontinued_assigned" && item.status === "Discontinued") ||
+      (queryFilter === "duplicates" && items.filter(i => i.name === item.name || (item.sku && i.sku === item.sku)).length > 1)
+    );
+    return matchSearch && matchCat && matchSupplier && matchLineItem && matchTax && matchActive && matchMissingBt && matchMissingPrice && matchMissingImage && matchQuery;
   });
 
   function toggleSelect(id) {

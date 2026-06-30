@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Plus, Edit2, Trash2, FileSignature, Lock } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
+import { ArrowLeft, Plus, Edit2, Trash2, FileSignature, Lock, Star, Clock, AlertTriangle, Package, User, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,11 +14,16 @@ import CommentThread from "@/components/comments/CommentThread";
 import NextActionPanel from "@/components/staff/NextActionPanel";
 import { CATEGORIES, SELECTION_STATUSES, CATALOGUE_ACCESS_MODES } from "@/lib/constants";
 
+const DONE = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
+
 export default function AreaDetail() {
   const { projectId, areaId } = useParams();
   const [area, setArea] = useState(null);
   const [requirements, setRequirements] = useState([]);
   const [selections, setSelections] = useState([]);
+  const [suggestedOptions, setSuggestedOptions] = useState([]);
+  const [procurement, setProcurement] = useState([]);
+  const [catalogueItems, setCatalogueItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddReq, setShowAddReq] = useState(false);
   const [showEditAllowance, setShowEditAllowance] = useState(false);
@@ -26,25 +32,37 @@ export default function AreaDetail() {
   useEffect(() => { load(); }, [areaId]);
 
   async function bulkAction(action) {
+    if (bulkBusy) return;
     setBulkBusy(true);
     try {
       const res = await base44.functions.invoke("selectionWorkflow", { action, project_id: projectId, area_id: areaId });
-      alert(`${action === "request_signoff" ? "Sign-off requested" : "Locked"} for ${res.data.count || 0} selection(s)`);
+      if (res.data?.error) throw new Error(res.data.error);
+      const count = res.data?.count || 0;
+      toast({ title: action === "request_signoff" ? "Sign-off requested" : "Selections locked", description: `${count} selection(s) ${action === "request_signoff" ? "have sign-off requested" : "are now locked"}.` });
+      window.dispatchEvent(new Event("frontier:data-updated"));
       load();
-    } catch (e) { alert("Action failed"); }
+    } catch (e) {
+      toast({ title: "Action failed", description: e.message || "Unknown error", variant: "destructive" });
+    }
     setBulkBusy(false);
   }
 
   async function load() {
     setLoading(true);
-    const [a, r, s] = await Promise.all([
+    const [a, r, s, paci, proc, ci] = await Promise.all([
       base44.entities.ProjectArea.get(areaId),
       base44.entities.SelectionRequirement.filter({ area_id: areaId }),
-      base44.entities.CustomerSelection.filter({ area_id: areaId })
+      base44.entities.CustomerSelection.filter({ area_id: areaId }),
+      base44.entities.ProjectAvailableCatalogueItem.filter({ area_id: areaId }),
+      base44.entities.ProcurementItem.filter({ area_id: areaId }),
+      base44.entities.CatalogueItem.list("name", 500)
     ]);
     setArea(a);
     setRequirements(r);
     setSelections(s);
+    setSuggestedOptions(paci);
+    setProcurement(proc);
+    setCatalogueItems(ci);
     setLoading(false);
   }
 
@@ -99,20 +117,43 @@ export default function AreaDetail() {
         <div className="space-y-3">
           {requirements.map(req => {
             const sel = selections.find(s => s.requirement_id === req.id && s.is_current);
+            const cat = sel ? catalogueItems.find(c => c.id === sel.catalogue_item_id) : null;
+            const suggested = suggestedOptions.filter(s => s.requirement_id === req.id);
+            const proc = procurement.find(p => p.requirement_id === req.id);
+            const isOverdue = req.due_date && !DONE.includes(req.status) && new Date(req.due_date + "T00:00:00") < new Date();
+            const needsStaff = sel?.status === "Pending" || (!sel && suggested.length === 0 && (req.customer_catalogue_access_mode || "suggested_only") === "suggested_only");
+            const waitingCustomer = !sel && suggested.length > 0 && ["Not Started", "Viewed", "In Progress", "Revision Requested"].includes(req.status);
+            const variance = sel ? ((sel.over_allowance || 0) > 0 ? `+$${sel.over_allowance.toLocaleString()}` : (sel.under_allowance || 0) > 0 ? `-$${sel.under_allowance.toLocaleString()}` : null) : null;
             return (
               <Link
                 key={req.id}
                 to={`/projects/${projectId}/area/${areaId}/requirement/${req.id}`}
-                className="flex items-center justify-between bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow"
+                className={`flex items-start justify-between bg-white rounded-xl border p-4 hover:shadow-md transition-shadow ${isOverdue ? "border-red-200 bg-red-50/30" : "border-gray-200"}`}
               >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-medium text-gray-900">{req.name}</h3>
                     {req.is_required && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-medium">REQUIRED</span>}
+                    {needsStaff && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5"><User size={9} /> Needs Staff</span>}
+                    {waitingCustomer && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5"><Clock size={9} /> Waiting on Customer</span>}
+                    {isOverdue && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5"><AlertTriangle size={9} /> Overdue</span>}
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {req.category}{req.due_date ? ` • Due: ${req.due_date}` : ""}{req.allowance_amount ? ` • $${req.allowance_amount.toLocaleString()}` : ""}
-                  </p>
+                  <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500 flex-wrap">
+                    <span>{req.category}</span>
+                    {req.due_date && <span>Due: {req.due_date}</span>}
+                    {req.allowance_amount > 0 && <span>${req.allowance_amount.toLocaleString()}</span>}
+                    {cat && <span className="text-gray-700">• {cat.name}</span>}
+                    {suggested.length > 0 && <span className="flex items-center gap-0.5"><Star size={10} /> {suggested.length} suggested</span>}
+                    {suggested.length === 0 && (req.customer_catalogue_access_mode || "suggested_only") === "suggested_only" && !DONE.includes(req.status) && <span className="text-red-500 flex items-center gap-0.5"><Star size={10} /> No suggestions</span>}
+                  </div>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    {sel && <StatusBadge status={sel.status} />}
+                    {sel?.sign_off_requested && !sel?.signed_off && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded flex items-center gap-0.5"><FileSignature size={9} /> Sign-off requested</span>}
+                    {sel?.signed_off && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded flex items-center gap-0.5"><CheckCircle size={9} /> Signed off</span>}
+                    {sel?.locked && <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded flex items-center gap-0.5"><Lock size={9} /> Locked</span>}
+                    {proc && <StatusBadge status={proc.status} />}
+                    {variance && <span className={`text-xs font-medium ${sel.over_allowance > 0 ? "text-red-600" : "text-green-600"}`}>{variance}</span>}
+                  </div>
                 </div>
                 <StatusBadge status={req.status} />
               </Link>

@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { ChevronRight, CheckCircle, Clock, AlertCircle, ArrowRight, Wallet, AlertTriangle } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
 import AreaCard from "@/components/portal/AreaCard";
+import SelectionJourney from "@/components/portal/SelectionJourney";
 
 const DONE = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
 
@@ -63,6 +64,7 @@ export default function CustomerDashboard() {
 function ProjectCard({ project }) {
   const [areas, setAreas] = useState([]);
   const [requirements, setRequirements] = useState([]);
+  const [selections, setSelections] = useState([]);
   const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
@@ -72,6 +74,7 @@ function ProjectCard({ project }) {
         if (res.data?.error) throw new Error(res.data.error);
         setAreas(res.data?.areas || []);
         setRequirements(res.data?.requirements || []);
+        setSelections(res.data?.selections || []);
       } catch (err) {
         setLoadError(err.message);
       }
@@ -111,6 +114,10 @@ function ProjectCard({ project }) {
       {project.customer_notes && (
         <div className="bg-blue-50 rounded-xl p-3 text-sm text-blue-800 mb-4">{project.customer_notes}</div>
       )}
+
+      <div className="mb-4">
+        <SelectionJourney requirements={requirements} selections={selections} project={project} />
+      </div>
 
       <div className="mb-4">
         <div className="flex items-center justify-between text-sm mb-2">

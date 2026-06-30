@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { useParams, Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Plus, Settings, MapPin, Calendar, DollarSign, Edit2, Eye, EyeOff, Users, AlertTriangle, ClipboardList, Star, Clock, Package, FileSignature, FileSpreadsheet } from "lucide-react";
+import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
+import { toast } from "@/components/ui/use-toast";
+import { ArrowLeft, Plus, Settings, MapPin, Calendar, DollarSign, Edit2, Eye, EyeOff, Users, AlertTriangle, ClipboardList, Star, Clock, Package, FileSignature, FileSpreadsheet, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +20,7 @@ import ProjectCustomerAccess from "@/components/ProjectCustomerAccess";
 import ViewCustomerPortalDialog from "@/components/ViewCustomerPortalDialog";
 import CustomerInviteDialog from "@/components/CustomerInviteDialog";
 import BuildertrendExportDialog from "@/components/catalogue/BuildertrendExportDialog";
+import ProjectHealthStrip from "@/components/staff/ProjectHealthStrip";
 import { useCustomerPortal } from "@/components/CustomerPortalContext";
 
 export default function ProjectDetail() {
@@ -38,6 +40,8 @@ export default function ProjectDetail() {
   const [showBtExport, setShowBtExport] = useState(false);
   const [user, setUser] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [customerInvited, setCustomerInvited] = useState(false);
 
   useEffect(() => { 
     base44.auth.me().then(u => setUser(u)).catch(() => {});
@@ -51,6 +55,51 @@ export default function ProjectDetail() {
     const next = new URLSearchParams(searchParams);
     next.delete("action");
     setSearchParams(next, { replace: true });
+  }
+
+  async function handleNextAction(action) {
+    switch (action.key) {
+      case "invite":
+        setShowInvite(true);
+        break;
+      case "add_area":
+        setShowAddArea(true);
+        break;
+      case "add_requirement":
+        if (areas.length > 0) {
+          navigate(`/projects/${projectId}/area/${areas[0].id}`);
+        } else {
+          setShowAddArea(true);
+        }
+        break;
+      case "add_suggested":
+        if (action.targetReqId && action.targetAreaId) {
+          navigate(`/projects/${projectId}/area/${action.targetAreaId}/requirement/${action.targetReqId}`);
+        }
+        break;
+      case "review_pending":
+        if (action.targetReqId) {
+          const req = requirements.find(r => r.id === action.targetReqId);
+          if (req) navigate(`/projects/${projectId}/area/${req.area_id}/requirement/${req.id}`);
+        }
+        break;
+      case "send_reminders":
+        try {
+          toast({ title: "Sending reminders...", description: "Processing deadline reminders for overdue selections." });
+          await base44.functions.invoke("deadlineReminders", { action: "check_and_send", project_id: projectId });
+          toast({ title: "Reminders sent", description: "Deadline reminders have been processed." });
+          window.dispatchEvent(new Event("frontier:data-updated"));
+        } catch (e) {
+          toast({ title: "Failed to send reminders", description: e.message || "Unknown error", variant: "destructive" });
+        }
+        break;
+      case "final_package":
+        navigate(`/final-package?project=${projectId}`);
+        break;
+      case "ready_to_order":
+        navigate(`/selections-tracker?project=${projectId}&filter=ready_to_order`);
+        break;
+    }
   }
 
   async function load() {
@@ -71,6 +120,9 @@ export default function ProjectDetail() {
     setSuggestedOptions(paci);
     setProcurement(proc);
     setCatalogueItems(ci);
+    // Check customer invitation status
+    const invites = await base44.entities.CustomerInvitation.filter({ project_ids: projectId }).catch(() => []);
+    setCustomerInvited(invites.some(i => ["Active", "Account created", "Invitation sent", "Invitation opened"].includes(i.status)));
     setLoading(false);
   }
 
@@ -119,7 +171,9 @@ export default function ProjectDetail() {
         </div>
       </div>
 
-      <NextBestAction project={project} areas={areas} requirements={requirements} selections={selections} suggestedOptions={suggestedOptions} />
+      <NextBestAction project={project} areas={areas} requirements={requirements} selections={selections} suggestedOptions={suggestedOptions} onAction={(key) => handleNextAction(key)} />
+
+      <ProjectHealthStrip project={project} areas={areas} requirements={requirements} selections={selections} suggestedOptions={suggestedOptions} procurement={procurement} customerInvited={customerInvited} />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <MiniStat label="Areas" value={areas.length} />
@@ -198,41 +252,33 @@ export default function ProjectDetail() {
   );
 }
 
-function NextBestAction({ project, areas, requirements, selections, suggestedOptions }) {
+function NextBestAction({ project, areas, requirements, selections, suggestedOptions, onAction }) {
   const DONE = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
   const currentSels = selections.filter(s => s.is_current);
   
   const hasCustomer = (project.assigned_customers || []).length > 0;
   const hasAreas = areas.length > 0;
   const hasRequirements = requirements.length > 0;
-  const missingSuggested = requirements.filter(r => !DONE.includes(r.status) && (r.customer_catalogue_access_mode || "suggested_only") === "suggested_only" && !suggestedOptions.some(s => s.requirement_id === r.id)).length;
-  const pendingSubmissions = currentSels.filter(s => s.status === "Pending").length;
+  const missingSuggestedReqs = requirements.filter(r => !DONE.includes(r.status) && (r.customer_catalogue_access_mode || "suggested_only") === "suggested_only" && !suggestedOptions.some(s => s.requirement_id === r.id));
+  const missingSuggested = missingSuggestedReqs.length;
+  const pendingSubmissions = currentSels.filter(s => s.status === "Pending");
   const overdueReqs = requirements.filter(r => r.due_date && !DONE.includes(r.status) && new Date(r.due_date) < new Date()).length;
   const allComplete = requirements.filter(r => r.is_required).every(r => DONE.includes(r.status));
   const readyToOrder = requirements.filter(r => r.status === "Approved" && !DONE.slice(1).includes(r.status)).length;
 
   let action = null;
-  if (!hasCustomer) action = { icon: Users, label: "Invite customer", desc: "No customer assigned yet" };
-  else if (!hasAreas) action = { icon: MapPin, label: "Add areas", desc: "No areas/rooms added" };
-  else if (!hasRequirements) action = { icon: ClipboardList, label: "Add selection requirements", desc: "No requirements in areas" };
-  else if (missingSuggested > 0) action = { icon: Star, label: "Add suggested options", desc: `${missingSuggested} requirement(s) missing suggestions` };
-  else if (pendingSubmissions > 0) action = { icon: Clock, label: "Review pending submissions", desc: `${pendingSubmissions} awaiting approval` };
-  else if (overdueReqs > 0) action = { icon: AlertTriangle, label: "Send reminders", desc: `${overdueReqs} overdue selection(s)` };
-  else if (allComplete) action = { icon: FileSignature, label: "Generate final package", desc: "All selections approved" };
-  else if (readyToOrder > 0) action = { icon: Package, label: "Mark ready to order", desc: `${readyToOrder} can be ordered` };
+  if (!hasCustomer) action = { key: "invite", icon: Users, label: "Invite customer", desc: "No customer assigned yet" };
+  else if (!hasAreas) action = { key: "add_area", icon: MapPin, label: "Add areas", desc: "No areas/rooms added" };
+  else if (!hasRequirements) action = { key: "add_requirement", icon: ClipboardList, label: "Add selection requirements", desc: "No requirements in areas" };
+  else if (missingSuggested > 0) action = { key: "add_suggested", icon: Star, label: "Add suggested options", desc: `${missingSuggested} requirement(s) missing suggestions`, targetReqId: missingSuggestedReqs[0]?.id, targetAreaId: missingSuggestedReqs[0]?.area_id };
+  else if (pendingSubmissions.length > 0) action = { key: "review_pending", icon: Clock, label: "Review pending submissions", desc: `${pendingSubmissions.length} awaiting approval`, targetReqId: pendingSubmissions[0]?.requirement_id };
+  else if (overdueReqs > 0) action = { key: "send_reminders", icon: AlertTriangle, label: "Send reminders", desc: `${overdueReqs} overdue selection(s)` };
+  else if (allComplete) action = { key: "final_package", icon: FileSignature, label: "Generate final package", desc: "All selections approved" };
+  else if (readyToOrder > 0) action = { key: "ready_to_order", icon: Package, label: "Mark ready to order", desc: `${readyToOrder} can be ordered` };
 
   if (!action) return null;
 
   const Icon = action.icon;
-  const handleClick = () => {
-    if (action.label === "Invite customer") alert("Open the Customer Access tab to invite a customer");
-    else if (action.label === "Add areas") alert("Click 'Add Area' in the Areas & Rooms tab");
-    else if (action.label === "Add suggested options") alert("Open a requirement to add suggested options");
-    else if (action.label === "Review pending submissions") alert("Open the Selections tab and filter by 'Pending Approval'");
-    else if (action.label === "Send reminders") alert("Use the deadline reminders function");
-    else if (action.label === "Generate final package") window.location.href = "/final-package";
-    else if (action.label === "Mark ready to order") alert("Open approved selections and update procurement status");
-  };
 
   return (
     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
@@ -245,7 +291,7 @@ function NextBestAction({ project, areas, requirements, selections, suggestedOpt
           <p className="text-xs text-gray-600">{action.label} — {action.desc}</p>
         </div>
       </div>
-      <Button size="sm" onClick={handleClick}>Take Action →</Button>
+      <Button size="sm" onClick={() => onAction(action)}>Take Action →</Button>
     </div>
   );
 }
