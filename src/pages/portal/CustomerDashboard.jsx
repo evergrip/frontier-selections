@@ -272,30 +272,75 @@ function ProjectCard({ project }) {
           </div>
           
           <div className="space-y-2 pt-3 border-t border-gray-200">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-600">Selected so far</span>
-              <span className="font-semibold text-gray-900">${allowanceSummary.selectedTotal.toLocaleString()}</span>
-            </div>
-            {allowanceSummary.approvedTotal > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Approved selections</span>
-                <span className="font-semibold text-emerald-600">${allowanceSummary.approvedTotal.toLocaleString()}</span>
+            {/* show_total_allowance: show all details */}
+            {project.pricing_visibility === "show_total_allowance" && (
+              <>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">Selected so far</span>
+                  <span className="font-semibold text-gray-900">${allowanceSummary.selectedTotal.toLocaleString()}</span>
+                </div>
+                {allowanceSummary.approvedTotal > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Approved selections</span>
+                    <span className="font-semibold text-emerald-600">${allowanceSummary.approvedTotal.toLocaleString()}</span>
+                  </div>
+                )}
+                {allowanceSummary.pendingTotal > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Waiting for review</span>
+                    <span className="font-semibold text-amber-600">${allowanceSummary.pendingTotal.toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between text-sm pt-2 border-t border-gray-200">
+                  <span className="text-gray-600">
+                    {allowanceSummary.remainingAllowance >= 0 ? 'Remaining allowance' : 'Over allowance'}
+                  </span>
+                  <span className={`font-bold ${allowanceSummary.remainingAllowance >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+                    {allowanceSummary.remainingAllowance >= 0 ? '$' + allowanceSummary.remainingAllowance.toLocaleString() : '+$' + Math.abs(allowanceSummary.remainingAllowance).toLocaleString()}
+                  </span>
+                </div>
+              </>
+            )}
+            
+            {/* show_remaining_only: only show remaining or over, not selected total */}
+            {project.pricing_visibility === "show_remaining_only" && (
+              <div className="flex items-center justify-between text-sm pt-2">
+                <span className="text-gray-600">
+                  {allowanceSummary.remainingAllowance >= 0 ? 'Remaining allowance' : 'Over allowance'}
+                </span>
+                <span className={`font-bold ${allowanceSummary.remainingAllowance >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+                  {allowanceSummary.remainingAllowance >= 0 ? '$' + allowanceSummary.remainingAllowance.toLocaleString() : '+$' + Math.abs(allowanceSummary.remainingAllowance).toLocaleString()}
+                </span>
               </div>
             )}
-            {allowanceSummary.pendingTotal > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Waiting for review</span>
-                <span className="font-semibold text-amber-600">${allowanceSummary.pendingTotal.toLocaleString()}</span>
+            
+            {/* show_overage_only: only show within/over status */}
+            {project.pricing_visibility === "show_overage_only" && (
+              <div className="flex items-center justify-between text-sm pt-2">
+                <span className="text-gray-600">Budget status</span>
+                <span className={`font-bold ${allowanceSummary.remainingAllowance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {allowanceSummary.remainingAllowance >= 0 ? 'Within allowance' : '+$' + Math.abs(allowanceSummary.remainingAllowance).toLocaleString() + ' over'}
+                </span>
               </div>
             )}
-            <div className="flex items-center justify-between text-sm pt-2 border-t border-gray-200">
-              <span className="text-gray-600">
-                {allowanceSummary.remainingAllowance >= 0 ? 'Remaining allowance' : 'Over allowance'}
-              </span>
-              <span className={`font-bold ${allowanceSummary.remainingAllowance >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
-                {allowanceSummary.remainingAllowance >= 0 ? '$' + allowanceSummary.remainingAllowance.toLocaleString() : '-$' + Math.abs(allowanceSummary.remainingAllowance).toLocaleString()}
-              </span>
-            </div>
+            
+            {/* show_item_prices, show_item_allowance, show_area_allowance: show basic summary */}
+            {["show_item_prices", "show_item_allowance", "show_area_allowance"].includes(project.pricing_visibility) && (
+              <>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">Selected so far</span>
+                  <span className="font-semibold text-gray-900">${allowanceSummary.selectedTotal.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm pt-2 border-t border-gray-200">
+                  <span className="text-gray-600">
+                    {allowanceSummary.remainingAllowance >= 0 ? 'Remaining allowance' : 'Over allowance'}
+                  </span>
+                  <span className={`font-bold ${allowanceSummary.remainingAllowance >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+                    {allowanceSummary.remainingAllowance >= 0 ? '$' + allowanceSummary.remainingAllowance.toLocaleString() : '+$' + Math.abs(allowanceSummary.remainingAllowance).toLocaleString()}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

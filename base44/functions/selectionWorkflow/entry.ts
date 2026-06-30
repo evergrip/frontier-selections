@@ -260,7 +260,7 @@ Deno.serve(async (req) => {
 
       // Create allowance ledger entry
       await base44.asServiceRole.entities.AllowanceLedger.create({
-        project_id, area_id, requirement_id,
+        project_id, area_id, requirement_id, selection_id: selectionId,
         event_type: existing_selection_id ? "Selection Changed" : "Selection Submitted",
         amount: calculatedPrice, running_balance: calculatedPrice - allowanceAmount,
         description: `${catItem.name} submitted at $${calculatedPrice.toLocaleString()}`,
@@ -416,7 +416,7 @@ Deno.serve(async (req) => {
           // Create ledger entry for the delta only, not the full amount
           if (priceDelta !== 0) {
             await base44.asServiceRole.entities.AllowanceLedger.create({
-              project_id: sel.project_id, area_id: sel.area_id, requirement_id: sel.requirement_id,
+              project_id: sel.project_id, area_id: sel.area_id, requirement_id: sel.requirement_id, selection_id: sel.id,
               event_type: "Price Adjustment",
               amount: priceDelta, running_balance: over - under,
               description: `Price adjustment: $${oldPrice.toLocaleString()} → $${newPrice.toLocaleString()} (delta: ${priceDelta >= 0 ? '+' : ''}$${priceDelta.toLocaleString()})`,
@@ -458,17 +458,17 @@ Deno.serve(async (req) => {
           requirement_id: sel.requirement_id,
           event_type: "Selection Approved"
         });
-        // Check by selection_id field (exact match) instead of description text
+        // Check by selection_id field (exact match) - primary method
+        // Fallback to description check only for legacy entries without selection_id
         const hasApprovalEntry = existingLedger.some(entry => {
-          // Use selection_id if available, fallback to description check for legacy entries
+          if (entry.selection_id === sel.id) return true;
           const desc = entry.description || "";
-          return (entry.requirement_id === sel.requirement_id && desc.includes(sel.id)) || 
-                 desc.includes(`approved at $${finalPrice.toLocaleString()}`);
+          return desc.includes(`Selection ${sel.id} approved`) || desc.includes(`approved at $${finalPrice.toLocaleString()}`);
         });
 
         if (!hasApprovalEntry) {
           await base44.asServiceRole.entities.AllowanceLedger.create({
-            project_id: sel.project_id, area_id: sel.area_id, requirement_id: sel.requirement_id,
+            project_id: sel.project_id, area_id: sel.area_id, requirement_id: sel.requirement_id, selection_id: sel.id,
             event_type: "Selection Approved",
             amount: finalPrice, running_balance: over - under,
             description: `Selection ${sel.id} approved at $${finalPrice.toLocaleString()}`,

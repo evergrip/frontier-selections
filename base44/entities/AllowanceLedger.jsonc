@@ -11,6 +11,9 @@
     "requirement_id": {
       "type": "string"
     },
+    "selection_id": {
+      "type": "string"
+    },
     "event_type": {
       "type": "string",
       "enum": [
@@ -21,7 +24,9 @@
         "Overage Added",
         "Credit Created",
         "Staff Override",
-        "Manual Adjustment"
+        "Manual Adjustment",
+        "Price Adjustment",
+        "Correction"
       ]
     },
     "amount": {

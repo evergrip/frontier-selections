@@ -17,7 +17,7 @@ import CompareItems from "@/components/portal/CompareItems";
 import SelectionAllowanceSummary from "@/components/portal/SelectionAllowanceSummary";
 import { useProjectAccess } from "@/hooks/useProjectAccess";
 import { useCustomerPortal } from "@/components/CustomerPortalContext";
-import { getCustomerSelectionDisplayState, buildSelectionFinancialSummary, getCustomerStatusMessage } from "@/utils/selectionDisplay";
+import { getCustomerSelectionDisplayState } from "@/utils/selectionTruth";
 
 function assembleItem(item, groups, values, rules) {
   const itemGroups = (groups || [])
@@ -345,22 +345,13 @@ export default function CustomerSelectionView() {
   const canEdit = !isLocked && (!isApproved || requirement.can_request_change_after_approval);
   const canRequestChange = isApproved && !!existingSelection && (canEdit || isLocked);
   const hasOpenChangeRequest = changeRequests.some(c => !["Approved", "Rejected", "Cancelled"].includes(c.status));
-  const displayStatus = customerDisplayStatus(requirement, existingSelection, hasOpenChangeRequest);
-  
-  // New unified display state for stepper and status consistency
-  const displayState = requirement && existingSelection !== undefined
-    ? getCustomerSelectionDisplayState({
-        requirement,
-        selection: existingSelection,
-        hasOpenChangeRequest,
-        currentStepMode: step
-      })
-    : getCustomerSelectionDisplayState({
-        requirement: { status: "Not Started" },
-        selection: null,
-        hasOpenChangeRequest: false,
-        currentStepMode: "browse"
-      });
+  // Unified display state for stepper and status consistency - powered by truth helper
+  const displayState = getCustomerSelectionDisplayState({
+    requirement,
+    currentSelection: existingSelection,
+    changeRequests,
+    currentStepMode: step
+  });
 
   async function handleSignOff() {
     setSubmitting(true);
@@ -390,7 +381,7 @@ export default function CustomerSelectionView() {
           <h1 className="text-xl font-bold text-gray-900">{requirement.name}</h1>
           <p className="text-sm text-gray-500">{requirement.category}{requirement.is_required ? " • Required" : " • Optional"}</p>
         </div>
-        <StatusBadge status={displayStatus} />
+        <StatusBadge status={displayState.customerStatusLabel || displayState.displayStatus} />
       </div>
 
       <StepIndicator currentStep={displayState.stepNumber} finalStepLabel={displayState.finalStepLabel} />

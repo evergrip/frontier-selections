@@ -58,7 +58,7 @@ export function getSelectionTruthState({ requirement, currentSelection, changeRe
   } else {
     if (reqStatus === "Not Started" || reqStatus === "Viewed" || reqStatus === "In Progress") {
       customerStatusLabel = "Select Item";
-      needsCustomerAction = !requirement?.is_required === false;
+      needsCustomerAction = requirement?.is_required !== false;
       canCustomerEdit = true;
     } else if (CUSTOMER_COMPLETE_STATUSES.includes(reqStatus)) {
       customerStatusLabel = reqStatus;
@@ -89,15 +89,19 @@ export function getSelectionTruthState({ requirement, currentSelection, changeRe
       staffStatusLabel = "Awaiting Review";
       needsStaffAction = true;
       canStaffApprove = true;
+    } else if (selStatus === "Approved" && reqStatus === "Changed After Approval") {
+      staffStatusLabel = "Changed After Approval";
+      needsStaffAction = hasOpenChangeRequest;
+      if (!isSignedOff && !isLocked) {
+        canStaffRequestSignOff = true;
+        canStaffLock = requirement?.lock_after_approval !== false;
+      }
     } else if (selStatus === "Approved") {
       staffStatusLabel = "Approved";
       if (!isSignedOff && !isLocked) {
         canStaffRequestSignOff = true;
-        canStaffLock = true;
+        canStaffLock = requirement?.lock_after_approval !== false;
       }
-    } else if (selStatus === "Approved" && reqStatus === "Changed After Approval") {
-      staffStatusLabel = "Changed After Approval";
-      needsStaffAction = true;
     } else if (selStatus === "Rejected" || selStatus === "Revision Requested") {
       staffStatusLabel = "Waiting on Customer";
     } else if (selStatus === "Locked") {
@@ -203,11 +207,30 @@ export function getSelectionTruthState({ requirement, currentSelection, changeRe
   };
 }
 
-export function getCustomerSelectionDisplayState({ requirement, currentSelection, changeRequests = [] }) {
+export function getCustomerSelectionDisplayState({ requirement, currentSelection, changeRequests = [], currentStepMode = "browse" }) {
   const truth = getSelectionTruthState({ requirement, currentSelection, changeRequests });
   
   // Customer-friendly status labels
   const displayStatus = truth.customerStatusLabel;
+  
+  // Calculate step number based on state
+  let stepNumber = 3;
+  if (!currentSelection && requirement?.status === "Not Started") {
+    stepNumber = currentStepMode === "configure" ? 4 : 3;
+  } else if (currentSelection) {
+    const selStatus = currentSelection.status;
+    if (selStatus === "Pending" || selStatus === "Submitted") {
+      stepNumber = 7;
+    } else if (selStatus === "Approved" || truth.isSignedOff || truth.isLocked || truth.isFinalized) {
+      stepNumber = 7;
+    } else if (selStatus === "Revision Requested" || selStatus === "Rejected") {
+      stepNumber = currentSelection?.catalogue_item_id ? 6 : 4;
+    } else if (selStatus === "Change Requested") {
+      stepNumber = 7;
+    } else {
+      stepNumber = 5;
+    }
+  }
   
   // Stepper labels - must match badge
   let finalStepLabel = "Review Selections";
@@ -253,7 +276,8 @@ export function getCustomerSelectionDisplayState({ requirement, currentSelection
     ...truth,
     displayStatus,
     finalStepLabel,
-    actionMessage
+    actionMessage,
+    stepNumber
   };
 }
 
