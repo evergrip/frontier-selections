@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, AlertTriangle } from "lucide-react";
 import PackagePreview from "@/components/finalpackage/PackagePreview";
+import PortalBreadcrumb from "@/components/portal/PortalBreadcrumb";
 import { useProjectAccess } from "@/hooks/useProjectAccess";
 
 export default function CustomerFinalPackage() {
@@ -36,6 +37,7 @@ export default function CustomerFinalPackage() {
 
   return (
     <div className="space-y-6">
+      <PortalBreadcrumb items={[{ label: data.project?.name || "Project", to: `/portal/project/${projectId}` }, { label: "Final Selections Package" }]} />
       <Link to={`/portal/project/${projectId}`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900"><ArrowLeft size={16} /> Back to project</Link>
       <PackagePreview project={data.project} items={data.packageItems} internal={false} showPrice={data.showPrice} showAllowance={data.showAllowance} />
     </div>

@@ -67,6 +67,8 @@ export default function RequirementDetail() {
   const [audit, setAudit] = useState([]);
   const [substitutions, setSubstitutions] = useState([]);
   const [user, setUser] = useState(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [statusChanging, setStatusChanging] = useState(false);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
@@ -178,7 +180,8 @@ export default function RequirementDetail() {
   }, [selection, catalogueItem, assembledItem]);
 
   async function handleReview(action, data) {
-    if (!selection) return;
+    if (!selection || reviewing) return;
+    setReviewing(true);
     try {
       await base44.functions.invoke("selectionWorkflow", {
         action: "review",
@@ -190,10 +193,13 @@ export default function RequirementDetail() {
         internal_notes: data.internalNotes
       });
     } catch (e) { alert("Review failed"); }
+    setReviewing(false);
     load();
   }
 
   async function handleRequirementStatusChange(newStatus) {
+    if (statusChanging) return;
+    setStatusChanging(true);
     try {
       await base44.functions.invoke("selectionWorkflow", {
         action: "change_requirement_status",
@@ -201,6 +207,7 @@ export default function RequirementDetail() {
         new_status: newStatus
       });
     } catch (e) { alert("Status change failed"); }
+    setStatusChanging(false);
     load();
   }
 

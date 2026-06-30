@@ -1,11 +1,19 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { Bell, Check, AlertTriangle } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Bell, Check, AlertTriangle, Loader2 } from "lucide-react";
+
+function getNotificationLink(n) {
+  if (n.link) return n.link;
+  if (n.project_id) return `/portal/project/${n.project_id}`;
+  return "/portal";
+}
 
 export default function CustomerNotifications() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
+  const [markingId, setMarkingId] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -22,11 +30,15 @@ export default function CustomerNotifications() {
   }, []);
 
   async function markRead(id) {
+    if (markingId) return;
+    setMarkingId(id);
     try {
       await base44.functions.invoke("customerPortal", { action: "mark_notification_read", notification_id: id });
       setNotifications(notifications.map(n => n.id === id ? { ...n, is_read: true } : n));
     } catch (err) {
       alert("Failed to mark notification: " + (err.message || "Unknown error"));
+    } finally {
+      setMarkingId(null);
     }
   }
 
@@ -43,22 +55,36 @@ export default function CustomerNotifications() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
       {notifications.length === 0 ? (
-        <div className="text-center py-20">
+        <div className="text-center py-20 bg-white rounded-2xl border border-gray-200">
           <Bell size={48} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-400 text-sm">No notifications</p>
+          <p className="text-gray-500 text-sm font-medium">You're all caught up!</p>
+          <p className="text-gray-400 text-xs mt-1">No new notifications. We'll let you know when there's an update.</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {notifications.map(n => (
-            <div key={n.id} className={`bg-white rounded-xl border p-4 flex items-start gap-3 ${n.is_read ? "border-gray-200" : "border-blue-200 bg-blue-50/30"}`}>
-              <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${n.is_read ? "bg-gray-200" : "bg-blue-500"}`} />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">{n.title}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>
+          {notifications.map(n => {
+            const link = getNotificationLink(n);
+            return (
+              <div key={n.id} className={`bg-white rounded-xl border p-4 flex items-start gap-3 ${n.is_read ? "border-gray-200" : "border-blue-200 bg-blue-50/30"}`}>
+                <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${n.is_read ? "bg-gray-200" : "bg-blue-500"}`} />
+                <Link to={link} className="flex-1 min-w-0" onClick={() => !n.is_read && markRead(n.id)}>
+                  <p className="text-sm font-medium text-gray-900 hover:text-blue-600">{n.title}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>
+                  {n.created_date && <p className="text-[10px] text-gray-400 mt-1">{new Date(n.created_date).toLocaleString()}</p>}
+                </Link>
+                {!n.is_read && (
+                  <button
+                    onClick={() => markRead(n.id)}
+                    disabled={markingId === n.id}
+                    className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 shrink-0 disabled:opacity-50"
+                  >
+                    {markingId === n.id ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
+                    Mark read
+                  </button>
+                )}
               </div>
-              {!n.is_read && <button onClick={() => markRead(n.id)} className="text-xs text-gray-400 hover:text-gray-600">Mark read</button>}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

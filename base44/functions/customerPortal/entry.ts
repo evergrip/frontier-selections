@@ -322,6 +322,18 @@ Deno.serve(async (req) => {
       const access = await verifyProjectAccess(project_id);
       if (!access.ok) return Response.json({ error: access.error }, { status: access.status });
 
+      // Duplicate check: prevent double-post of identical content from same user within 30 seconds
+      const recentComments = await base44.asServiceRole.entities.Comment.filter(
+        { project_id, target_type, target_id, created_by_id: user.id }, "-created_date", 5
+      );
+      const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
+      const duplicate = recentComments.find(c =>
+        c.content === content && c.created_date && c.created_date >= thirtySecondsAgo
+      );
+      if (duplicate) {
+        return Response.json({ comment: duplicate, duplicate: true });
+      }
+
       // Customers can never create internal notes
       const finalIsInternal = access.isStaff ? !!is_internal : false;
       const authorRole = access.isStaff ? "staff" : "customer";

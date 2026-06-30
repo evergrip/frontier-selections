@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import MoodBoardCard from "@/components/moodboard/MoodBoardCard";
 import MoodBoardComments from "@/components/moodboard/MoodBoardComments";
 import AddMoodBoardDialog from "@/components/moodboard/AddMoodBoardDialog";
+import PortalBreadcrumb from "@/components/portal/PortalBreadcrumb";
 import { MOOD_BOARD_TAGS } from "@/lib/constants";
 import { useCustomerPortal } from "@/components/CustomerPortalContext";
 
@@ -22,6 +23,8 @@ export default function CustomerMoodBoard() {
   const [commentTarget, setCommentTarget] = useState(null);
   const [commentCounts, setCommentCounts] = useState({});
   const [loadError, setLoadError] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [togglingId, setTogglingId] = useState(null);
   const { isPreviewMode } = useCustomerPortal();
 
   useEffect(() => {
@@ -68,17 +71,21 @@ export default function CustomerMoodBoard() {
   function updateItem(updated) { setItems(items.map(i => i.id === updated.id ? updated : i)); }
 
   async function handleDelete(id) {
-    if (isPreviewMode) return;
+    if (isPreviewMode || deletingId) return;
+    setDeletingId(id);
     try {
       await base44.functions.invoke("customerPortal", { action: "delete_mood_board_item", project_id: projectId, item_id: id });
       setItems(items.filter(i => i.id !== id));
     } catch (err) {
       alert("Failed to delete item: " + (err.message || "Unknown error"));
+    } finally {
+      setDeletingId(null);
     }
   }
 
   async function handleToggleFavourite(item) {
-    if (isPreviewMode) return;
+    if (isPreviewMode || togglingId) return;
+    setTogglingId(item.id);
     try {
       const res = await base44.functions.invoke("customerPortal", {
         action: "update_mood_board_item", project_id: projectId, item_id: item.id,
@@ -87,6 +94,8 @@ export default function CustomerMoodBoard() {
       if (res.data?.item) updateItem(res.data.item);
     } catch (err) {
       alert("Failed to update: " + (err.message || "Unknown error"));
+    } finally {
+      setTogglingId(null);
     }
   }
 
@@ -101,6 +110,7 @@ export default function CustomerMoodBoard() {
 
   return (
     <div className="space-y-6">
+      <PortalBreadcrumb items={[{ label: "Mood Board" }]} />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Mood Board</h1>
@@ -131,7 +141,8 @@ export default function CustomerMoodBoard() {
       {filtered.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-2xl border border-gray-200">
           <Image size={48} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-400 text-sm">No mood board items yet</p>
+          <p className="text-gray-500 text-sm font-medium">No inspiration saved yet</p>
+          <p className="text-gray-400 text-xs mt-1">Upload photos, screenshots, or links to show Frontier your style preferences.</p>
           {!isPreviewMode && <Button variant="outline" className="mt-4" onClick={() => setShowAdd(true)}>Add your first inspiration</Button>}
         </div>
       ) : (

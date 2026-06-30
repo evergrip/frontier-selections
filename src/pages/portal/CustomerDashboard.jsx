@@ -47,8 +47,9 @@ export default function CustomerDashboard() {
 
       {projects.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-2xl border border-gray-200">
-          <p className="text-gray-400">No projects assigned to you yet.</p>
-          <p className="text-sm text-gray-400 mt-1">Contact your project manager to get started.</p>
+          <p className="text-gray-500 font-medium">No projects assigned to you yet.</p>
+          <p className="text-sm text-gray-400 mt-1">Once your project coordinator assigns you to a project, it will appear here.</p>
+          <p className="text-sm text-gray-400 mt-0.5">Contact Frontier Building Group to get started.</p>
         </div>
       ) : (
         <div className="space-y-6">

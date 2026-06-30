@@ -5,6 +5,7 @@ import { ArrowLeft, AlertCircle, CheckCircle, MessageSquare, Package, ArrowRight
 import StatusBadge from "@/components/ui/StatusBadge";
 import CommentThread from "@/components/comments/CommentThread";
 import ProjectTimeline from "@/components/comments/ProjectTimeline";
+import PortalBreadcrumb from "@/components/portal/PortalBreadcrumb";
 import { useProjectAccess } from "@/hooks/useProjectAccess";
 import { useCustomerPortal } from "@/components/CustomerPortalContext";
 
@@ -86,6 +87,7 @@ export default function CustomerProjectView() {
 
   return (
     <div className="space-y-6">
+      <PortalBreadcrumb items={[{ label: project.name }]} />
       <div className="flex items-center gap-3">
         <Link to="/portal" className="p-2 rounded-lg hover:bg-gray-100"><ArrowLeft size={18} /></Link>
         <div className="flex-1">

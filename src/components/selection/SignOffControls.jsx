@@ -56,10 +56,10 @@ export default function SignOffControls({ selection, procurement, audit, onDone 
 
       <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
         {!selection.sign_off_requested && !selection.signed_off && (
-          <Button size="sm" variant="outline" className="gap-1" disabled={busy} onClick={() => call({ action: "request_signoff", selection_id: selection.id, project_id: selection.project_id })}><FileSignature size={14} /> Request Sign-off</Button>
+          <Button size="sm" variant="outline" className="gap-1" disabled={busy} onClick={() => call({ action: "request_signoff", selection_id: selection.id, project_id: selection.project_id })}><FileSignature size={14} /> {busy ? "Requesting..." : "Request Sign-off"}</Button>
         )}
         {selection.signed_off && !selection.locked && (
-          <Button size="sm" className="gap-1 bg-gray-800 hover:bg-gray-900" disabled={busy} onClick={() => call({ action: "lock", selection_id: selection.id, project_id: selection.project_id })}><Lock size={14} /> Lock Selection</Button>
+          <Button size="sm" className="gap-1 bg-gray-800 hover:bg-gray-900" disabled={busy} onClick={() => call({ action: "lock", selection_id: selection.id, project_id: selection.project_id })}><Lock size={14} /> {busy ? "Locking..." : "Lock Selection"}</Button>
         )}
         {selection.locked && (
           <Button size="sm" variant="outline" className="gap-1 text-red-600" disabled={busy} onClick={() => setShowUnlock(true)}><Unlock size={14} /> Unlock</Button>
@@ -86,7 +86,7 @@ export default function SignOffControls({ selection, procurement, audit, onDone 
           <div className="space-y-3">
             <p className="text-sm text-gray-500">Unlocking allows the customer to edit this selection again. An internal reason is required and will be recorded in the audit history.</p>
             <div><Label>Internal Reason *</Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} placeholder="Why is this selection being unlocked?" /></div>
-            <Button className="w-full" disabled={!reason.trim() || busy} onClick={async () => { setShowUnlock(false); await call({ action: "unlock", selection_id: selection.id, reason }); setReason(""); }}>Unlock Selection</Button>
+            <Button className="w-full" disabled={!reason.trim() || busy} onClick={async () => { setShowUnlock(false); await call({ action: "unlock", selection_id: selection.id, reason }); setReason(""); }}>{busy ? "Unlocking..." : "Unlock Selection"}</Button>
           </div>
         </DialogContent>
       </Dialog>

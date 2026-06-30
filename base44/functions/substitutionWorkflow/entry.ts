@@ -73,6 +73,10 @@ Deno.serve(async (req) => {
       if (!rec) return Response.json({ error: "Not found" }, { status: 404 });
       const access = await verifyProjectAccess(rec.project_id);
       if (!access.ok) return Response.json({ error: access.error }, { status: access.status });
+      if (rec.status === "Sent to customer") return Response.json({ ok: true, already_sent: true });
+      if (!["Draft", "Customer rejected", "Cancelled"].includes(rec.status)) {
+        return Response.json({ error: `Cannot send substitution with status: ${rec.status}` }, { status: 400 });
+      }
       await base44.asServiceRole.entities.SubstitutionRecommendation.update(recId, { status: "Sent to customer", sent_date: now });
       await notifyCustomers(rec.project_id, "Substitution recommendation", `A substitution has been recommended for ${rec.original_item_name}.`, `/portal/project/${rec.project_id}`);
       await audit("substitution", recId, "substitution_sent", `${actor} sent substitution recommendation for ${rec.original_item_name} to customer`, rec.project_id, { severity: 'high' });
@@ -87,7 +91,13 @@ Deno.serve(async (req) => {
       if (!access.ok) return Response.json({ error: access.error }, { status: access.status });
       // Only customers (not staff) can accept/reject; staff use approve/cancel
       if (access.isStaff) return Response.json({ error: "Staff must use approve or cancel, not accept/reject" }, { status: 400 });
-      const status = action === "accept" ? "Customer accepted" : "Customer rejected";
+      // Idempotency: if already in the target state, return success without side effects
+      const targetStatus = action === "accept" ? "Customer accepted" : "Customer rejected";
+      if (rec.status === targetStatus) return Response.json({ ok: true, already_done: true });
+      if (rec.status !== "Sent to customer") {
+        return Response.json({ error: `Cannot ${action} substitution with status: ${rec.status}` }, { status: 400 });
+      }
+      const status = targetStatus;
       await base44.asServiceRole.entities.SubstitutionRecommendation.update(recId, { status, customer_decision_date: now, customer_note: body.note != null ? body.note : rec.customer_note });
       await notifyStaff(rec.project_id, `Substitution ${action === "accept" ? "accepted" : "rejected"}`, `Customer ${action === "accept" ? "accepted" : "rejected"} the substitution for ${rec.original_item_name}.`, `/substitution/${recId}`);
       await audit("substitution", recId, `substitution_${action === "accept" ? "accepted" : "rejected"}`, `${actor} ${action === "accept" ? "accepted" : "rejected"} substitution for ${rec.original_item_name}`, rec.project_id, { severity: 'high', customer_note: body.note });
@@ -101,6 +111,8 @@ Deno.serve(async (req) => {
       if (!rec) return Response.json({ error: "Not found" }, { status: 404 });
       const access = await verifyProjectAccess(rec.project_id);
       if (!access.ok) return Response.json({ error: access.error }, { status: access.status });
+      // Idempotency: if already approved, return the existing selection
+      if (rec.status === "Staff approved") return Response.json({ ok: true, already_done: true });
       if (rec.status !== "Customer accepted") return Response.json({ error: "Customer must accept first" }, { status: 400 });
       const oldSel = await base44.asServiceRole.entities.CustomerSelection.get(rec.selection_id).catch(() => null);
       if (!oldSel) return Response.json({ error: "Original selection not found" }, { status: 404 });
@@ -160,6 +172,9 @@ Deno.serve(async (req) => {
       if (!rec) return Response.json({ error: "Not found" }, { status: 404 });
       const access = await verifyProjectAccess(rec.project_id);
       if (!access.ok) return Response.json({ error: access.error }, { status: access.status });
+      // Idempotency: if already cancelled, return success
+      if (rec.status === "Cancelled") return Response.json({ ok: true, already_done: true });
+      if (rec.status === "Staff approved") return Response.json({ error: "Cannot cancel an approved substitution" }, { status: 400 });
       await base44.asServiceRole.entities.SubstitutionRecommendation.update(recId, { status: "Cancelled" });
       await audit("substitution", recId, "substitution_cancelled", `${actor} cancelled substitution recommendation for ${rec.original_item_name}`, rec.project_id, { severity: 'medium' });
       return Response.json({ ok: true });

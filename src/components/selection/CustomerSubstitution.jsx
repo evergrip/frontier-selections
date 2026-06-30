@@ -80,8 +80,8 @@ export default function CustomerSubstitution({ projectId, selectionId, showPrici
           <div className="space-y-3 pt-2 border-t border-gray-100">
             <div><Label>Comment (optional)</Label><Textarea value={note} onChange={e => setNote(e.target.value)} rows={2} placeholder="Any questions or comments..." /></div>
             <div className="flex gap-2">
-              <Button onClick={() => decide("accept")} disabled={busy} className="gap-2 bg-emerald-600 hover:bg-emerald-700"><Check size={14} /> Accept Substitution</Button>
-              <Button variant="outline" onClick={() => decide("reject")} disabled={busy} className="gap-2 text-red-600"><X size={14} /> Reject</Button>
+              <Button onClick={() => decide("accept")} disabled={busy} className="gap-2 bg-emerald-600 hover:bg-emerald-700"><Check size={14} /> {busy ? "Accepting..." : "Accept Substitution"}</Button>
+              <Button variant="outline" onClick={() => decide("reject")} disabled={busy} className="gap-2 text-red-600"><X size={14} /> {busy ? "Rejecting..." : "Reject"}</Button>
             </div>
           </div>
         )}

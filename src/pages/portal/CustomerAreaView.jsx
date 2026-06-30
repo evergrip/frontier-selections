@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, AlertCircle, AlertTriangle } from "lucide-react";
+import { ArrowLeft, AlertCircle, AlertTriangle, Package } from "lucide-react";
 import SelectionCard from "@/components/portal/SelectionCard";
+import PortalBreadcrumb from "@/components/portal/PortalBreadcrumb";
 import { useProjectAccess } from "@/hooks/useProjectAccess";
 
 const DONE = ["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Installed"];
@@ -64,6 +65,7 @@ export default function CustomerAreaView() {
 
   return (
     <div className="space-y-6">
+      <PortalBreadcrumb items={[{ label: "Project", to: `/portal/project/${projectId}` }, { label: area.name }]} />
       <div className="flex items-center gap-3">
         <Link to={`/portal/project/${projectId}`} className="p-2 rounded-lg hover:bg-gray-100"><ArrowLeft size={18} /></Link>
         <div className="flex-1">
@@ -93,7 +95,11 @@ export default function CustomerAreaView() {
       </div>
 
       {requirements.length === 0 ? (
-        <div className="text-center py-16 text-gray-400 text-sm bg-white rounded-2xl border border-gray-200">No selections required for this area yet</div>
+        <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
+          <Package size={32} className="mx-auto text-gray-300 mb-2" />
+          <p className="text-gray-500 text-sm">No selections needed for this area yet.</p>
+          <p className="text-gray-400 text-xs mt-1">Your project coordinator will add selections here when ready. Check back later or contact them with questions.</p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {sortedReqs.map(req => {

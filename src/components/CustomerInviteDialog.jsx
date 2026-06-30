@@ -84,7 +84,7 @@ export default function CustomerInviteDialog({ open, onClose, preselectedProject
           <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={loading}>
             {loading ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
-            Send Invitation
+            {loading ? "Sending..." : "Send Invitation"}
           </Button>
         </DialogFooter>
       </DialogContent>

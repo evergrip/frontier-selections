@@ -11,6 +11,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import { customerDisplayStatus } from "@/lib/constants";
 import CustomerSubstitution from "@/components/selection/CustomerSubstitution";
 import StepIndicator from "@/components/portal/StepIndicator";
+import PortalBreadcrumb from "@/components/portal/PortalBreadcrumb";
 import { useProjectAccess } from "@/hooks/useProjectAccess";
 import { useCustomerPortal } from "@/components/CustomerPortalContext";
 
@@ -311,11 +312,16 @@ export default function CustomerSelectionView() {
 
   return (
     <div className="space-y-6">
+      <PortalBreadcrumb items={[
+        { label: project?.name || "Project", to: `/portal/project/${projectId}` },
+        { label: area?.name || "Area", to: `/portal/project/${projectId}/area/${areaId}` },
+        { label: requirement.name }
+      ]} />
       <div className="flex items-center gap-3">
         <Link to={`/portal/project/${projectId}/area/${areaId}`} className="p-2 rounded-lg hover:bg-gray-100"><ArrowLeft size={18} /></Link>
         <div className="flex-1">
           <h1 className="text-xl font-bold text-gray-900">{requirement.name}</h1>
-          <p className="text-sm text-gray-500">{requirement.category}{requirement.is_required ? " • Required" : ""}</p>
+          <p className="text-sm text-gray-500">{requirement.category}{requirement.is_required ? " • Required" : " • Optional"}</p>
         </div>
         <StatusBadge status={displayStatus} />
       </div>
@@ -336,7 +342,7 @@ export default function CustomerSelectionView() {
       )}
       {isLocked && (
         <div className="bg-gray-100 border border-gray-300 rounded-xl p-4 text-sm text-gray-700 flex items-start gap-2">
-          <Lock size={16} className="mt-0.5 shrink-0" /> This selection is locked. To make changes, please submit a change request.
+          <Lock size={16} className="mt-0.5 shrink-0" /> This choice is finalized and cannot be changed without staff help. If you need to make a change, please contact your project coordinator.
         </div>
       )}
 

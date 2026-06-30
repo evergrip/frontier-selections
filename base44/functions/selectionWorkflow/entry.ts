@@ -295,6 +295,15 @@ Deno.serve(async (req) => {
         return Response.json({ error: `Cannot request change on selection with status: ${existingSelection.status}` }, { status: 400 });
       }
 
+      // Duplicate check: prevent multiple open change requests for the same selection
+      const existingCRs = await base44.asServiceRole.entities.ChangeRequest.filter(
+        { selection_id, requirement_id }, "-created_date", 50
+      );
+      const openCR = existingCRs.find(cr => !["Approved", "Rejected", "Cancelled"].includes(cr.status));
+      if (openCR) {
+        return Response.json({ error: "There is already an open change request for this selection. Please wait for staff to review it." }, { status: 409 });
+      }
+
       // Validate new catalogue item
       const validation = await validateCatalogueItem(project_id, requirement_id, catalogue_item_id, selected_options);
       if (!validation.ok) return Response.json({ error: validation.error }, { status: validation.status });
@@ -458,7 +467,8 @@ Deno.serve(async (req) => {
         const a = await verifyProjectAccess(s.project_id);
         if (!a.ok) return Response.json({ error: a.error }, { status: a.status });
       }
-      const approved = sels.filter(s => s.status === "Approved" && !s.signed_off);
+      // Idempotent: only request sign-off on selections that haven't been requested yet
+      const approved = sels.filter(s => s.status === "Approved" && !s.signed_off && !s.sign_off_requested);
       let count = 0;
       for (const s of approved) {
         await base44.asServiceRole.entities.CustomerSelection.update(s.id, { sign_off_requested: true });
@@ -485,6 +495,7 @@ Deno.serve(async (req) => {
         const a = await verifyProjectAccess(s.project_id);
         if (!a.ok) return Response.json({ error: a.error }, { status: a.status });
       }
+      // Idempotent: only lock selections that aren't already locked
       const lockable = sels.filter(s => s.status === "Approved" && s.signed_off && !s.locked);
       let count = 0;
       for (const s of lockable) {

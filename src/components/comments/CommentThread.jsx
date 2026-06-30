@@ -13,6 +13,7 @@ export default function CommentThread({ projectId, targetType, targetId, staff, 
   const [authorName, setAuthorName] = useState("");
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [loadError, setLoadError] = useState(null);
+  const [posting, setPosting] = useState(false);
 
   useEffect(() => { if (targetId) load(); }, [targetId]);
 
@@ -46,7 +47,8 @@ export default function CommentThread({ projectId, targetType, targetId, staff, 
   }
 
   async function doPost() {
-    if (readOnly || !content.trim()) return;
+    if (readOnly || !content.trim() || posting) return;
+    setPosting(true);
     try {
       const res = await base44.functions.invoke("customerPortal", {
         action: "create_comment",
@@ -54,10 +56,12 @@ export default function CommentThread({ projectId, targetType, targetId, staff, 
         content, is_internal: staff ? isInternal : false, attachments
       });
       if (res.data?.error) throw new Error(res.data.error);
-      if (res.data?.comment) setComments([...comments, res.data.comment]);
+      if (res.data?.comment && !res.data?.duplicate) setComments([...comments, res.data.comment]);
       setContent(""); setAttachments([]); setConfirmVisible(false);
     } catch (err) {
       alert("Failed to post comment: " + (err.message || "Unknown error"));
+    } finally {
+      setPosting(false);
     }
   }
 
@@ -78,7 +82,7 @@ export default function CommentThread({ projectId, targetType, targetId, staff, 
     <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
       {title && <h3 className="font-semibold text-gray-900 text-sm">{title}</h3>}
       <div className="space-y-3">
-        {comments.length === 0 && <p className="text-sm text-gray-400">No comments yet</p>}
+        {comments.length === 0 && <p className="text-sm text-gray-400">No messages yet. Start the conversation — ask a question or share a thought.</p>}
         {comments.map(c => (
           <div key={c.id} className={`rounded-lg p-3 ${c.is_internal ? "bg-yellow-50 border border-yellow-200" : "bg-blue-50 border border-blue-200"}`}>
             <div className="flex items-center justify-between mb-1">
@@ -122,7 +126,7 @@ export default function CommentThread({ projectId, targetType, targetId, staff, 
           <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 text-xs text-amber-800 space-y-2">
             <div className="flex items-center gap-1"><AlertTriangle size={12} /> This comment will be visible to the customer. Post it?</div>
             <div className="flex gap-2">
-              <Button size="sm" onClick={doPost}>Yes, post</Button>
+              <Button size="sm" onClick={doPost} disabled={posting}>{posting ? "Posting..." : "Yes, post"}</Button>
               <Button size="sm" variant="outline" onClick={() => setConfirmVisible(false)}>Cancel</Button>
             </div>
           </div>
@@ -131,7 +135,7 @@ export default function CommentThread({ projectId, targetType, targetId, staff, 
           readOnly ? (
             <p className="text-xs text-gray-400">Preview mode - comments disabled.</p>
           ) : (
-            <Button size="sm" onClick={handlePost} disabled={!content.trim()}>Post Comment</Button>
+            <Button size="sm" onClick={handlePost} disabled={!content.trim() || posting}>{posting ? "Posting..." : "Post Comment"}</Button>
           )
         )}
       </div>
