@@ -298,6 +298,23 @@ export const PERMISSIONS = [
   "preview_customer_view"
 ];
 
+export const BT_UNITS = ["ea", "sq ft", "lin ft", "hr", "day", "allowance", "set", "lot"];
+export const BT_COST_TYPES = ["Labor", "Material", "Equipment", "Subcontractor", "Other", ""];
+export const BT_MARKUP_TYPES = ["%", "$", "$/Unit", "C/P"];
+export const BT_LINE_ITEM_TYPES = ["Estimate", "Allowance"];
+export const BT_TAX_STATUSES = ["Taxable", "Non-Taxable"];
+export const BT_EXPORT_COLUMNS = [
+  "Title", "Description", "Parent Group", "Parent Group Description", "Subgroup",
+  "Subgroup Description", "Cost Code", "Quantity", "Unit", "Unit Cost", "Cost Type",
+  "Total Cost", "Internal Notes", "Markup", "Markup Type", "Line Item Type", "Tax"
+];
+export const BT_IMPORT_TARGETS = [
+  { value: "new_items", label: "New catalogue items" },
+  { value: "estimate_lines", label: "Project-specific estimate lines" },
+  { value: "suggested_options", label: "Project suggested selection options" },
+  { value: "allowance_placeholders", label: "Allowance placeholders" }
+];
+
 export const CATALOGUE_ACCESS_MODES = [
   { value: "suggested_only", label: "Suggested options only" },
   { value: "suggested_plus_request", label: "Suggested options plus request other" },

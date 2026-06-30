@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Upload, Copy, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,17 +9,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CATEGORIES, ITEM_STATUSES } from "@/lib/constants";
+import { CATEGORIES, ITEM_STATUSES, BT_UNITS, BT_COST_TYPES, BT_MARKUP_TYPES, BT_LINE_ITEM_TYPES, BT_TAX_STATUSES } from "@/lib/constants";
 import OptionValueEditor from "@/components/catalogue/OptionValueEditor";
+import BuildertrendSection from "@/components/catalogue/BuildertrendSection";
 import ContextualHelpLink from "@/components/training/ContextualHelpLink";
 
 const emptyItem = {
   name: "", category: "Other", supplier: "", brand: "", collection: "", sku: "",
-  description: "", base_price: 0, unit_of_measure: "", default_image: "",
-  gallery_images: [], spec_sheet_url: "", supplier_link: "", lead_time: "",
-  warranty_info: "", installation_notes: "", customer_notes: "", internal_notes: "",
-  tags: [], taxable: true, markup_rule: "", labour_included: false,
-  install_complexity: "", status: "Active"
+  model_number: "", description: "", customer_description: "", base_price: 0,
+  default_quantity: 1, unit_of_measure: "", default_image: "",
+  gallery_images: [], product_url: "", spec_sheet_url: "", supplier_link: "",
+  lead_time: "", lead_time_days: null, warranty_info: "", installation_notes: "",
+  customer_notes: "", internal_notes: "", tags: [], taxable: true, tax_status: "Taxable",
+  markup_rule: "", labour_included: false, install_complexity: "", status: "Active",
+  is_active: true, is_discontinued: false,
+  cost_code: "Buildertrend Flat Rate", cost_type: "", parent_group: "",
+  parent_group_description: "", subgroup: "", subgroup_description: "",
+  markup: 0, markup_type: "", line_item_type: "",
+  replacement_item_id: "", last_reviewed_date: null
 };
 
 export default function CatalogueItemEditor() {
@@ -32,6 +39,7 @@ export default function CatalogueItemEditor() {
   const [existingRules, setExistingRules] = useState([]);
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
 
   useEffect(() => {
     if (!isNew) loadItem(itemId);
@@ -244,6 +252,18 @@ export default function CatalogueItemEditor() {
         <button onClick={() => navigate("/catalogue")} className="p-2 rounded-lg hover:bg-gray-100"><ArrowLeft size={18} /></button>
         <h1 className="text-2xl font-bold text-gray-900">{isNew ? "New Catalogue Item" : "Edit Item"}</h1>
         <ContextualHelpLink category="Product Configurator" relatedModule="Catalogue" label="How to create a configurable catalogue item" />
+        {!isNew && (
+          <Button variant="outline" size="sm" className="gap-2 ml-auto" disabled={duplicating} onClick={async () => {
+            const newName = prompt("Name for the duplicated item:", `${form.name} (Copy)`);
+            if (!newName || !newName.trim()) return;
+            setDuplicating(true);
+            try {
+              const res = await base44.functions.invoke("catalogueManagement", { action: "duplicate_item", source_item_id: itemId, name: newName.trim() });
+              navigate(`/catalogue/${res.data.item.id}`);
+            } catch (e) { alert(e.response?.data?.error || "Failed to duplicate"); }
+            finally { setDuplicating(false); }
+          }}><Copy size={14} /> {duplicating ? "Duplicating..." : "Duplicate"}</Button>
+        )}
       </div>
 
       <Tabs defaultValue="details">
@@ -292,6 +312,9 @@ export default function CatalogueItemEditor() {
               <label className="flex items-center gap-2 text-sm"><Switch checked={form.labour_included} onCheckedChange={v => update("labour_included", v)} /> Labour Included</label>
             </div>
           </div>
+
+          {/* Buildertrend Export Mapping */}
+          <BuildertrendSection form={form} update={update} />
         </TabsContent>
 
         <TabsContent value="options" className="mt-6 space-y-4">

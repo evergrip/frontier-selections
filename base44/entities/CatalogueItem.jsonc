@@ -45,12 +45,22 @@
     "sku": {
       "type": "string"
     },
+    "model_number": {
+      "type": "string"
+    },
     "description": {
+      "type": "string"
+    },
+    "customer_description": {
       "type": "string"
     },
     "base_price": {
       "type": "number",
       "default": 0
+    },
+    "default_quantity": {
+      "type": "number",
+      "default": 1
     },
     "unit_of_measure": {
       "type": "string"
@@ -64,6 +74,9 @@
         "type": "string"
       }
     },
+    "product_url": {
+      "type": "string"
+    },
     "spec_sheet_url": {
       "type": "string"
     },
@@ -72,6 +85,9 @@
     },
     "lead_time": {
       "type": "string"
+    },
+    "lead_time_days": {
+      "type": "number"
     },
     "warranty_info": {
       "type": "string"
@@ -94,6 +110,15 @@
     "taxable": {
       "type": "boolean",
       "default": true
+    },
+    "tax_status": {
+      "type": "string",
+      "enum": [
+        "Taxable",
+        "Non-Taxable",
+        ""
+      ],
+      "default": "Taxable"
     },
     "markup_rule": {
       "type": "string"
@@ -118,10 +143,135 @@
         "Substitution Recommended"
       ],
       "default": "Active"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "is_discontinued": {
+      "type": "boolean",
+      "default": false
+    },
+    "cost_code": {
+      "type": "string"
+    },
+    "cost_type": {
+      "type": "string",
+      "enum": [
+        "Labor",
+        "Material",
+        "Equipment",
+        "Subcontractor",
+        "Other",
+        ""
+      ],
+      "default": ""
+    },
+    "parent_group": {
+      "type": "string"
+    },
+    "parent_group_description": {
+      "type": "string"
+    },
+    "subgroup": {
+      "type": "string"
+    },
+    "subgroup_description": {
+      "type": "string"
+    },
+    "markup": {
+      "type": "number",
+      "default": 0
+    },
+    "markup_type": {
+      "type": "string",
+      "enum": [
+        "%",
+        "$",
+        "$/Unit",
+        "C/P",
+        ""
+      ],
+      "default": ""
+    },
+    "line_item_type": {
+      "type": "string",
+      "enum": [
+        "Estimate",
+        "Allowance",
+        ""
+      ],
+      "default": ""
+    },
+    "replacement_item_id": {
+      "type": "string"
+    },
+    "last_reviewed_date": {
+      "type": "string",
+      "format": "date-time"
     }
   },
   "required": [
     "name",
     "category"
-  ]
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "customer"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }

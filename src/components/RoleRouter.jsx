@@ -14,6 +14,7 @@ import ProjectDetail from "@/pages/ProjectDetail";
 import AreaDetail from "@/pages/AreaDetail";
 import RequirementDetail from "@/pages/RequirementDetail";
 import Catalogue from "@/pages/Catalogue";
+import CatalogueDashboard from "@/pages/CatalogueDashboard";
 import CatalogueItemEditor from "@/pages/CatalogueItemEditor";
 import Templates from "@/pages/Templates";
 import Notifications from "@/pages/Notifications";
@@ -91,6 +92,7 @@ export default function RoleRouter() {
           <Route path="/projects/:projectId/area/:areaId" element={<AreaDetail />} />
           <Route path="/projects/:projectId/area/:areaId/requirement/:requirementId" element={<RequirementDetail />} />
           <Route path="/catalogue" element={<Catalogue />} />
+          <Route path="/catalogue-dashboard" element={<CatalogueDashboard />} />
           <Route path="/catalogue/:itemId" element={<CatalogueItemEditor />} />
           <Route path="/templates" element={<Templates />} />
           <Route path="/notifications" element={<Notifications />} />

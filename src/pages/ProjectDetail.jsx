@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Plus, Settings, MapPin, Calendar, DollarSign, Edit2, Eye, EyeOff, Users, AlertTriangle, ClipboardList, Star, Clock, Package, FileSignature } from "lucide-react";
+import { ArrowLeft, Plus, Settings, MapPin, Calendar, DollarSign, Edit2, Eye, EyeOff, Users, AlertTriangle, ClipboardList, Star, Clock, Package, FileSignature, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,7 @@ import AreaCard from "@/components/staff/AreaCard";
 import ContextualHelpLink from "@/components/training/ContextualHelpLink";
 import ProjectCustomerAccess from "@/components/ProjectCustomerAccess";
 import ViewCustomerPortalDialog from "@/components/ViewCustomerPortalDialog";
+import BuildertrendExportDialog from "@/components/catalogue/BuildertrendExportDialog";
 import { useCustomerPortal } from "@/components/CustomerPortalContext";
 
 export default function ProjectDetail() {
@@ -32,6 +33,7 @@ export default function ProjectDetail() {
   const [showAddArea, setShowAddArea] = useState(false);
   const [showEditProject, setShowEditProject] = useState(false);
   const [showViewPortal, setShowViewPortal] = useState(false);
+  const [showBtExport, setShowBtExport] = useState(false);
   const [user, setUser] = useState(null);
 
   useEffect(() => { 
@@ -96,6 +98,9 @@ export default function ProjectDetail() {
             </Button>
           )}
           <ContextualHelpLink category="Allowances" label="How allowances and overages are calculated" />
+          <Button variant="outline" size="sm" onClick={() => setShowBtExport(true)} className="gap-2">
+            <FileSpreadsheet size={14} /> Buildertrend Export
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setShowEditProject(true)} className="gap-2">
             <Settings size={14} /> Settings
           </Button>

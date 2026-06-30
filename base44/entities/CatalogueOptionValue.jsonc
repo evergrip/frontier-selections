@@ -14,10 +14,17 @@
     "image": {
       "type": "string"
     },
+    "image_url": {
+      "type": "string"
+    },
     "description": {
       "type": "string"
     },
     "price_modifier": {
+      "type": "number",
+      "default": 0
+    },
+    "quantity_modifier": {
       "type": "number",
       "default": 0
     },
@@ -60,11 +67,103 @@
         "Substitution Recommended"
       ],
       "default": "Active"
+    },
+    "buildertrend_title_override": {
+      "type": "string"
+    },
+    "buildertrend_description_override": {
+      "type": "string"
+    },
+    "cost_code_override": {
+      "type": "string"
+    },
+    "cost_type_override": {
+      "type": "string"
+    },
+    "markup_override": {
+      "type": "number"
+    },
+    "markup_type_override": {
+      "type": "string"
+    },
+    "tax_status_override": {
+      "type": "string"
+    },
+    "unavailable_with_option_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "required_with_option_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
   },
   "required": [
     "option_group_id",
     "catalogue_item_id",
     "name"
-  ]
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "customer"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }

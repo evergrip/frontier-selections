@@ -8,6 +8,9 @@
     "name": {
       "type": "string"
     },
+    "description": {
+      "type": "string"
+    },
     "display_order": {
       "type": "number",
       "default": 0
@@ -19,10 +22,93 @@
     "is_active": {
       "type": "boolean",
       "default": true
+    },
+    "min_selections": {
+      "type": "number",
+      "default": 0
+    },
+    "max_selections": {
+      "type": "number",
+      "default": 1
+    },
+    "customer_visible": {
+      "type": "boolean",
+      "default": true
+    },
+    "staff_only": {
+      "type": "boolean",
+      "default": false
+    },
+    "affects_price": {
+      "type": "boolean",
+      "default": true
+    },
+    "affects_buildertrend_export": {
+      "type": "boolean",
+      "default": false
     }
   },
   "required": [
     "catalogue_item_id",
     "name"
-  ]
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "customer"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "staff"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }
