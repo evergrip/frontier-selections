@@ -20,6 +20,7 @@ function isRequirementCustomerComplete(requirement, currentSelection) {
     if (currentSelection.status === "Approved") return true;
     if (currentSelection.signed_off === true) return true;
     if (currentSelection.locked === true) return true;
+    if (["Approved", "Locked", "Ready to Order", "Ordered", "Received", "Delivered to Site", "Installed"].includes(currentSelection.status)) return true;
   }
   if (CUSTOMER_COMPLETE_STATUSES.includes(requirement.status)) return true;
   return false;
