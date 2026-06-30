@@ -85,14 +85,29 @@ export default function Procurement() {
     missing: items.filter(missingInfo).length,
   }), [items]);
 
+  const BULK_STATUS_ACTIONS = {
+    "Ordered": "bulk_mark_ordered",
+    "Received": "bulk_mark_received",
+    "Delivered to Site": "bulk_mark_delivered_to_site",
+    "Installed": "bulk_mark_installed",
+  };
+
   async function handleBulkStatus(newStatus) {
     if (bulkSaving || selected.length === 0) return;
     setBulkSaving(true);
     try {
-      await base44.entities.ProcurementItem.bulkUpdate(selected.map(id => ({ id, status: newStatus, order_date: newStatus === "Ordered" ? new Date().toISOString().slice(0, 10) : undefined, actual_received_date: newStatus === "Received" ? new Date().toISOString().slice(0, 10) : undefined, delivered_to_site_date: newStatus === "Delivered to Site" ? new Date().toISOString().slice(0, 10) : undefined, installed_date: newStatus === "Installed" ? new Date().toISOString().slice(0, 10) : undefined })));
+      const res = await base44.functions.invoke("procurementWorkflow", {
+        action: BULK_STATUS_ACTIONS[newStatus],
+        item_ids: selected,
+        request_id: `bulk-status-${Date.now()}`
+      });
+      if (res.data?.failed?.length > 0) {
+        alert(`${res.data.failed.length} item(s) failed to update.`);
+      }
       setSelected([]);
       setBulkSupplier(""); setBulkDate("");
       await reload();
+      window.dispatchEvent(new Event("frontier:data-updated"));
     } catch (e) { alert("Bulk update failed: " + (e.message || "")); }
     setBulkSaving(false);
   }
@@ -101,9 +116,22 @@ export default function Procurement() {
     if (bulkSaving || selected.length === 0 || !value) return;
     setBulkSaving(true);
     try {
-      await base44.entities.ProcurementItem.bulkUpdate(selected.map(id => ({ id, [field]: value })));
+      const actionMap = {
+        supplier: "bulk_set_supplier",
+        expected_delivery_date: "bulk_set_expected_delivery_date",
+      };
+      const res = await base44.functions.invoke("procurementWorkflow", {
+        action: actionMap[field],
+        item_ids: selected,
+        value,
+        request_id: `bulk-field-${Date.now()}`
+      });
+      if (res.data?.failed?.length > 0) {
+        alert(`${res.data.failed.length} item(s) failed to update.`);
+      }
       setSelected([]); setBulkSupplier(""); setBulkDate("");
       await reload();
+      window.dispatchEvent(new Event("frontier:data-updated"));
     } catch (e) { alert("Bulk update failed: " + (e.message || "")); }
     setBulkSaving(false);
   }

@@ -176,12 +176,12 @@ export default function Projects() {
                     <ClipboardCheck size={12} /> Selections
                   </Link>
                   {s.customerInvited && (
-                    <Link to={`/projects/${p.id}`} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50">
+                    <Link to={`/projects/${p.id}?action=portal`} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50">
                       <Eye size={12} /> Portal
                     </Link>
                   )}
                   {!s.customerInvited && (
-                    <Link to={`/projects/${p.id}`} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50">
+                    <Link to={`/projects/${p.id}?action=invite`} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50">
                       <UserPlus size={12} /> Invite
                     </Link>
                   )}

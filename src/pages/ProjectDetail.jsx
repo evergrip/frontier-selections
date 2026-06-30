@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Plus, Settings, MapPin, Calendar, DollarSign, Edit2, Eye, EyeOff, Users, AlertTriangle, ClipboardList, Star, Clock, Package, FileSignature, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import AreaCard from "@/components/staff/AreaCard";
 import ContextualHelpLink from "@/components/training/ContextualHelpLink";
 import ProjectCustomerAccess from "@/components/ProjectCustomerAccess";
 import ViewCustomerPortalDialog from "@/components/ViewCustomerPortalDialog";
+import CustomerInviteDialog from "@/components/CustomerInviteDialog";
 import BuildertrendExportDialog from "@/components/catalogue/BuildertrendExportDialog";
 import { useCustomerPortal } from "@/components/CustomerPortalContext";
 
@@ -33,13 +34,24 @@ export default function ProjectDetail() {
   const [showAddArea, setShowAddArea] = useState(false);
   const [showEditProject, setShowEditProject] = useState(false);
   const [showViewPortal, setShowViewPortal] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
   const [showBtExport, setShowBtExport] = useState(false);
   const [user, setUser] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => { 
     base44.auth.me().then(u => setUser(u)).catch(() => {});
     load(); 
+    const action = searchParams.get("action");
+    if (action === "portal") setShowViewPortal(true);
+    if (action === "invite") setShowInvite(true);
   }, [projectId]);
+
+  function clearActionParam() {
+    const next = new URLSearchParams(searchParams);
+    next.delete("action");
+    setSearchParams(next, { replace: true });
+  }
 
   async function load() {
     setLoading(true);
@@ -172,7 +184,14 @@ export default function ProjectDetail() {
       <ViewCustomerPortalDialog 
         project={project} 
         open={showViewPortal} 
-        onOpenChange={setShowViewPortal} 
+        onOpenChange={(v) => { setShowViewPortal(v); if (!v) clearActionParam(); }} 
+      />
+      <CustomerInviteDialog
+        open={showInvite}
+        onClose={() => { setShowInvite(false); clearActionParam(); }}
+        preselectedProjectId={projectId}
+        preselectedProjectName={project.name}
+        onInvited={() => { setShowInvite(false); clearActionParam(); load(); }}
       />
       <BuildertrendExportDialog open={showBtExport} onOpenChange={setShowBtExport} projectId={projectId} projectName={project.name} />
     </div>

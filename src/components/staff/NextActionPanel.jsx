@@ -5,7 +5,8 @@ import { ArrowRight, Lightbulb } from "lucide-react";
 export default function NextActionPanel({ actions, title = "Next Actions" }) {
   if (!actions || actions.length === 0) return null;
 
-  const sorted = [...actions].sort((a, b) => (a.priority || 99) - (b.priority || 99));
+  const rank = { urgent: 1, high: 2, medium: 3, low: 4 };
+  const sorted = [...actions].sort((a, b) => (rank[a.priority] || 99) - (rank[b.priority] || 99));
   const top = sorted[0];
   const rest = sorted.slice(1, 4);
 

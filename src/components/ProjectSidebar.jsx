@@ -39,6 +39,13 @@ export default function ProjectSidebar({ selectedProject, onProjectSelect, colla
     return () => { unsubReq?.(); unsubSel?.(); unsubPaci?.(); };
   }, []);
 
+  // Listen for app-level data-updated events (selection review, procurement update, customer invite, etc.)
+  useEffect(() => {
+    const handler = () => loadProjects();
+    window.addEventListener("frontier:data-updated", handler);
+    return () => window.removeEventListener("frontier:data-updated", handler);
+  }, []);
+
   async function loadProjects() {
     try {
       const [proj, req, sel] = await Promise.all([

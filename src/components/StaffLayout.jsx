@@ -27,7 +27,7 @@ const TOP_NAV_ITEMS = [
 
 const MORE_NAV_ITEMS = [
   { label: "Supplier Orders", path: "/supplier-orders", icon: PackageCheck },
-  { label: "Mood Board", path: "/staff-mood-board", icon: Palette },
+  { label: "Mood Board", path: "/mood-board", icon: Palette },
   { label: "Final Packages", path: "/final-package", icon: FileBox },
   { label: "Templates", path: "/templates", icon: LayoutTemplate },
   { label: "Notifications", path: "/notifications", icon: Bell },
