@@ -346,6 +346,75 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === 'listExistingUsers') {
+      const users = await base44.asServiceRole.entities.User.list('-created_date', 500);
+      const customers = users.filter(u => u.role === 'customer' || (!u.role && u.role !== 'admin' && u.role !== 'staff'));
+      return Response.json({ users: customers });
+    }
+
+    if (action === 'linkExistingUser') {
+      const { user_id, project_ids, project_names, phone } = body;
+      if (!user_id || !project_ids || project_ids.length === 0) {
+        return Response.json({ error: 'User and at least one project are required' }, { status: 400 });
+      }
+
+      for (const pid of project_ids) {
+        if (!(await verifyStaffProjectAccess(pid))) {
+          return Response.json({ error: 'You do not have access to one or more of the selected projects' }, { status: 403 });
+        }
+      }
+
+      const existingUser = await base44.asServiceRole.entities.User.get(user_id).catch(() => null);
+      if (!existingUser) {
+        return Response.json({ error: 'User not found' }, { status: 404 });
+      }
+
+      const email = existingUser.email;
+      const customerName = existingUser.full_name || existingUser.email;
+      const now = new Date().toISOString();
+
+      // Check for existing invitation record for this email
+      const existing = await base44.asServiceRole.entities.CustomerInvitation.filter({ email });
+
+      let invitation;
+      if (existing.length > 0) {
+        const inv = existing[0];
+        const mergedProjectIds = [...new Set([...(inv.project_ids || []), ...project_ids])];
+        const mergedProjectNames = [...new Set([...(inv.project_names || []), ...project_names])];
+        invitation = await base44.asServiceRole.entities.CustomerInvitation.update(inv.id, {
+          customer_name: customerName, phone: phone || inv.phone,
+          project_ids: mergedProjectIds, project_names: mergedProjectNames,
+          status: 'Active', user_id: existingUser.id,
+          invited_by: user.id, invited_by_name: user.full_name || user.email,
+          invited_date: inv.invited_date || now, last_login: now
+        });
+      } else {
+        invitation = await base44.asServiceRole.entities.CustomerInvitation.create({
+          email, customer_name: customerName, phone,
+          project_ids, project_names, status: 'Active', user_id: existingUser.id,
+          invited_by: user.id, invited_by_name: user.full_name || user.email,
+          invited_date: now, last_login: now, opened_count: 1
+        });
+      }
+
+      // Add the user ID (not email) to assigned_customers for each project
+      for (const pid of project_ids) {
+        try {
+          const project = await base44.asServiceRole.entities.Project.get(pid);
+          const current = project.assigned_customers || [];
+          if (!current.includes(existingUser.id)) {
+            await base44.asServiceRole.entities.Project.update(pid, { assigned_customers: [...current, existingUser.id] });
+          }
+        } catch (e) {}
+      }
+
+      await createAuditLog(base44.asServiceRole, 'existing_user_linked',
+        `${user.full_name || user.email} linked existing user ${customerName} (${email}) to project(s): ${(project_names || []).join(', ')}`,
+        project_ids[0], { invitation_id: invitation.id, user_id: existingUser.id, severity: 'high' });
+
+      return Response.json({ message: 'Customer access granted', invitation });
+    }
+
     if (action === 'list') {
       const invitations = await base44.asServiceRole.entities.CustomerInvitation.list('-invited_date', 200);
       return Response.json({ invitations });
