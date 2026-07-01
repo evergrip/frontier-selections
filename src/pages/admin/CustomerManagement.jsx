@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle, XCircle, Eye } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, FolderKanban } from "lucide-react";
+import AssignProjectsDialog from "@/components/admin/AssignProjectsDialog";
 
 export default function CustomerManagement() {
   const [customers, setCustomers] = useState([]);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [assigning, setAssigning] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -81,9 +83,14 @@ export default function CustomerManagement() {
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{c.last_login ? new Date(c.last_login).toLocaleDateString() : '—'}</td>
                     <td className="px-4 py-3 text-right">
-                      <Button size="sm" variant="ghost" onClick={() => toggleActive(c)}>
-                        {c.active === false ? 'Reactivate' : 'Deactivate'}
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => setAssigning(c)}>
+                          <FolderKanban size={12} /> Projects
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => toggleActive(c)}>
+                          {c.active === false ? 'Reactivate' : 'Deactivate'}
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -91,6 +98,15 @@ export default function CustomerManagement() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {assigning && (
+        <AssignProjectsDialog
+          customer={assigning}
+          projects={projects}
+          onClose={() => setAssigning(null)}
+          onSaved={() => { setAssigning(null); load(); }}
+        />
       )}
     </div>
   );
