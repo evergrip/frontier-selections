@@ -119,7 +119,11 @@ export default function CustomerDashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">My Projects</h1>
-        <p className="text-sm text-gray-500 mt-1">Track your selections and stay on schedule</p>
+        <p className="text-sm text-gray-500 mt-1">
+          {projects.length > 1
+            ? `You have ${projects.length} projects. Select one below to view its details, or use the project switcher in the header to jump between projects.`
+            : "Track your selections and stay on schedule"}
+        </p>
       </div>
 
       {projects.length === 0 ? (

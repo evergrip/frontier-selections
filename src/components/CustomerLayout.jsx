@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Home, FolderKanban, Image, Bell, LogOut, Menu, X } from "lucide-react";
 import CustomerPortalBanner from "@/components/CustomerPortalBanner";
+import ProjectSwitcher from "@/components/portal/ProjectSwitcher";
 import { useCustomerPortal } from "@/components/CustomerPortalContext";
 
 const NAV_ITEMS = [
@@ -34,6 +35,7 @@ export default function CustomerLayout() {
               </div>
               <span className="font-semibold text-gray-900">Frontier Selections</span>
             </div>
+            <ProjectSwitcher />
           </div>
           <nav className="hidden lg:flex items-center gap-1">
             {NAV_ITEMS.map(item => {

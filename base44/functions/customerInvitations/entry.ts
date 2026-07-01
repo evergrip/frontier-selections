@@ -348,7 +348,7 @@ Deno.serve(async (req) => {
 
     if (action === 'listExistingUsers') {
       const users = await base44.asServiceRole.entities.User.list('-created_date', 500);
-      const customers = users.filter(u => u.role === 'customer' || (!u.role && u.role !== 'admin' && u.role !== 'staff'));
+      const customers = users.filter(u => u.role === 'user');
       return Response.json({ users: customers });
     }
 
