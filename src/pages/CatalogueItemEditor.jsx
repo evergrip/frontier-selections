@@ -40,19 +40,25 @@ export default function CatalogueItemEditor() {
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
-    if (!isNew) loadItem(itemId);
+    if (!isNew) {
+      setLoading(true);
+      setLoadError("");
+      loadItem(itemId);
+    }
   }, [itemId]);
 
   async function loadItem(id) {
-    const [item, groups, values, rules] = await Promise.all([
-      base44.entities.CatalogueItem.get(id),
-      base44.entities.CatalogueOptionGroup.filter({ catalogue_item_id: id }),
-      base44.entities.CatalogueOptionValue.filter({ catalogue_item_id: id }),
-      base44.entities.CatalogueOptionRule.filter({ catalogue_item_id: id })
-    ]);
-    const sortedGroups = (groups || []).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    try {
+      const [item, groups, values, rules] = await Promise.all([
+        base44.entities.CatalogueItem.get(id),
+        base44.entities.CatalogueOptionGroup.filter({ catalogue_item_id: id }),
+        base44.entities.CatalogueOptionValue.filter({ catalogue_item_id: id }),
+        base44.entities.CatalogueOptionRule.filter({ catalogue_item_id: id })
+      ]);
+      const sortedGroups = (groups || []).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
     const optionGroups = sortedGroups.map(g => ({
       id: g.id,
       name: g.name,
@@ -76,11 +82,15 @@ export default function CatalogueItemEditor() {
       action: r.action,
       value: r.value || ""
     }));
-    setForm({ ...emptyItem, ...item, option_groups: optionGroups, option_rules: optionRules });
-    setExistingGroups(optionGroups);
-    setExistingValues(optionGroups.flatMap(g => g.options));
-    setExistingRules(optionRules);
-    setLoading(false);
+      setForm({ ...emptyItem, ...item, option_groups: optionGroups, option_rules: optionRules });
+      setExistingGroups(optionGroups);
+      setExistingValues(optionGroups.flatMap(g => g.options));
+      setExistingRules(optionRules);
+      setLoading(false);
+    } catch (e) {
+      setLoadError(e.response?.data?.error || e.message || "Failed to load item");
+      setLoading(false);
+    }
   }
 
   function update(field, value) { setForm(prev => ({ ...prev, [field]: value })); }
@@ -245,6 +255,17 @@ export default function CatalogueItemEditor() {
   }
 
   if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" /></div>;
+
+  if (loadError) return (
+    <div className="p-6 lg:p-8 max-w-2xl">
+      <button onClick={() => navigate("/catalogue")} className="p-2 rounded-lg hover:bg-gray-100 mb-4"><ArrowLeft size={18} /></button>
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+        <p className="text-red-700 font-medium mb-2">Failed to load item</p>
+        <p className="text-sm text-red-600">{loadError}</p>
+        <Button variant="outline" className="mt-4" onClick={() => navigate("/catalogue")}>Back to Catalogue</Button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-4xl">
