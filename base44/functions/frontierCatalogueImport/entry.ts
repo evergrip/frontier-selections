@@ -451,74 +451,107 @@ Deno.serve(async (req) => {
         valuesCreated: 0, valuesUpdated: 0, valuesSkipped: 0,
         errors: [],
         rateLimitRetries: 0,
-        completedPhase: null
+        completedPhase: null,
+        missingValuesFound: 0,
+        valuesAttemptedThisRun: 0
       };
 
       const itemKeyToId = {};
       let rateLimitStopped = false;
+      const isMissingOnly = import_scope === "missing_values_only";
 
-      // Phase 1: Catalogue Items
+      // Helper: chunk array into groups of n
+      function chunk(arr, n) {
+        const out = [];
+        for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+        return out;
+      }
+
+      // Helper: bulk create with rate-limit retry, chunked at 400 per call
+      async function bulkCreateWithRetry(entityName, payloads, chunkSize = 400) {
+        let totalCreated = 0;
+        for (const batch of chunk(payloads, chunkSize)) {
+          await withRateLimitRetry(async () => {
+            const created = await base44.asServiceRole.entities[entityName].bulkCreate(batch);
+            totalCreated += created.length;
+          }, results);
+          await sleep(500);
+        }
+        return totalCreated;
+      }
+
+      // ===== Phase 1: Catalogue Items (bulk) =====
       if (doItems && !rateLimitStopped) {
         try {
-          await processInBatches(items, 10, 500, 0, async (item) => {
-            try {
-              if (!item.name) { results.errors.push({ row: item._rowIndex, error: "Missing name", type: "item" }); return; }
-              const { category } = resolveCategory(item.category);
-              const status = item.status && VALID_ITEM_STATUSES.includes(item.status) ? item.status : "Active";
-              const taxStatus = item.tax_status || "Taxable";
-              const existing = item.import_key ? existingByKey[item.import_key] : null;
+          const toCreate = [];
+          const toUpdate = [];
 
-              if (existing) {
-                if (doUpdate) {
-                  if (!isDryRun) {
-                    const updatePayload = {
-                      name: item.name, category, supplier: item.supplier, brand: item.brand,
-                      collection: item.collection, sku: item.sku, model_number: item.model_number,
-                      description: item.description, customer_description: item.customer_description || item.description,
-                      base_price: item.base_price, default_quantity: item.default_quantity,
-                      unit_of_measure: item.unit_of_measure, status,
-                      tax_status: taxStatus, taxable: taxStatus === "Taxable",
-                      cost_type: item.cost_type, parent_group: item.parent_group,
-                      subgroup: item.subgroup, line_item_type: item.line_item_type,
-                      tags: item.tags, source_pdf_page: item.source_pdf_page || null,
-                      review_status: item.review_status, review_notes: item.review_notes,
-                      import_key: item.import_key
-                    };
-                    if (item._boolProvided.is_active) updatePayload.is_active = item.is_active;
-                    await withRateLimitRetry(() => base44.asServiceRole.entities.CatalogueItem.update(existing.id, updatePayload), results);
-                  }
-                  results.itemsUpdated++;
-                  itemKeyToId[item.import_key] = existing.id;
-                } else {
-                  results.itemsSkipped++;
-                }
+          for (const item of items) {
+            if (!item.name) { results.errors.push({ row: item._rowIndex, error: "Missing name", type: "item" }); continue; }
+            const { category } = resolveCategory(item.category);
+            const status = item.status && VALID_ITEM_STATUSES.includes(item.status) ? item.status : "Active";
+            const taxStatus = item.tax_status || "Taxable";
+            const existing = item.import_key ? existingByKey[item.import_key] : null;
+
+            if (existing) {
+              if (doUpdate) {
+                const updatePayload = {
+                  id: existing.id,
+                  name: item.name, category, supplier: item.supplier, brand: item.brand,
+                  collection: item.collection, sku: item.sku, model_number: item.model_number,
+                  description: item.description, customer_description: item.customer_description || item.description,
+                  base_price: item.base_price, default_quantity: item.default_quantity,
+                  unit_of_measure: item.unit_of_measure, status,
+                  tax_status: taxStatus, taxable: taxStatus === "Taxable",
+                  cost_type: item.cost_type, parent_group: item.parent_group,
+                  subgroup: item.subgroup, line_item_type: item.line_item_type,
+                  tags: item.tags, source_pdf_page: item.source_pdf_page || null,
+                  review_status: item.review_status, review_notes: item.review_notes,
+                  import_key: item.import_key
+                };
+                if (item._boolProvided.is_active) updatePayload.is_active = item.is_active;
+                toUpdate.push(updatePayload);
+                itemKeyToId[item.import_key] = existing.id;
               } else {
-                if (doCreate) {
-                  if (!isDryRun) {
-                    const created = await withRateLimitRetry(() => base44.asServiceRole.entities.CatalogueItem.create({
-                      name: item.name, import_key: item.import_key, category, supplier: item.supplier,
-                      brand: item.brand, collection: item.collection, sku: item.sku, model_number: item.model_number,
-                      description: item.description, customer_description: item.customer_description || item.description,
-                      base_price: item.base_price, default_quantity: item.default_quantity,
-                      unit_of_measure: item.unit_of_measure, status, is_active: item.is_active,
-                      tax_status: taxStatus, taxable: taxStatus === "Taxable",
-                      cost_type: item.cost_type, parent_group: item.parent_group,
-                      subgroup: item.subgroup, line_item_type: item.line_item_type,
-                      tags: item.tags, source_pdf_page: item.source_pdf_page || null,
-                      review_status: item.review_status, review_notes: item.review_notes
-                    }), results);
-                    itemKeyToId[item.import_key] = created.id;
-                  }
-                  results.itemsCreated++;
-                } else {
-                  results.itemsSkipped++;
-                }
+                results.itemsSkipped++;
               }
-            } catch (e) {
-              if (isRateLimitError(e)) throw e;
-              results.errors.push({ row: item._rowIndex, error: e.message, type: "item", name: item.name });
+            } else {
+              if (doCreate) {
+                toCreate.push({
+                  name: item.name, import_key: item.import_key, category, supplier: item.supplier,
+                  brand: item.brand, collection: item.collection, sku: item.sku, model_number: item.model_number,
+                  description: item.description, customer_description: item.customer_description || item.description,
+                  base_price: item.base_price, default_quantity: item.default_quantity,
+                  unit_of_measure: item.unit_of_measure, status, is_active: item.is_active,
+                  tax_status: taxStatus, taxable: taxStatus === "Taxable",
+                  cost_type: item.cost_type, parent_group: item.parent_group,
+                  subgroup: item.subgroup, line_item_type: item.line_item_type,
+                  tags: item.tags, source_pdf_page: item.source_pdf_page || null,
+                  review_status: item.review_status, review_notes: item.review_notes
+                });
+              } else {
+                results.itemsSkipped++;
+              }
             }
-          });
+          }
+
+          if (!isDryRun) {
+            if (toCreate.length > 0) {
+              const created = await bulkCreateWithRetry("CatalogueItem", toCreate);
+              results.itemsCreated += created;
+              // Map import_key -> id for newly created items
+              for (const ci of toCreate) {
+                if (ci.import_key) itemKeyToId[ci.import_key] = ci.import_key; // placeholder; groups will resolve via existingByKey too
+              }
+            }
+            if (toUpdate.length > 0) {
+              await base44.asServiceRole.entities.CatalogueItem.bulkUpdate(toUpdate);
+              results.itemsUpdated += toUpdate.length;
+            }
+          } else {
+            results.itemsCreated = toCreate.length;
+            results.itemsUpdated = toUpdate.length;
+          }
           results.completedPhase = "items";
         } catch (e) {
           if (isRateLimitError(e)) { rateLimitStopped = true; }
@@ -526,64 +559,81 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Phase 2: Option Groups
+      // After items phase, re-fetch to get IDs for newly created items
+      if (doItems && !isDryRun) {
+        const refreshed = await base44.asServiceRole.entities.CatalogueItem.list("-updated_date", 2000);
+        for (const ei of refreshed) {
+          if (ei.import_key) {
+            existingByKey[ei.import_key] = ei;
+            itemKeyToId[ei.import_key] = ei.id;
+          }
+        }
+      }
+
+      // ===== Phase 2: Option Groups (bulk) =====
       if (doGroups && !rateLimitStopped) {
         try {
-          await processInBatches(groups, 10, 500, 0, async (grp) => {
-            try {
-              if (!grp.name) { results.errors.push({ row: grp._rowIndex, error: "Missing name", type: "group" }); return; }
-              let catalogueItemId = null;
-              if (grp.catalogue_item_key) {
-                catalogueItemId = itemKeyToId[grp.catalogue_item_key] || (existingByKey[grp.catalogue_item_key]?.id) || null;
-              }
-              if (!catalogueItemId) {
-                results.errors.push({ row: grp._rowIndex, error: `Cannot resolve catalogue_item_key: ${grp.catalogue_item_key}`, type: "group", name: grp.name });
-                return;
-              }
+          const toCreate = [];
+          const toUpdate = [];
 
-              const existing = grp.option_group_key ? existingGroupByKey[grp.option_group_key] : null;
-
-              if (existing) {
-                if (doUpdate) {
-                  if (!isDryRun) {
-                    const updatePayload = {
-                      catalogue_item_id: catalogueItemId, name: grp.name, description: grp.description,
-                      display_order: grp.display_order,
-                      min_selections: grp.min_selections, max_selections: grp.max_selections,
-                      option_group_key: grp.option_group_key
-                    };
-                    Object.assign(updatePayload, conditionalBools(grp, [
-                      ["is_required"], ["customer_visible"], ["staff_only"], ["affects_price"], ["affects_buildertrend_export"]
-                    ]));
-                    await withRateLimitRetry(() => base44.asServiceRole.entities.CatalogueOptionGroup.update(existing.id, updatePayload), results);
-                  }
-                  results.groupsUpdated++;
-                } else {
-                  results.groupsSkipped++;
-                }
-              } else {
-                if (doCreate) {
-                  if (!isDryRun) {
-                    const created = await withRateLimitRetry(() => base44.asServiceRole.entities.CatalogueOptionGroup.create({
-                      catalogue_item_id: catalogueItemId, option_group_key: grp.option_group_key,
-                      name: grp.name, description: grp.description, display_order: grp.display_order,
-                      is_required: grp.is_required, min_selections: grp.min_selections,
-                      max_selections: grp.max_selections, customer_visible: grp.customer_visible,
-                      staff_only: grp.staff_only, affects_price: grp.affects_price,
-                      affects_buildertrend_export: grp.affects_buildertrend_export
-                    }), results);
-                    if (grp.option_group_key) existingGroupByKey[grp.option_group_key] = { id: created.id };
-                  }
-                  results.groupsCreated++;
-                } else {
-                  results.groupsSkipped++;
-                }
-              }
-            } catch (e) {
-              if (isRateLimitError(e)) throw e;
-              results.errors.push({ row: grp._rowIndex, error: e.message, type: "group", name: grp.name });
+          for (const grp of groups) {
+            if (!grp.name) { results.errors.push({ row: grp._rowIndex, error: "Missing name", type: "group" }); continue; }
+            let catalogueItemId = null;
+            if (grp.catalogue_item_key) {
+              catalogueItemId = itemKeyToId[grp.catalogue_item_key] || (existingByKey[grp.catalogue_item_key]?.id) || null;
             }
-          });
+            if (!catalogueItemId) {
+              results.errors.push({ row: grp._rowIndex, error: `Cannot resolve catalogue_item_key: ${grp.catalogue_item_key}`, type: "group", name: grp.name });
+              continue;
+            }
+
+            const existing = grp.option_group_key ? existingGroupByKey[grp.option_group_key] : null;
+
+            if (existing) {
+              if (doUpdate) {
+                const updatePayload = {
+                  id: existing.id,
+                  catalogue_item_id: catalogueItemId, name: grp.name, description: grp.description,
+                  display_order: grp.display_order,
+                  min_selections: grp.min_selections, max_selections: grp.max_selections,
+                  option_group_key: grp.option_group_key
+                };
+                Object.assign(updatePayload, conditionalBools(grp, [
+                  ["is_required"], ["customer_visible"], ["staff_only"], ["affects_price"], ["affects_buildertrend_export"]
+                ]));
+                toUpdate.push(updatePayload);
+              } else {
+                results.groupsSkipped++;
+              }
+            } else {
+              if (doCreate) {
+                toCreate.push({
+                  catalogue_item_id: catalogueItemId, option_group_key: grp.option_group_key,
+                  name: grp.name, description: grp.description, display_order: grp.display_order,
+                  is_required: grp.is_required, min_selections: grp.min_selections,
+                  max_selections: grp.max_selections, customer_visible: grp.customer_visible,
+                  staff_only: grp.staff_only, affects_price: grp.affects_price,
+                  affects_buildertrend_export: grp.affects_buildertrend_export
+                });
+              } else {
+                results.groupsSkipped++;
+              }
+            }
+          }
+
+          if (!isDryRun) {
+            if (toCreate.length > 0) {
+              const created = await bulkCreateWithRetry("CatalogueOptionGroup", toCreate);
+              results.groupsCreated += created;
+            }
+            if (toUpdate.length > 0) {
+              await base44.asServiceRole.entities.CatalogueOptionGroup.bulkUpdate(toUpdate);
+              results.groupsUpdated += toUpdate.length;
+            }
+          } else {
+            results.groupsCreated = toCreate.length;
+            results.groupsUpdated = toUpdate.length;
+          }
           results.completedPhase = "groups";
         } catch (e) {
           if (isRateLimitError(e)) { rateLimitStopped = true; }
@@ -591,103 +641,104 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Phase 3: Option Values
-      if (doValues && !rateLimitStopped) {
-        // For missing_values_only: filter to only rows missing from DB, force create-only, smaller batches
-        let valuesToProcess = values;
-        let missingValuesFound = 0;
-        let valuesAttemptedThisRun = 0;
-        let isMissingOnly = import_scope === "missing_values_only";
-
-        if (isMissingOnly) {
-          valuesToProcess = values.filter(v => v.option_value_key && !existingValueByKey[v.option_value_key]);
-          missingValuesFound = valuesToProcess.length;
-          if (max_records && valuesToProcess.length > max_records) {
-            valuesToProcess = valuesToProcess.slice(0, max_records);
-          }
-          valuesAttemptedThisRun = valuesToProcess.length;
+      // After groups phase, re-fetch to get IDs for newly created groups
+      if (doGroups && !isDryRun) {
+        const refreshed = await base44.asServiceRole.entities.CatalogueOptionGroup.list("-created_date", 3000);
+        for (const eg of refreshed) {
+          if (eg.option_group_key) existingGroupByKey[eg.option_group_key] = eg;
         }
+      }
 
-        results.missingValuesFound = missingValuesFound;
-        results.valuesAttemptedThisRun = valuesAttemptedThisRun;
-
+      // ===== Phase 3: Option Values (bulk) =====
+      if (doValues && !rateLimitStopped) {
         try {
-          const batchSize = isMissingOnly ? 5 : 25;
-          const batchDelay = isMissingOnly ? 3000 : 750;
-          const perRecordDelay = isMissingOnly ? 750 : 0;
+          // For missing_values_only: filter to only rows missing from DB, force create-only
+          let valuesToProcess = values;
+          if (isMissingOnly) {
+            valuesToProcess = values.filter(v => v.option_value_key && !existingValueByKey[v.option_value_key]);
+            results.missingValuesFound = valuesToProcess.length;
+            if (max_records && valuesToProcess.length > max_records) {
+              valuesToProcess = valuesToProcess.slice(0, max_records);
+            }
+            results.valuesAttemptedThisRun = valuesToProcess.length;
+          }
 
-          await processInBatches(valuesToProcess, batchSize, batchDelay, perRecordDelay, async (val) => {
-            try {
-              if (!val.name) { results.errors.push({ row: val._rowIndex, error: "Missing name", type: "value" }); return; }
-              let optionGroupId = null;
-              let catalogueItemId = null;
-              if (val.option_group_key) {
-                optionGroupId = existingGroupByKey[val.option_group_key]?.id || null;
-              }
-              if (val.catalogue_item_key) {
-                catalogueItemId = itemKeyToId[val.catalogue_item_key] || (existingByKey[val.catalogue_item_key]?.id) || null;
-              }
-              if (!optionGroupId) {
-                results.errors.push({ row: val._rowIndex, error: `Cannot resolve option_group_key: ${val.option_group_key}`, type: "value", name: val.name });
-                return;
-              }
+          const toCreate = [];
+          const toUpdate = [];
 
-              const status = val.status && VALID_OPTION_STATUSES.includes(val.status) ? val.status : "Active";
+          for (const val of valuesToProcess) {
+            if (!val.name) { results.errors.push({ row: val._rowIndex, error: "Missing name", type: "value" }); continue; }
+            let optionGroupId = null;
+            if (val.option_group_key) {
+              optionGroupId = existingGroupByKey[val.option_group_key]?.id || null;
+            }
+            let catalogueItemId = null;
+            if (val.catalogue_item_key) {
+              catalogueItemId = itemKeyToId[val.catalogue_item_key] || (existingByKey[val.catalogue_item_key]?.id) || null;
+            }
+            if (!optionGroupId) {
+              results.errors.push({ row: val._rowIndex, error: `Cannot resolve option_group_key: ${val.option_group_key}`, type: "value", name: val.name });
+              continue;
+            }
 
-              // missing_values_only forces create-only: skip existing without API calls
-              if (isMissingOnly) {
-                if (!isDryRun) {
-                  await withRateLimitRetry(() => base44.asServiceRole.entities.CatalogueOptionValue.create({
+            const status = val.status && VALID_OPTION_STATUSES.includes(val.status) ? val.status : "Active";
+
+            if (isMissingOnly) {
+              // Force create-only
+              toCreate.push({
+                option_group_id: optionGroupId, catalogue_item_id: catalogueItemId || null,
+                option_value_key: val.option_value_key, name: val.name, description: val.description,
+                price_modifier: val.price_modifier, quantity_modifier: val.quantity_modifier,
+                requires_approval: val.requires_approval, display_order: val.display_order,
+                status, customer_note: val.customer_note, internal_note: val.internal_note, tier: val.tier
+              });
+            } else {
+              const existing = val.option_value_key ? existingValueByKey[val.option_value_key] : null;
+
+              if (existing) {
+                if (doUpdate) {
+                  const updatePayload = {
+                    id: existing.id,
+                    option_group_id: optionGroupId, catalogue_item_id: catalogueItemId || existing.catalogue_item_id,
+                    name: val.name, description: val.description, price_modifier: val.price_modifier,
+                    quantity_modifier: val.quantity_modifier,
+                    display_order: val.display_order, status, customer_note: val.customer_note,
+                    internal_note: val.internal_note, tier: val.tier, option_value_key: val.option_value_key
+                  };
+                  if (val._boolProvided.requires_approval) updatePayload.requires_approval = val.requires_approval;
+                  toUpdate.push(updatePayload);
+                } else {
+                  results.valuesSkipped++;
+                }
+              } else {
+                if (doCreate) {
+                  toCreate.push({
                     option_group_id: optionGroupId, catalogue_item_id: catalogueItemId || null,
                     option_value_key: val.option_value_key, name: val.name, description: val.description,
                     price_modifier: val.price_modifier, quantity_modifier: val.quantity_modifier,
                     requires_approval: val.requires_approval, display_order: val.display_order,
                     status, customer_note: val.customer_note, internal_note: val.internal_note, tier: val.tier
-                  }), results);
-                }
-                results.valuesCreated++;
-              } else {
-                const existing = val.option_value_key ? existingValueByKey[val.option_value_key] : null;
-
-                if (existing) {
-                  if (doUpdate) {
-                    if (!isDryRun) {
-                      const updatePayload = {
-                        option_group_id: optionGroupId, catalogue_item_id: catalogueItemId || existing.catalogue_item_id,
-                        name: val.name, description: val.description, price_modifier: val.price_modifier,
-                        quantity_modifier: val.quantity_modifier,
-                        display_order: val.display_order, status, customer_note: val.customer_note,
-                        internal_note: val.internal_note, tier: val.tier, option_value_key: val.option_value_key
-                      };
-                      if (val._boolProvided.requires_approval) updatePayload.requires_approval = val.requires_approval;
-                      await withRateLimitRetry(() => base44.asServiceRole.entities.CatalogueOptionValue.update(existing.id, updatePayload), results);
-                    }
-                    results.valuesUpdated++;
-                  } else {
-                    results.valuesSkipped++;
-                  }
+                  });
                 } else {
-                  if (doCreate) {
-                    if (!isDryRun) {
-                      await withRateLimitRetry(() => base44.asServiceRole.entities.CatalogueOptionValue.create({
-                        option_group_id: optionGroupId, catalogue_item_id: catalogueItemId || null,
-                        option_value_key: val.option_value_key, name: val.name, description: val.description,
-                        price_modifier: val.price_modifier, quantity_modifier: val.quantity_modifier,
-                        requires_approval: val.requires_approval, display_order: val.display_order,
-                        status, customer_note: val.customer_note, internal_note: val.internal_note, tier: val.tier
-                      }), results);
-                    }
-                    results.valuesCreated++;
-                  } else {
-                    results.valuesSkipped++;
-                  }
+                  results.valuesSkipped++;
                 }
               }
-            } catch (e) {
-              if (isRateLimitError(e)) throw e;
-              results.errors.push({ row: val._rowIndex, error: e.message, type: "value", name: val.name });
             }
-          });
+          }
+
+          if (!isDryRun) {
+            if (toCreate.length > 0) {
+              const created = await bulkCreateWithRetry("CatalogueOptionValue", toCreate);
+              results.valuesCreated += created;
+            }
+            if (toUpdate.length > 0) {
+              await base44.asServiceRole.entities.CatalogueOptionValue.bulkUpdate(toUpdate);
+              results.valuesUpdated += toUpdate.length;
+            }
+          } else {
+            results.valuesCreated = toCreate.length;
+            results.valuesUpdated = toUpdate.length;
+          }
           results.completedPhase = "values";
         } catch (e) {
           if (isRateLimitError(e)) { rateLimitStopped = true; }
