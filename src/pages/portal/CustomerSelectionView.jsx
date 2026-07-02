@@ -624,7 +624,12 @@ export default function CustomerSelectionView() {
                             isSelected ? "border-gray-900 bg-gray-50 ring-1 ring-gray-900" : "border-gray-200 hover:border-gray-400"
                           }`}
                         >
-                          {opt.image && <img src={opt.image} alt={opt.name} className="w-full aspect-square object-cover rounded-lg mb-2" />}
+                          {(() => {
+                            const optImg = opt.image || opt.image_url || selectedItem?.default_image;
+                            return optImg
+                              ? <img src={optImg} alt={opt.name} className="w-full aspect-square object-cover rounded-lg mb-2" />
+                              : <div className="w-full aspect-square rounded-lg mb-2 bg-gray-100 flex items-center justify-center text-gray-300"><span className="text-xs">No image</span></div>;
+                          })()}
                           <p className="font-medium text-sm text-gray-900">{opt.name}</p>
                           {showItemPrices && opt.price_modifier !== 0 && (
                             <p className={`text-xs mt-0.5 ${opt.price_modifier > 0 ? "text-red-600" : "text-green-600"}`}>

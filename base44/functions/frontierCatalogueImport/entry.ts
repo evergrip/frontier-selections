@@ -157,6 +157,11 @@ function parseOptionValues(rows) {
       requires_approval: boolWithDefault(requiresApprovalRaw, false),
       display_order: num(getField(row, "display_order", "order")) || 0,
       status: str(getField(row, "status")) || "Active",
+      image: str(getField(row, "image", "image_url")),
+      image_url: str(getField(row, "image_url", "imageurl")),
+      gallery_images: arr(getField(row, "gallery_images", "galleryimages", "gallery")),
+      spec_sheet_url: str(getField(row, "spec_sheet_url", "specsheeturl", "spec_sheet")),
+      supplier_link: str(getField(row, "supplier_link", "supplierlink")),
       customer_note: str(getField(row, "customer_note", "customernote")),
       internal_note: str(getField(row, "internal_note", "internalnote")),
       tier: str(getField(row, "tier")),
@@ -690,7 +695,9 @@ Deno.serve(async (req) => {
                 option_value_key: val.option_value_key, name: val.name, description: val.description,
                 price_modifier: val.price_modifier, quantity_modifier: val.quantity_modifier,
                 requires_approval: val.requires_approval, display_order: val.display_order,
-                status, customer_note: val.customer_note, internal_note: val.internal_note, tier: val.tier
+                status, customer_note: val.customer_note, internal_note: val.internal_note, tier: val.tier,
+                image: val.image, image_url: val.image_url, gallery_images: val.gallery_images,
+                spec_sheet_url: val.spec_sheet_url, supplier_link: val.supplier_link
               });
             } else {
               const existing = val.option_value_key ? existingValueByKey[val.option_value_key] : null;
@@ -703,7 +710,9 @@ Deno.serve(async (req) => {
                     name: val.name, description: val.description, price_modifier: val.price_modifier,
                     quantity_modifier: val.quantity_modifier,
                     display_order: val.display_order, status, customer_note: val.customer_note,
-                    internal_note: val.internal_note, tier: val.tier, option_value_key: val.option_value_key
+                    internal_note: val.internal_note, tier: val.tier, option_value_key: val.option_value_key,
+                    image: val.image, image_url: val.image_url, gallery_images: val.gallery_images,
+                    spec_sheet_url: val.spec_sheet_url, supplier_link: val.supplier_link
                   };
                   if (val._boolProvided.requires_approval) updatePayload.requires_approval = val.requires_approval;
                   toUpdate.push(updatePayload);
@@ -717,7 +726,9 @@ Deno.serve(async (req) => {
                     option_value_key: val.option_value_key, name: val.name, description: val.description,
                     price_modifier: val.price_modifier, quantity_modifier: val.quantity_modifier,
                     requires_approval: val.requires_approval, display_order: val.display_order,
-                    status, customer_note: val.customer_note, internal_note: val.internal_note, tier: val.tier
+                    status, customer_note: val.customer_note, internal_note: val.internal_note, tier: val.tier,
+                    image: val.image, image_url: val.image_url, gallery_images: val.gallery_images,
+                    spec_sheet_url: val.spec_sheet_url, supplier_link: val.supplier_link
                   });
                 } else {
                   results.valuesSkipped++;
@@ -809,7 +820,7 @@ Deno.serve(async (req) => {
 
       const ITEM_FIELDS = ["name", "category", "supplier", "brand", "collection", "sku", "model_number", "base_price", "unit_of_measure", "status", "is_active", "tax_status", "cost_type", "parent_group", "subgroup", "line_item_type", "tags", "source_pdf_page", "review_status"];
       const GROUP_FIELDS = ["name", "description", "display_order", "is_required", "min_selections", "max_selections", "customer_visible", "staff_only", "affects_price", "affects_buildertrend_export"];
-      const VALUE_FIELDS = ["name", "description", "price_modifier", "quantity_modifier", "requires_approval", "display_order", "status", "customer_note", "internal_note", "tier"];
+      const VALUE_FIELDS = ["name", "description", "price_modifier", "quantity_modifier", "requires_approval", "display_order", "status", "customer_note", "internal_note", "tier", "image", "image_url", "gallery_images", "spec_sheet_url", "supplier_link"];
 
       function normalizeVal(v) {
         if (Array.isArray(v)) return v.slice().sort().join(",");

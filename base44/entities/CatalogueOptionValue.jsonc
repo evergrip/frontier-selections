@@ -20,6 +20,18 @@
     "image_url": {
       "type": "string"
     },
+    "gallery_images": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "spec_sheet_url": {
+      "type": "string"
+    },
+    "supplier_link": {
+      "type": "string"
+    },
     "description": {
       "type": "string"
     },

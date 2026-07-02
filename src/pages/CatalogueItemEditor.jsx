@@ -68,7 +68,9 @@ export default function CatalogueItemEditor() {
         .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
         .map(v => ({
           id: v.id, name: v.name, price_modifier: v.price_modifier || 0, is_active: v.is_active !== false,
-          status: v.status || "Active", image: v.image || "", customer_note: v.customer_note || "", internal_note: v.internal_note || "",
+          status: v.status || "Active", image: v.image || "", image_url: v.image_url || "",
+          gallery_images: v.gallery_images || [], spec_sheet_url: v.spec_sheet_url || "", supplier_link: v.supplier_link || "",
+          description: v.description || "", customer_note: v.customer_note || "", internal_note: v.internal_note || "",
           warnings: v.warnings || [], requires_approval: !!v.requires_approval, sku: v.sku || ""
         }))
     }));
@@ -161,7 +163,9 @@ export default function CatalogueItemEditor() {
           option_group_id: groupId, catalogue_item_id: itemId, name: o.name,
           price_modifier: o.price_modifier || 0, display_order: oi,
           is_active: o.is_active !== false, status: o.status || "Active", requires_approval: !!o.requires_approval,
-          warnings: o.warnings || [], image: o.image || "",
+          warnings: o.warnings || [], image: o.image || "", image_url: o.image_url || "",
+          gallery_images: o.gallery_images || [], spec_sheet_url: o.spec_sheet_url || "", supplier_link: o.supplier_link || "",
+          description: o.description || "",
           customer_note: o.customer_note || "", internal_note: o.internal_note || "",
           sku: o.sku || ""
         };
@@ -227,7 +231,7 @@ export default function CatalogueItemEditor() {
   function addOption(groupId) {
     const optId = "new_opt_" + Date.now();
     update("option_groups", form.option_groups.map(g =>
-      g.id === groupId ? { ...g, options: [...g.options, { id: optId, name: "", price_modifier: 0, is_active: true, status: "Active", image: "", customer_note: "", internal_note: "", warnings: [], requires_approval: false, sku: "" }] } : g
+      g.id === groupId ? { ...g, options: [...g.options, { id: optId, name: "", price_modifier: 0, is_active: true, status: "Active", image: "", image_url: "", gallery_images: [], spec_sheet_url: "", supplier_link: "", description: "", customer_note: "", internal_note: "", warnings: [], requires_approval: false, sku: "" }] } : g
     ));
   }
   function updateOption(groupId, optionId, field, value) {
