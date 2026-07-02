@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import CommentThread from "@/components/comments/CommentThread";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { toast } from "@/components/ui/use-toast";
-import { ArrowLeft, Check, Package, CheckCircle, AlertTriangle, RefreshCw, History, FileSignature, Lock, Search, X, Star, GitCompare, Info } from "lucide-react";
+import { ArrowLeft, Check, Package, CheckCircle, AlertTriangle, RefreshCw, History, FileSignature, Lock, Search, X, Star, GitCompare, Info, FileText, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -617,33 +617,52 @@ export default function CustomerSelectionView() {
                     {availableOpts.map(opt => {
                       const isSelected = selectedOptions[group.id] === opt.id;
                       return (
-                        <button
+                        <div
                           key={opt.id}
-                          onClick={() => selectOption(group.id, opt.id)}
                           className={`rounded-xl border-2 p-3 text-left transition-all ${
                             isSelected ? "border-gray-900 bg-gray-50 ring-1 ring-gray-900" : "border-gray-200 hover:border-gray-400"
                           }`}
                         >
-                          {(() => {
-                            const optImg = opt.image || opt.image_url || selectedItem?.default_image;
-                            return optImg
-                              ? <img src={optImg} alt={opt.name} className="w-full aspect-square object-cover rounded-lg mb-2" />
-                              : <div className="w-full aspect-square rounded-lg mb-2 bg-gray-100 flex items-center justify-center text-gray-300"><span className="text-xs">No image</span></div>;
-                          })()}
-                          <p className="font-medium text-sm text-gray-900">{opt.name}</p>
-                          {showItemPrices && opt.price_modifier !== 0 && (
-                            <p className={`text-xs mt-0.5 ${opt.price_modifier > 0 ? "text-red-600" : "text-green-600"}`}>
-                              {opt.price_modifier > 0 ? "+" : ""}${opt.price_modifier.toLocaleString()}
-                            </p>
+                          <button
+                            onClick={() => selectOption(group.id, opt.id)}
+                            className="w-full text-left"
+                          >
+                            {(() => {
+                              const optImg = opt.image || opt.image_url || selectedItem?.default_image;
+                              return optImg
+                                ? <img src={optImg} alt={opt.name} className="w-full aspect-square object-cover rounded-lg mb-2" />
+                                : <div className="w-full aspect-square rounded-lg mb-2 bg-gray-100 flex items-center justify-center text-gray-300"><span className="text-xs">No image</span></div>;
+                            })()}
+                            <p className="font-medium text-sm text-gray-900">{opt.name}</p>
+                            {opt.description && <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{opt.description}</p>}
+                            {showItemPrices && opt.price_modifier !== 0 && (
+                              <p className={`text-xs mt-0.5 ${opt.price_modifier > 0 ? "text-red-600" : "text-green-600"}`}>
+                                {opt.price_modifier > 0 ? "+" : ""}${opt.price_modifier.toLocaleString()}
+                              </p>
+                            )}
+                            {opt.customer_note && <p className="text-[10px] text-gray-400 mt-1">{opt.customer_note}</p>}
+                            {opt.requires_approval && (
+                              <p className="text-[10px] text-amber-600 mt-1">Requires staff approval</p>
+                            )}
+                            {isSelected && (
+                              <div className="flex justify-end mt-1"><Check size={16} className="text-gray-900" /></div>
+                            )}
+                          </button>
+                          {(opt.spec_sheet_url || opt.supplier_link) && (
+                            <div className="flex gap-2 mt-2 pt-2 border-t border-gray-100">
+                              {opt.spec_sheet_url && (
+                                <a href={opt.spec_sheet_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-800">
+                                  <FileText size={12} /> Spec Sheet
+                                </a>
+                              )}
+                              {opt.supplier_link && (
+                                <a href={opt.supplier_link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-800">
+                                  <ExternalLink size={12} /> Product Link
+                                </a>
+                              )}
+                            </div>
                           )}
-                          {opt.customer_note && <p className="text-[10px] text-gray-400 mt-1">{opt.customer_note}</p>}
-                          {opt.requires_approval && (
-                            <p className="text-[10px] text-amber-600 mt-1">Requires staff approval</p>
-                          )}
-                          {isSelected && (
-                            <div className="flex justify-end mt-1"><Check size={16} className="text-gray-900" /></div>
-                          )}
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
