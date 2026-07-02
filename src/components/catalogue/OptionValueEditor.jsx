@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { base44 } from "@/api/base44Client";
-import { Trash2, Upload, ChevronDown, ChevronRight, X, Plus, Link as LinkIcon } from "lucide-react";
+import { Trash2, Upload, ChevronDown, ChevronRight, X, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +18,8 @@ export default function OptionValueEditor({ option, onUpdate, onRemove }) {
   const [uploading, setUploading] = useState(false);
   const [uploadTarget, setUploadTarget] = useState("image");
   const [galleryUrlInput, setGalleryUrlInput] = useState("");
+  const imageInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
 
   async function handleUpload(e, target) {
     const file = e.target.files[0];
@@ -33,6 +35,7 @@ export default function OptionValueEditor({ option, onUpdate, onRemove }) {
       }
     } finally {
       setUploading(false);
+      e.target.value = "";
     }
   }
 
@@ -90,10 +93,10 @@ export default function OptionValueEditor({ option, onUpdate, onRemove }) {
               ) : (
                 <div className="w-20 h-20 bg-white rounded-lg flex items-center justify-center text-gray-300 border"><Upload size={18} /></div>
               )}
-              <label className="cursor-pointer">
-                <input type="file" accept="image/*" onChange={e => handleUpload(e, "image")} className="hidden" />
-                <Button variant="outline" size="sm" asChild><span>{uploading && uploadTarget === "image" ? "Uploading..." : "Upload Image"}</span></Button>
-              </label>
+              <input ref={imageInputRef} type="file" accept="image/*" onChange={e => handleUpload(e, "image")} className="hidden" />
+              <Button variant="outline" size="sm" onClick={() => imageInputRef.current?.click()} disabled={uploading && uploadTarget === "image"}>
+                {uploading && uploadTarget === "image" ? "Uploading..." : "Upload Image"}
+              </Button>
             </div>
           </div>
 
@@ -137,10 +140,10 @@ export default function OptionValueEditor({ option, onUpdate, onRemove }) {
               />
               <Button variant="outline" size="sm" onClick={addGalleryUrl} className="gap-1"><Plus size={12} /> Add</Button>
             </div>
-            <label className="cursor-pointer mt-1 inline-block">
-              <input type="file" accept="image/*" onChange={e => handleUpload(e, "gallery")} className="hidden" />
-              <Button variant="ghost" size="sm" asChild><span>{uploading && uploadTarget === "gallery" ? "Uploading..." : "Or upload a file"}</span></Button>
-            </label>
+            <input ref={galleryInputRef} type="file" accept="image/*" onChange={e => handleUpload(e, "gallery")} className="hidden" />
+            <Button variant="ghost" size="sm" onClick={() => galleryInputRef.current?.click()} disabled={uploading && uploadTarget === "gallery"} className="mt-1">
+              {uploading && uploadTarget === "gallery" ? "Uploading..." : "Or upload a file"}
+            </Button>
           </div>
 
           {/* Spec sheet URL */}
