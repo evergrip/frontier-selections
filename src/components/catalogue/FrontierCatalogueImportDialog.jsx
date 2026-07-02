@@ -41,7 +41,7 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
   const [error, setError] = useState("");
   const [auditing, setAuditing] = useState(false);
   const [audit, setAudit] = useState(null);
-  const [maxRecords, setMaxRecords] = useState(50);
+  const [maxRecords, setMaxRecords] = useState(0);
 
   async function handleUpload(e) {
     const file = e.target.files[0];
