@@ -8,18 +8,22 @@ export default function CustomerManagement() {
   const [customers, setCustomers] = useState([]);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [assigning, setAssigning] = useState(null);
 
   const load = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const [custRes, projList] = await Promise.all([
-        base44.functions.invoke("userManagement", { action: "listCustomers" }),
-        base44.entities.Project.list()
-      ]);
+      const custRes = await base44.functions.invoke("userManagement", { action: "listCustomers" });
       setCustomers(custRes.data?.users || []);
+    } catch (e) {
+      setError(e.response?.data?.error || e.message || "Failed to load customers");
+    }
+    try {
+      const projList = await base44.entities.Project.list();
       setProjects(projList);
-    } catch (e) { /* */ }
+    } catch (e) { /* projects non-critical */ }
     setLoading(false);
   };
 
@@ -42,6 +46,12 @@ export default function CustomerManagement() {
   };
 
   if (loading) return <div className="flex justify-center py-10"><Loader2 className="animate-spin text-gray-400" /></div>;
+  if (error) return (
+    <div className="text-center py-10">
+      <p className="text-red-600 text-sm mb-2">{error}</p>
+      <Button size="sm" variant="outline" onClick={load}>Retry</Button>
+    </div>
+  );
 
   return (
     <div>
