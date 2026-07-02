@@ -10,7 +10,15 @@ const IMPORT_SCOPES = [
   { value: "all", label: "Import all" },
   { value: "items_only", label: "Import items only" },
   { value: "groups_only", label: "Import groups only" },
-  { value: "values_only", label: "Import values only" }
+  { value: "values_only", label: "Import values only" },
+  { value: "missing_values_only", label: "Import missing values only" }
+];
+
+const MAX_RECORDS_OPTIONS = [
+  { value: 25, label: "25 missing values" },
+  { value: 50, label: "50 missing values" },
+  { value: 100, label: "100 missing values" },
+  { value: 0, label: "All missing values" }
 ];
 
 const IMPORT_MODES = [
@@ -33,6 +41,7 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
   const [error, setError] = useState("");
   const [auditing, setAuditing] = useState(false);
   const [audit, setAudit] = useState(null);
+  const [maxRecords, setMaxRecords] = useState(50);
 
   async function handleUpload(e) {
     const file = e.target.files[0];
@@ -71,10 +80,14 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
     setConfirming(true);
     setError("");
     try {
-      const res = await base44.functions.invoke("frontierCatalogueImport", {
+      const payload = {
         action: "confirm", file_url: fileUrl, import_mode: importMode, import_scope: importScope,
         preview_data: preview.preview
-      });
+      };
+      if (importScope === "missing_values_only") {
+        payload.max_records = maxRecords || null;
+      }
+      const res = await base44.functions.invoke("frontierCatalogueImport", payload);
       setResult(res.data);
       setStep("result");
     } catch (e) {
@@ -116,7 +129,9 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
     ? `${p.counts.catalogueItems} items, ${p.counts.optionGroups} groups, ${p.counts.optionValues} values`
     : importScope === "items_only" ? `${p.counts.catalogueItems} items`
     : importScope === "groups_only" ? `${p.counts.optionGroups} groups`
-    : `${p.counts.optionValues} values`) : "";
+    : importScope === "missing_values_only"
+      ? (audit ? `${Math.min(audit.values.missing.length, maxRecords || audit.values.missing.length)} missing values` : "missing values")
+      : `${p.counts.optionValues} values`) : "";
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setTimeout(reset, 200); }}>
@@ -467,6 +482,21 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
               </Select>
             </div>
 
+            {importScope === "missing_values_only" && (
+              <div>
+                <Label>Max Records This Run</Label>
+                <Select value={String(maxRecords)} onValueChange={(v) => setMaxRecords(Number(v))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{MAX_RECORDS_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent>
+                </Select>
+                {audit && audit.values.missing.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {audit.values.missing.length} missing values in database. This run will process up to {maxRecords === 0 ? audit.values.missing.length : Math.min(maxRecords, audit.values.missing.length)}.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="flex justify-between items-center">
               <Button variant="outline" onClick={() => setStep("upload")}>Back</Button>
               <div className="text-right">
@@ -502,9 +532,20 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
                 <p className="text-xs text-gray-400">{result.results.rateLimitRetries} rate limit retry(ies) occurred</p>
               )}
               <div className="text-sm text-gray-500 space-y-0.5">
-                <p>Items: {result.results.itemsCreated} created, {result.results.itemsUpdated} updated, {result.results.itemsSkipped} skipped</p>
-                <p>Groups: {result.results.groupsCreated} created, {result.results.groupsUpdated} updated, {result.results.groupsSkipped} skipped</p>
-                <p>Values: {result.results.valuesCreated} created, {result.results.valuesUpdated} updated, {result.results.valuesSkipped} skipped</p>
+                {result.import_scope === "missing_values_only" ? (
+                  <>
+                    <p>Missing values found before import: {result.results.missingValuesFound}</p>
+                    <p>Missing values attempted this run: {result.results.valuesAttemptedThisRun}</p>
+                    <p>Values created this run: {result.results.valuesCreated}</p>
+                    <p>Values still likely remaining: {result.valuesStillRemaining}</p>
+                  </>
+                ) : (
+                  <>
+                    <p>Items: {result.results.itemsCreated} created, {result.results.itemsUpdated} updated, {result.results.itemsSkipped} skipped</p>
+                    <p>Groups: {result.results.groupsCreated} created, {result.results.groupsUpdated} updated, {result.results.groupsSkipped} skipped</p>
+                    <p>Values: {result.results.valuesCreated} created, {result.results.valuesUpdated} updated, {result.results.valuesSkipped} skipped</p>
+                  </>
+                )}
               </div>
             </div>
             {result.results.errors.length > 0 && (

@@ -300,15 +300,18 @@ async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function processInBatches(records, batchSize, delayMs, handler) {
+async function processInBatches(records, batchSize, batchDelayMs, perRecordDelayMs, handler) {
   const results = [];
   for (let i = 0; i < records.length; i += batchSize) {
     const batch = records.slice(i, i + batchSize);
     for (const record of batch) {
       results.push(await handler(record));
+      if (perRecordDelayMs > 0) {
+        await sleep(perRecordDelayMs);
+      }
     }
     if (i + batchSize < records.length) {
-      await sleep(delayMs);
+      await sleep(batchDelayMs);
     }
   }
   return results;
@@ -403,9 +406,10 @@ Deno.serve(async (req) => {
       const doCreate = import_mode === "create_only" || import_mode === "create_and_update";
       const doUpdate = import_mode === "update_existing" || import_mode === "create_and_update";
       const import_scope = body.import_scope || "all";
+      const max_records = body.max_records || null;
       const doItems = import_scope === "all" || import_scope === "items_only";
       const doGroups = import_scope === "all" || import_scope === "groups_only";
-      const doValues = import_scope === "all" || import_scope === "values_only";
+      const doValues = import_scope === "all" || import_scope === "values_only" || import_scope === "missing_values_only";
 
       // Re-fetch file and parse to get full row data
       if (!file_url) return Response.json({ error: "file_url is required for confirm" }, { status: 400 });
@@ -456,7 +460,7 @@ Deno.serve(async (req) => {
       // Phase 1: Catalogue Items
       if (doItems && !rateLimitStopped) {
         try {
-          await processInBatches(items, 10, 500, async (item) => {
+          await processInBatches(items, 10, 500, 0, async (item) => {
             try {
               if (!item.name) { results.errors.push({ row: item._rowIndex, error: "Missing name", type: "item" }); return; }
               const { category } = resolveCategory(item.category);
@@ -525,7 +529,7 @@ Deno.serve(async (req) => {
       // Phase 2: Option Groups
       if (doGroups && !rateLimitStopped) {
         try {
-          await processInBatches(groups, 10, 500, async (grp) => {
+          await processInBatches(groups, 10, 500, 0, async (grp) => {
             try {
               if (!grp.name) { results.errors.push({ row: grp._rowIndex, error: "Missing name", type: "group" }); return; }
               let catalogueItemId = null;
@@ -589,8 +593,30 @@ Deno.serve(async (req) => {
 
       // Phase 3: Option Values
       if (doValues && !rateLimitStopped) {
+        // For missing_values_only: filter to only rows missing from DB, force create-only, smaller batches
+        let valuesToProcess = values;
+        let missingValuesFound = 0;
+        let valuesAttemptedThisRun = 0;
+        let isMissingOnly = import_scope === "missing_values_only";
+
+        if (isMissingOnly) {
+          valuesToProcess = values.filter(v => v.option_value_key && !existingValueByKey[v.option_value_key]);
+          missingValuesFound = valuesToProcess.length;
+          if (max_records && valuesToProcess.length > max_records) {
+            valuesToProcess = valuesToProcess.slice(0, max_records);
+          }
+          valuesAttemptedThisRun = valuesToProcess.length;
+        }
+
+        results.missingValuesFound = missingValuesFound;
+        results.valuesAttemptedThisRun = valuesAttemptedThisRun;
+
         try {
-          await processInBatches(values, 25, 750, async (val) => {
+          const batchSize = isMissingOnly ? 5 : 25;
+          const batchDelay = isMissingOnly ? 3000 : 750;
+          const perRecordDelay = isMissingOnly ? 750 : 0;
+
+          await processInBatches(valuesToProcess, batchSize, batchDelay, perRecordDelay, async (val) => {
             try {
               if (!val.name) { results.errors.push({ row: val._rowIndex, error: "Missing name", type: "value" }); return; }
               let optionGroupId = null;
@@ -607,39 +633,54 @@ Deno.serve(async (req) => {
               }
 
               const status = val.status && VALID_OPTION_STATUSES.includes(val.status) ? val.status : "Active";
-              const existing = val.option_value_key ? existingValueByKey[val.option_value_key] : null;
 
-              if (existing) {
-                if (doUpdate) {
-                  if (!isDryRun) {
-                    const updatePayload = {
-                      option_group_id: optionGroupId, catalogue_item_id: catalogueItemId || existing.catalogue_item_id,
-                      name: val.name, description: val.description, price_modifier: val.price_modifier,
-                      quantity_modifier: val.quantity_modifier,
-                      display_order: val.display_order, status, customer_note: val.customer_note,
-                      internal_note: val.internal_note, tier: val.tier, option_value_key: val.option_value_key
-                    };
-                    if (val._boolProvided.requires_approval) updatePayload.requires_approval = val.requires_approval;
-                    await withRateLimitRetry(() => base44.asServiceRole.entities.CatalogueOptionValue.update(existing.id, updatePayload), results);
-                  }
-                  results.valuesUpdated++;
-                } else {
-                  results.valuesSkipped++;
+              // missing_values_only forces create-only: skip existing without API calls
+              if (isMissingOnly) {
+                if (!isDryRun) {
+                  await withRateLimitRetry(() => base44.asServiceRole.entities.CatalogueOptionValue.create({
+                    option_group_id: optionGroupId, catalogue_item_id: catalogueItemId || null,
+                    option_value_key: val.option_value_key, name: val.name, description: val.description,
+                    price_modifier: val.price_modifier, quantity_modifier: val.quantity_modifier,
+                    requires_approval: val.requires_approval, display_order: val.display_order,
+                    status, customer_note: val.customer_note, internal_note: val.internal_note, tier: val.tier
+                  }), results);
                 }
+                results.valuesCreated++;
               } else {
-                if (doCreate) {
-                  if (!isDryRun) {
-                    await withRateLimitRetry(() => base44.asServiceRole.entities.CatalogueOptionValue.create({
-                      option_group_id: optionGroupId, catalogue_item_id: catalogueItemId || null,
-                      option_value_key: val.option_value_key, name: val.name, description: val.description,
-                      price_modifier: val.price_modifier, quantity_modifier: val.quantity_modifier,
-                      requires_approval: val.requires_approval, display_order: val.display_order,
-                      status, customer_note: val.customer_note, internal_note: val.internal_note, tier: val.tier
-                    }), results);
+                const existing = val.option_value_key ? existingValueByKey[val.option_value_key] : null;
+
+                if (existing) {
+                  if (doUpdate) {
+                    if (!isDryRun) {
+                      const updatePayload = {
+                        option_group_id: optionGroupId, catalogue_item_id: catalogueItemId || existing.catalogue_item_id,
+                        name: val.name, description: val.description, price_modifier: val.price_modifier,
+                        quantity_modifier: val.quantity_modifier,
+                        display_order: val.display_order, status, customer_note: val.customer_note,
+                        internal_note: val.internal_note, tier: val.tier, option_value_key: val.option_value_key
+                      };
+                      if (val._boolProvided.requires_approval) updatePayload.requires_approval = val.requires_approval;
+                      await withRateLimitRetry(() => base44.asServiceRole.entities.CatalogueOptionValue.update(existing.id, updatePayload), results);
+                    }
+                    results.valuesUpdated++;
+                  } else {
+                    results.valuesSkipped++;
                   }
-                  results.valuesCreated++;
                 } else {
-                  results.valuesSkipped++;
+                  if (doCreate) {
+                    if (!isDryRun) {
+                      await withRateLimitRetry(() => base44.asServiceRole.entities.CatalogueOptionValue.create({
+                        option_group_id: optionGroupId, catalogue_item_id: catalogueItemId || null,
+                        option_value_key: val.option_value_key, name: val.name, description: val.description,
+                        price_modifier: val.price_modifier, quantity_modifier: val.quantity_modifier,
+                        requires_approval: val.requires_approval, display_order: val.display_order,
+                        status, customer_note: val.customer_note, internal_note: val.internal_note, tier: val.tier
+                      }), results);
+                    }
+                    results.valuesCreated++;
+                  } else {
+                    results.valuesSkipped++;
+                  }
                 }
               }
             } catch (e) {
@@ -665,10 +706,15 @@ Deno.serve(async (req) => {
         });
       }
 
+      const valuesStillRemaining = results.missingValuesFound > 0
+        ? Math.max(0, results.missingValuesFound - results.valuesCreated)
+        : 0;
+
       return Response.json({
         ok: true, import_mode, import_scope, isDryRun, results,
         rateLimitStopped,
-        message: rateLimitStopped ? "Import stopped due to rate limiting. Re-run Create and update to resume safely." : null
+        valuesStillRemaining,
+        message: rateLimitStopped ? "Import stopped due to rate limiting. Re-run to resume safely." : null
       });
     }
 
