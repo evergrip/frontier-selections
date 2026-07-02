@@ -672,7 +672,151 @@ Deno.serve(async (req) => {
       });
     }
 
-    return Response.json({ error: "Unknown action. Use 'preview' or 'confirm'." }, { status: 400 });
+    // ===== AUDIT =====
+    if (action === "audit") {
+      if (!file_url) return Response.json({ error: "file_url is required" }, { status: 400 });
+
+      const fileResponse = await fetch(file_url);
+      if (!fileResponse.ok) return Response.json({ error: "Failed to fetch file" }, { status: 400 });
+      const arrayBuffer = await fileResponse.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: "array" });
+
+      const itemsSheet = findSheet(workbook, "CatalogueItems", "Catalogue Items", "Items");
+      const groupsSheet = findSheet(workbook, "OptionGroups", "Option Groups", "Groups");
+      const valuesSheet = findSheet(workbook, "OptionValues", "Option Values", "Values");
+
+      if (!itemsSheet) return Response.json({ error: "No 'CatalogueItems' sheet found" }, { status: 400 });
+
+      const wbItems = parseCatalogueItems(readSheetRows(workbook, itemsSheet));
+      const wbGroups = parseOptionGroups(readSheetRows(workbook, groupsSheet));
+      const wbValues = parseOptionValues(readSheetRows(workbook, valuesSheet));
+
+      // Fetch all existing records
+      const existingItems = await base44.asServiceRole.entities.CatalogueItem.list("-updated_date", 2000);
+      const existingGroups = await base44.asServiceRole.entities.CatalogueOptionGroup.list("-created_date", 3000);
+      const existingValues = await base44.asServiceRole.entities.CatalogueOptionValue.list("-created_date", 5000);
+
+      // Build lookup maps by stable key
+      const dbItemByKey = {};
+      for (const ei of existingItems) { if (ei.import_key) dbItemByKey[ei.import_key] = ei; }
+      const dbGroupByKey = {};
+      for (const eg of existingGroups) { if (eg.option_group_key) dbGroupByKey[eg.option_group_key] = eg; }
+      const dbValueByKey = {};
+      for (const ev of existingValues) { if (ev.option_value_key) dbValueByKey[ev.option_value_key] = ev; }
+
+      // Also need item key -> item ID and group key -> group ID maps for linkage checks
+      const itemKeyToId = {};
+      for (const ei of existingItems) { if (ei.import_key) itemKeyToId[ei.import_key] = ei.id; }
+      const groupKeyToId = {};
+      for (const eg of existingGroups) { if (eg.option_group_key) groupKeyToId[eg.option_group_key] = eg.id; }
+
+      const ITEM_FIELDS = ["name", "category", "supplier", "brand", "collection", "sku", "model_number", "base_price", "unit_of_measure", "status", "is_active", "tax_status", "cost_type", "parent_group", "subgroup", "line_item_type", "tags", "source_pdf_page", "review_status"];
+      const GROUP_FIELDS = ["name", "description", "display_order", "is_required", "min_selections", "max_selections", "customer_visible", "staff_only", "affects_price", "affects_buildertrend_export"];
+      const VALUE_FIELDS = ["name", "description", "price_modifier", "quantity_modifier", "requires_approval", "display_order", "status", "customer_note", "internal_note", "tier"];
+
+      function normalizeVal(v) {
+        if (Array.isArray(v)) return v.slice().sort().join(",");
+        if (typeof v === "boolean") return v;
+        if (v === null || v === undefined || v === "") return "";
+        if (typeof v === "number") return v;
+        return String(v).trim();
+      }
+
+      function findMismatches(wbRec, dbRec, fields) {
+        const mismatches = [];
+        for (const field of fields) {
+          const wbVal = normalizeVal(wbRec[field]);
+          const dbVal = normalizeVal(dbRec[field]);
+          if (wbVal !== dbVal) {
+            mismatches.push({ field, workbook_value: wbRec[field] ?? "", database_value: dbRec[field] ?? "" });
+          }
+        }
+        return mismatches;
+      }
+
+      // --- Audit Items ---
+      const itemResult = { total: wbItems.length, matched: 0, missing: [], extra: [], mismatched: [] };
+      for (const wi of wbItems) {
+        if (!wi.import_key) { itemResult.missing.push({ row: wi._rowIndex, key: "(no key)", name: wi.name || "" }); continue; }
+        const dbItem = dbItemByKey[wi.import_key];
+        if (!dbItem) { itemResult.missing.push({ row: wi._rowIndex, key: wi.import_key, name: wi.name || "" }); continue; }
+        itemResult.matched++;
+        const { category } = resolveCategory(wi.category);
+        const wbNormalized = { ...wi, category, status: wi.status && VALID_ITEM_STATUSES.includes(wi.status) ? wi.status : "Active", tax_status: wi.tax_status || "Taxable" };
+        const mismatches = findMismatches(wbNormalized, dbItem, ITEM_FIELDS);
+        if (mismatches.length > 0) itemResult.mismatched.push({ key: wi.import_key, name: wi.name, mismatches });
+      }
+      for (const ei of existingItems) {
+        if (ei.import_key && !wbItems.some(wi => wi.import_key === ei.import_key)) {
+          itemResult.extra.push({ key: ei.import_key, name: ei.name || "" });
+        }
+      }
+
+      // --- Audit Groups ---
+      const groupResult = { total: wbGroups.length, matched: 0, missing: [], extra: [], wrongLinkage: [], mismatched: [] };
+      for (const wg of wbGroups) {
+        if (!wg.option_group_key) { groupResult.missing.push({ row: wg._rowIndex, key: "(no key)", name: wg.name || "" }); continue; }
+        const dbGroup = dbGroupByKey[wg.option_group_key];
+        if (!dbGroup) { groupResult.missing.push({ row: wg._rowIndex, key: wg.option_group_key, name: wg.name || "" }); continue; }
+        groupResult.matched++;
+        // Check catalogue item linkage
+        if (wg.catalogue_item_key) {
+          const expectedItemId = itemKeyToId[wg.catalogue_item_key];
+          if (expectedItemId && dbGroup.catalogue_item_id !== expectedItemId) {
+            groupResult.wrongLinkage.push({ key: wg.option_group_key, name: wg.name, field: "catalogue_item_id", workbook_value: wg.catalogue_item_key, database_value: dbGroup.catalogue_item_id || "" });
+          }
+        }
+        const mismatches = findMismatches(wg, dbGroup, GROUP_FIELDS);
+        if (mismatches.length > 0) groupResult.mismatched.push({ key: wg.option_group_key, name: wg.name, mismatches });
+      }
+      for (const eg of existingGroups) {
+        if (eg.option_group_key && !wbGroups.some(wg => wg.option_group_key === eg.option_group_key)) {
+          groupResult.extra.push({ key: eg.option_group_key, name: eg.name || "" });
+        }
+      }
+
+      // --- Audit Values ---
+      const valueResult = { total: wbValues.length, matched: 0, missing: [], extra: [], wrongGroupLinkage: [], wrongItemLinkage: [], mismatched: [] };
+      for (const wv of wbValues) {
+        if (!wv.option_value_key) { valueResult.missing.push({ row: wv._rowIndex, key: "(no key)", name: wv.name || "" }); continue; }
+        const dbValue = dbValueByKey[wv.option_value_key];
+        if (!dbValue) { valueResult.missing.push({ row: wv._rowIndex, key: wv.option_value_key, name: wv.name || "" }); continue; }
+        valueResult.matched++;
+        // Check option group linkage
+        if (wv.option_group_key) {
+          const expectedGroupId = groupKeyToId[wv.option_group_key];
+          if (expectedGroupId && dbValue.option_group_id !== expectedGroupId) {
+            valueResult.wrongGroupLinkage.push({ key: wv.option_value_key, name: wv.name, field: "option_group_id", workbook_value: wv.option_group_key, database_value: dbValue.option_group_id || "" });
+          }
+        }
+        // Check catalogue item linkage
+        if (wv.catalogue_item_key) {
+          const expectedItemId = itemKeyToId[wv.catalogue_item_key];
+          if (expectedItemId && dbValue.catalogue_item_id !== expectedItemId) {
+            valueResult.wrongItemLinkage.push({ key: wv.option_value_key, name: wv.name, field: "catalogue_item_id", workbook_value: wv.catalogue_item_key, database_value: dbValue.catalogue_item_id || "" });
+          }
+        }
+        const wbNormalized = { ...wv, status: wv.status && VALID_OPTION_STATUSES.includes(wv.status) ? wv.status : "Active" };
+        const mismatches = findMismatches(wbNormalized, dbValue, VALUE_FIELDS);
+        if (mismatches.length > 0) valueResult.mismatched.push({ key: wv.option_value_key, name: wv.name, mismatches });
+      }
+      for (const ev of existingValues) {
+        if (ev.option_value_key && !wbValues.some(wv => wv.option_value_key === ev.option_value_key)) {
+          valueResult.extra.push({ key: ev.option_value_key, name: ev.name || "" });
+        }
+      }
+
+      return Response.json({
+        ok: true,
+        audit: {
+          items: itemResult,
+          groups: groupResult,
+          values: valueResult
+        }
+      });
+    }
+
+    return Response.json({ error: "Unknown action. Use 'preview', 'confirm', or 'audit'." }, { status: 400 });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

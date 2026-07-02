@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, Upload, CheckCircle, XCircle, Info, FileSpreadsheet } from "lucide-react";
+import { AlertTriangle, Upload, CheckCircle, XCircle, Info, FileSpreadsheet, GitCompare } from "lucide-react";
 
 const IMPORT_SCOPES = [
   { value: "all", label: "Import all" },
@@ -31,6 +31,8 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
   const [preview, setPreview] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [auditing, setAuditing] = useState(false);
+  const [audit, setAudit] = useState(null);
 
   async function handleUpload(e) {
     const file = e.target.files[0];
@@ -83,7 +85,23 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
   }
 
   function reset() {
-    setStep("upload"); setFileUrl(null); setPreview(null); setResult(null); setError("");
+    setStep("upload"); setFileUrl(null); setPreview(null); setResult(null); setError(""); setAudit(null);
+  }
+
+  async function handleAudit() {
+    if (auditing || !fileUrl) return;
+    setAuditing(true);
+    setError("");
+    try {
+      const res = await base44.functions.invoke("frontierCatalogueImport", {
+        action: "audit", file_url: fileUrl
+      });
+      setAudit(res.data.audit);
+    } catch (e) {
+      setError(e.response?.data?.error || "Audit failed");
+    } finally {
+      setAuditing(false);
+    }
   }
 
   const p = preview?.preview;
@@ -311,6 +329,124 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
                 <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
                 <p className="text-xs text-blue-700">RequirementTemplates detected but not imported yet. Catalogue items and options will still import.</p>
+              </div>
+            )}
+
+            <div className="flex justify-center">
+              <Button variant="outline" onClick={handleAudit} disabled={auditing} className="gap-2">
+                <GitCompare size={16} />
+                {auditing ? "Comparing..." : "Compare Workbook to Database"}
+              </Button>
+            </div>
+
+            {audit && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className={`rounded-lg p-3 text-center ${audit.items.missing.length === 0 && audit.items.mismatched.length === 0 ? "bg-green-50 border border-green-200" : "bg-amber-50 border border-amber-200"}`}>
+                    <p className="text-lg font-bold text-gray-900">{audit.items.matched}/{audit.items.total}</p>
+                    <p className="text-xs text-gray-500">Items</p>
+                    <p className="text-xs mt-1">
+                      <span className="text-red-600">{audit.items.missing.length} missing</span>
+                      <span className="text-gray-300 mx-1">·</span>
+                      <span className="text-amber-600">{audit.items.mismatched.length} mismatched</span>
+                    </p>
+                  </div>
+                  <div className={`rounded-lg p-3 text-center ${audit.groups.missing.length === 0 && audit.groups.mismatched.length === 0 && audit.groups.wrongLinkage.length === 0 ? "bg-green-50 border border-green-200" : "bg-amber-50 border border-amber-200"}`}>
+                    <p className="text-lg font-bold text-gray-900">{audit.groups.matched}/{audit.groups.total}</p>
+                    <p className="text-xs text-gray-500">Groups</p>
+                    <p className="text-xs mt-1">
+                      <span className="text-red-600">{audit.groups.missing.length} missing</span>
+                      <span className="text-gray-300 mx-1">·</span>
+                      <span className="text-amber-600">{audit.groups.mismatched.length} mismatched</span>
+                    </p>
+                  </div>
+                  <div className={`rounded-lg p-3 text-center ${audit.values.missing.length === 0 && audit.values.mismatched.length === 0 && audit.values.wrongGroupLinkage.length === 0 && audit.values.wrongItemLinkage.length === 0 ? "bg-green-50 border border-green-200" : "bg-amber-50 border border-amber-200"}`}>
+                    <p className="text-lg font-bold text-gray-900">{audit.values.matched}/{audit.values.total}</p>
+                    <p className="text-xs text-gray-500">Values</p>
+                    <p className="text-xs mt-1">
+                      <span className="text-red-600">{audit.values.missing.length} missing</span>
+                      <span className="text-gray-300 mx-1">·</span>
+                      <span className="text-amber-600">{audit.values.mismatched.length} mismatched</span>
+                    </p>
+                  </div>
+                </div>
+
+                {audit.items.extra.length > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-xs font-medium text-blue-700 mb-1">{audit.items.extra.length} database items not in workbook</p>
+                    <div className="text-xs text-blue-600 max-h-20 overflow-y-auto space-y-0.5">
+                      {audit.items.extra.map((e, i) => <div key={i}>"{e.key}" — {e.name}</div>)}
+                    </div>
+                  </div>
+                )}
+
+                {[
+                  { label: "Items", data: audit.items },
+                  { label: "Groups", data: audit.groups },
+                  { label: "Values", data: audit.values }
+                ].map(({ label, data }) => (
+                  <div key={label}>
+                    {data.missing.length > 0 && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-2">
+                        <p className="text-xs font-medium text-red-700 mb-1">{label} missing from database ({data.missing.length})</p>
+                        <div className="text-xs text-red-600 max-h-24 overflow-y-auto space-y-0.5">
+                          {data.missing.map((m, i) => <div key={i}>Row {m.row}: "{m.key}" — {m.name}</div>)}
+                        </div>
+                      </div>
+                    )}
+                    {data.mismatched.length > 0 && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2">
+                        <p className="text-xs font-medium text-amber-700 mb-1">{label} field mismatches ({data.mismatched.length})</p>
+                        <div className="text-xs text-amber-600 max-h-40 overflow-y-auto space-y-1">
+                          {data.mismatched.map((m, i) => (
+                            <div key={i}>
+                              <p className="font-medium">"{m.key}" — {m.name}</p>
+                              {m.mismatches.map((mm, j) => (
+                                <div key={j} className="ml-3">
+                                  <span className="font-medium">{mm.field}:</span> workbook="{String(mm.workbook_value)}" ≠ database="{String(mm.database_value)}"
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {audit.groups.wrongLinkage.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2">
+                    <p className="text-xs font-medium text-amber-700 mb-1">Groups with wrong catalogue item linkage ({audit.groups.wrongLinkage.length})</p>
+                    <div className="text-xs text-amber-600 max-h-24 overflow-y-auto space-y-0.5">
+                      {audit.groups.wrongLinkage.map((m, i) => <div key={i}>"{m.key}" — {m.name}: workbook="{m.workbook_value}" ≠ database="{m.database_value}"</div>)}
+                    </div>
+                  </div>
+                )}
+                {audit.values.wrongGroupLinkage.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2">
+                    <p className="text-xs font-medium text-amber-700 mb-1">Values with wrong option group linkage ({audit.values.wrongGroupLinkage.length})</p>
+                    <div className="text-xs text-amber-600 max-h-24 overflow-y-auto space-y-0.5">
+                      {audit.values.wrongGroupLinkage.map((m, i) => <div key={i}>"{m.key}" — {m.name}: workbook="{m.workbook_value}" ≠ database="{m.database_value}"</div>)}
+                    </div>
+                  </div>
+                )}
+                {audit.values.wrongItemLinkage.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2">
+                    <p className="text-xs font-medium text-amber-700 mb-1">Values with wrong catalogue item linkage ({audit.values.wrongItemLinkage.length})</p>
+                    <div className="text-xs text-amber-600 max-h-24 overflow-y-auto space-y-0.5">
+                      {audit.values.wrongItemLinkage.map((m, i) => <div key={i}>"{m.key}" — {m.name}: workbook="{m.workbook_value}" ≠ database="{m.database_value}"</div>)}
+                    </div>
+                  </div>
+                )}
+
+                {audit.items.missing.length === 0 && audit.items.mismatched.length === 0 && audit.items.extra.length === 0 &&
+                 audit.groups.missing.length === 0 && audit.groups.mismatched.length === 0 && audit.groups.wrongLinkage.length === 0 &&
+                 audit.values.missing.length === 0 && audit.values.mismatched.length === 0 && audit.values.wrongGroupLinkage.length === 0 && audit.values.wrongItemLinkage.length === 0 && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
+                    <CheckCircle size={16} className="text-green-600" />
+                    <p className="text-sm text-green-700">Database exactly matches the workbook. No discrepancies found.</p>
+                  </div>
+                )}
               </div>
             )}
 
