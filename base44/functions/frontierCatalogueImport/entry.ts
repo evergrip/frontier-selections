@@ -5,13 +5,36 @@ const VALID_CATEGORIES = ["Vanity", "Cabinet", "Countertop", "Tile", "Flooring",
 const VALID_ITEM_STATUSES = ["Draft", "Active", "Inactive", "Discontinued", "Temporarily Unavailable", "Backordered", "Special Order Only", "Substitution Recommended"];
 const VALID_OPTION_STATUSES = ["Active", "Inactive", "Discontinued", "Temporarily Unavailable", "Backordered", "Special Order Only", "Substitution Recommended"];
 
+// Suggestions for common category names not in the valid list
+const CATEGORY_SUGGESTIONS = {
+  "Shingles": "Roofing",
+  "Steel Roofing": "Roofing",
+  "Standing Seam Roofing": "Roofing",
+  "Vinyl Siding": "Exterior Siding",
+  "Shake Siding": "Exterior Siding",
+  "Faux Stone Siding": "Exterior Siding",
+  "Cabinets": "Cabinet",
+  "Exterior Door": "Door",
+  "Interior Door": "Door"
+};
+
 function str(v) { return String(v ?? "").trim(); }
 function num(v) { const n = Number(v); return isNaN(n) ? 0 : n; }
-function bool(v) {
+
+function boolWithDefault(v, defaultValue) {
+  if (v === "" || v == null) return defaultValue;
   if (typeof v === "boolean") return v;
-  const s = str(v).toLowerCase();
-  return s === "true" || s === "1" || s === "yes" || s === "y";
+  const s = String(v).trim().toLowerCase();
+  if (["true", "1", "yes", "y"].includes(s)) return true;
+  if (["false", "0", "no", "n"].includes(s)) return false;
+  return defaultValue;
 }
+
+// Returns true if the cell had an explicit (non-blank) value
+function isProvided(v) {
+  return v !== "" && v != null;
+}
+
 function arr(v) {
   if (Array.isArray(v)) return v;
   const s = str(v);
@@ -46,71 +69,100 @@ function getField(row, ...keys) {
   return "";
 }
 
+function resolveCategory(raw) {
+  if (!raw) return { category: "Other", suggestion: null, wasInvalid: false };
+  if (VALID_CATEGORIES.includes(raw)) return { category: raw, suggestion: null, wasInvalid: false };
+  if (CATEGORY_SUGGESTIONS[raw]) return { category: CATEGORY_SUGGESTIONS[raw], suggestion: CATEGORY_SUGGESTIONS[raw], wasInvalid: true };
+  return { category: "Other", suggestion: null, wasInvalid: true };
+}
+
 function parseCatalogueItems(rows) {
-  return rows.map((row, i) => ({
-    _rowIndex: i + 2,
-    import_key: str(getField(row, "import_key", "importkey", "key")),
-    name: str(getField(row, "name", "title", "item_name")),
-    category: str(getField(row, "category")),
-    supplier: str(getField(row, "supplier", "vendor")),
-    brand: str(getField(row, "brand")),
-    collection: str(getField(row, "collection")),
-    sku: str(getField(row, "sku")),
-    model_number: str(getField(row, "model_number", "modelnumber", "model")),
-    description: str(getField(row, "description", "desc")),
-    customer_description: str(getField(row, "customer_description", "customerdescription")),
-    base_price: num(getField(row, "base_price", "price", "unit_cost", "cost")),
-    default_quantity: num(getField(row, "default_quantity", "quantity", "qty")) || 1,
-    unit_of_measure: str(getField(row, "unit_of_measure", "unit", "uom")),
-    status: str(getField(row, "status")) || "Active",
-    is_active: bool(getField(row, "is_active", "active")),
-    tax_status: str(getField(row, "tax_status", "tax")) || "Taxable",
-    cost_type: str(getField(row, "cost_type", "costtype")),
-    parent_group: str(getField(row, "parent_group", "parentgroup")),
-    subgroup: str(getField(row, "subgroup", "sub_group")),
-    line_item_type: str(getField(row, "line_item_type", "lineitemtype")),
-    tags: arr(getField(row, "tags", "tag")),
-    source_pdf_page: num(getField(row, "source_pdf_page", "pdf_page", "page")),
-    review_status: str(getField(row, "review_status", "reviewstatus")),
-    review_notes: str(getField(row, "review_notes", "reviewnotes"))
-  })).filter(r => r.name || r.import_key);
+  return rows.map((row, i) => {
+    const isActiveRaw = getField(row, "is_active", "active");
+    return {
+      _rowIndex: i + 2,
+      import_key: str(getField(row, "import_key", "importkey", "key")),
+      name: str(getField(row, "name", "title", "item_name")),
+      category: str(getField(row, "category")),
+      supplier: str(getField(row, "supplier", "vendor")),
+      brand: str(getField(row, "brand")),
+      collection: str(getField(row, "collection")),
+      sku: str(getField(row, "sku")),
+      model_number: str(getField(row, "model_number", "modelnumber", "model")),
+      description: str(getField(row, "description", "desc")),
+      customer_description: str(getField(row, "customer_description", "customerdescription")),
+      base_price: num(getField(row, "base_price", "price", "unit_cost", "cost")),
+      default_quantity: num(getField(row, "default_quantity", "quantity", "qty")) || 1,
+      unit_of_measure: str(getField(row, "unit_of_measure", "unit", "uom")),
+      status: str(getField(row, "status")) || "Active",
+      is_active: boolWithDefault(isActiveRaw, true),
+      tax_status: str(getField(row, "tax_status", "tax")) || "Taxable",
+      cost_type: str(getField(row, "cost_type", "costtype")),
+      parent_group: str(getField(row, "parent_group", "parentgroup")),
+      subgroup: str(getField(row, "subgroup", "sub_group")),
+      line_item_type: str(getField(row, "line_item_type", "lineitemtype")),
+      tags: arr(getField(row, "tags", "tag")),
+      source_pdf_page: num(getField(row, "source_pdf_page", "pdf_page", "page")),
+      review_status: str(getField(row, "review_status", "reviewstatus")),
+      review_notes: str(getField(row, "review_notes", "reviewnotes")),
+      _boolProvided: { is_active: isProvided(isActiveRaw) }
+    };
+  }).filter(r => r.name || r.import_key);
 }
 
 function parseOptionGroups(rows) {
-  return rows.map((row, i) => ({
-    _rowIndex: i + 2,
-    option_group_key: str(getField(row, "option_group_key", "optiongroupkey", "group_key")),
-    catalogue_item_key: str(getField(row, "catalogue_item_key", "catalogueitemkey", "item_key")),
-    name: str(getField(row, "name", "group_name")),
-    description: str(getField(row, "description", "desc")),
-    display_order: num(getField(row, "display_order", "order")) || 0,
-    is_required: bool(getField(row, "is_required", "required")),
-    min_selections: num(getField(row, "min_selections", "minselections")) || 0,
-    max_selections: num(getField(row, "max_selections", "maxselections")) || 1,
-    customer_visible: bool(getField(row, "customer_visible", "visible")),
-    staff_only: bool(getField(row, "staff_only", "staffonly")),
-    affects_price: bool(getField(row, "affects_price", "affectsprice")),
-    affects_buildertrend_export: bool(getField(row, "affects_buildertrend_export", "affectsbt"))
-  })).filter(r => r.name || r.option_group_key);
+  return rows.map((row, i) => {
+    const isRequiredRaw = getField(row, "is_required", "required");
+    const customerVisibleRaw = getField(row, "customer_visible", "visible");
+    const staffOnlyRaw = getField(row, "staff_only", "staffonly");
+    const affectsPriceRaw = getField(row, "affects_price", "affectsprice");
+    const affectsBtRaw = getField(row, "affects_buildertrend_export", "affectsbt");
+    return {
+      _rowIndex: i + 2,
+      option_group_key: str(getField(row, "option_group_key", "optiongroupkey", "group_key")),
+      catalogue_item_key: str(getField(row, "catalogue_item_key", "catalogueitemkey", "item_key")),
+      name: str(getField(row, "name", "group_name")),
+      description: str(getField(row, "description", "desc")),
+      display_order: num(getField(row, "display_order", "order")) || 0,
+      is_required: boolWithDefault(isRequiredRaw, true),
+      min_selections: num(getField(row, "min_selections", "minselections")) || 0,
+      max_selections: num(getField(row, "max_selections", "maxselections")) || 1,
+      customer_visible: boolWithDefault(customerVisibleRaw, true),
+      staff_only: boolWithDefault(staffOnlyRaw, false),
+      affects_price: boolWithDefault(affectsPriceRaw, true),
+      affects_buildertrend_export: boolWithDefault(affectsBtRaw, false),
+      _boolProvided: {
+        is_required: isProvided(isRequiredRaw),
+        customer_visible: isProvided(customerVisibleRaw),
+        staff_only: isProvided(staffOnlyRaw),
+        affects_price: isProvided(affectsPriceRaw),
+        affects_buildertrend_export: isProvided(affectsBtRaw)
+      }
+    };
+  }).filter(r => r.name || r.option_group_key);
 }
 
 function parseOptionValues(rows) {
-  return rows.map((row, i) => ({
-    _rowIndex: i + 2,
-    option_value_key: str(getField(row, "option_value_key", "optionvaluekey", "value_key")),
-    option_group_key: str(getField(row, "option_group_key", "optiongroupkey", "group_key")),
-    catalogue_item_key: str(getField(row, "catalogue_item_key", "catalogueitemkey", "item_key")),
-    name: str(getField(row, "name", "value_name", "option_name")),
-    description: str(getField(row, "description", "desc")),
-    price_modifier: num(getField(row, "price_modifier", "pricemodifier")),
-    quantity_modifier: num(getField(row, "quantity_modifier", "quantitymodifier")),
-    requires_approval: bool(getField(row, "requires_approval", "approval")),
-    display_order: num(getField(row, "display_order", "order")) || 0,
-    status: str(getField(row, "status")) || "Active",
-    customer_note: str(getField(row, "customer_note", "customernote")),
-    internal_note: str(getField(row, "internal_note", "internalnote")),
-    tier: str(getField(row, "tier"))
-  })).filter(r => r.name || r.option_value_key);
+  return rows.map((row, i) => {
+    const requiresApprovalRaw = getField(row, "requires_approval", "approval");
+    return {
+      _rowIndex: i + 2,
+      option_value_key: str(getField(row, "option_value_key", "optionvaluekey", "value_key")),
+      option_group_key: str(getField(row, "option_group_key", "optiongroupkey", "group_key")),
+      catalogue_item_key: str(getField(row, "catalogue_item_key", "catalogueitemkey", "item_key")),
+      name: str(getField(row, "name", "value_name", "option_name")),
+      description: str(getField(row, "description", "desc")),
+      price_modifier: num(getField(row, "price_modifier", "pricemodifier")),
+      quantity_modifier: num(getField(row, "quantity_modifier", "quantitymodifier")),
+      requires_approval: boolWithDefault(requiresApprovalRaw, false),
+      display_order: num(getField(row, "display_order", "order")) || 0,
+      status: str(getField(row, "status")) || "Active",
+      customer_note: str(getField(row, "customer_note", "customernote")),
+      internal_note: str(getField(row, "internal_note", "internalnote")),
+      tier: str(getField(row, "tier")),
+      _boolProvided: { requires_approval: isProvided(requiresApprovalRaw) }
+    };
+  }).filter(r => r.name || r.option_value_key);
 }
 
 function parseRequirementTemplates(rows) {
@@ -119,10 +171,37 @@ function parseRequirementTemplates(rows) {
     name: str(getField(row, "name", "requirement_name")),
     category: str(getField(row, "category")),
     area_type: str(getField(row, "area_type", "areatype")),
-    is_required: bool(getField(row, "is_required", "required")),
+    is_required: boolWithDefault(getField(row, "is_required", "required"), true),
     default_allowance: num(getField(row, "default_allowance", "allowance")),
     customer_instructions: str(getField(row, "customer_instructions", "instructions"))
   })).filter(r => r.name);
+}
+
+// Detect duplicate keys within the file
+function detectDuplicateKeys(records, keyField) {
+  const seen = {};
+  const duplicates = [];
+  for (const rec of records) {
+    const key = rec[keyField];
+    if (!key) continue;
+    if (seen[key]) {
+      duplicates.push({ key, row: rec._rowIndex, first_row: seen[key] });
+    } else {
+      seen[key] = rec._rowIndex;
+    }
+  }
+  return duplicates;
+}
+
+// Collect rows missing stable keys
+function detectMissingKeys(records, keyField, label) {
+  const missing = [];
+  for (const rec of records) {
+    if (!rec[keyField]) {
+      missing.push({ row: rec._rowIndex, name: rec.name || "" });
+    }
+  }
+  return missing;
 }
 
 function buildPreview(items, groups, values, reqTemplates, existingItems) {
@@ -132,24 +211,26 @@ function buildPreview(items, groups, values, reqTemplates, existingItems) {
     if (ei.import_key) existingByKey[ei.import_key] = ei;
   }
 
-  // Duplicate import_key detection within the file
-  const seenKeys = {};
-  const duplicateKeys = [];
-  for (const item of items) {
-    if (!item.import_key) continue;
-    if (seenKeys[item.import_key]) {
-      duplicateKeys.push({ import_key: item.import_key, row: item._rowIndex, first_row: seenKeys[item.import_key] });
-    } else {
-      seenKeys[item.import_key] = item._rowIndex;
-    }
-  }
+  // Duplicate key detection within file
+  const duplicateImportKeys = detectDuplicateKeys(items, "import_key");
+  const duplicateOptionGroupKeys = detectDuplicateKeys(groups, "option_group_key");
+  const duplicateOptionValueKeys = detectDuplicateKeys(values, "option_value_key");
+
+  // Missing stable keys
+  const missingItemKeys = detectMissingKeys(items, "import_key", "import_key");
+  const missingGroupKeys = detectMissingKeys(groups, "option_group_key", "option_group_key");
+  const missingValueKeys = detectMissingKeys(values, "option_value_key", "option_value_key");
 
   // Validate items
   const invalidCategories = [];
   const invalidStatuses = [];
   for (const item of items) {
     if (item.category && !VALID_CATEGORIES.includes(item.category)) {
-      invalidCategories.push({ row: item._rowIndex, value: item.category, name: item.name });
+      const resolved = resolveCategory(item.category);
+      invalidCategories.push({
+        row: item._rowIndex, value: item.category, name: item.name,
+        suggestion: resolved.suggestion, willMapTo: resolved.category
+      });
     }
     if (item.status && !VALID_ITEM_STATUSES.includes(item.status)) {
       invalidStatuses.push({ row: item._rowIndex, value: item.status, name: item.name });
@@ -185,7 +266,12 @@ function buildPreview(items, groups, values, reqTemplates, existingItems) {
       optionValues: values.length,
       requirementTemplates: reqTemplates.length
     },
-    duplicateImportKeys: duplicateKeys,
+    duplicateImportKeys,
+    duplicateOptionGroupKeys,
+    duplicateOptionValueKeys,
+    missingItemKeys,
+    missingGroupKeys,
+    missingValueKeys,
     missingCatalogueItemRefs: missingItemRefs,
     missingOptionGroupRefs: missingGroupRefs,
     invalidCategories,
@@ -197,6 +283,17 @@ function buildPreview(items, groups, values, reqTemplates, existingItems) {
     values: values.map(v => ({ option_value_key: v.option_value_key, option_group_key: v.option_group_key, name: v.name, tier: v.tier, _rowIndex: v._rowIndex })),
     requirementTemplates: reqTemplates
   };
+}
+
+// Build update payload for booleans — only include fields that were explicitly provided
+function conditionalBools(rec, fields) {
+  const result = {};
+  for (const [field] of fields) {
+    if (rec._boolProvided?.[field]) {
+      result[field] = rec[field];
+    }
+  }
+  return result;
 }
 
 Deno.serve(async (req) => {
@@ -314,7 +411,7 @@ Deno.serve(async (req) => {
       for (const item of items) {
         try {
           if (!item.name) { results.errors.push({ row: item._rowIndex, error: "Missing name", type: "item" }); continue; }
-          const category = item.category && VALID_CATEGORIES.includes(item.category) ? item.category : "Other";
+          const { category } = resolveCategory(item.category);
           const status = item.status && VALID_ITEM_STATUSES.includes(item.status) ? item.status : "Active";
           const taxStatus = item.tax_status || "Taxable";
 
@@ -323,19 +420,22 @@ Deno.serve(async (req) => {
           if (existing) {
             if (doUpdate) {
               if (!isDryRun) {
-                await base44.asServiceRole.entities.CatalogueItem.update(existing.id, {
+                const updatePayload = {
                   name: item.name, category, supplier: item.supplier, brand: item.brand,
                   collection: item.collection, sku: item.sku, model_number: item.model_number,
                   description: item.description, customer_description: item.customer_description || item.description,
                   base_price: item.base_price, default_quantity: item.default_quantity,
-                  unit_of_measure: item.unit_of_measure, status, is_active: item.is_active,
+                  unit_of_measure: item.unit_of_measure, status,
                   tax_status: taxStatus, taxable: taxStatus === "Taxable",
                   cost_type: item.cost_type, parent_group: item.parent_group,
                   subgroup: item.subgroup, line_item_type: item.line_item_type,
                   tags: item.tags, source_pdf_page: item.source_pdf_page || null,
                   review_status: item.review_status, review_notes: item.review_notes,
                   import_key: item.import_key
-                });
+                };
+                // Only set is_active if explicitly provided in workbook
+                if (item._boolProvided.is_active) updatePayload.is_active = item.is_active;
+                await base44.asServiceRole.entities.CatalogueItem.update(existing.id, updatePayload);
               }
               results.itemsUpdated++;
               itemKeyToId[item.import_key] = existing.id;
@@ -350,7 +450,7 @@ Deno.serve(async (req) => {
                   brand: item.brand, collection: item.collection, sku: item.sku, model_number: item.model_number,
                   description: item.description, customer_description: item.customer_description || item.description,
                   base_price: item.base_price, default_quantity: item.default_quantity,
-                  unit_of_measure: item.unit_of_measure, status, is_active: item.is_active || status === "Active",
+                  unit_of_measure: item.unit_of_measure, status, is_active: item.is_active,
                   tax_status: taxStatus, taxable: taxStatus === "Taxable",
                   cost_type: item.cost_type, parent_group: item.parent_group,
                   subgroup: item.subgroup, line_item_type: item.line_item_type,
@@ -389,14 +489,16 @@ Deno.serve(async (req) => {
           if (existing) {
             if (doUpdate) {
               if (!isDryRun) {
-                await base44.asServiceRole.entities.CatalogueOptionGroup.update(existing.id, {
+                const updatePayload = {
                   catalogue_item_id: catalogueItemId, name: grp.name, description: grp.description,
-                  display_order: grp.display_order, is_required: grp.is_required,
+                  display_order: grp.display_order,
                   min_selections: grp.min_selections, max_selections: grp.max_selections,
-                  customer_visible: grp.customer_visible, staff_only: grp.staff_only,
-                  affects_price: grp.affects_price, affects_buildertrend_export: grp.affects_buildertrend_export,
                   option_group_key: grp.option_group_key
-                });
+                };
+                Object.assign(updatePayload, conditionalBools(grp, [
+                  ["is_required"], ["customer_visible"], ["staff_only"], ["affects_price"], ["affects_buildertrend_export"]
+                ]));
+                await base44.asServiceRole.entities.CatalogueOptionGroup.update(existing.id, updatePayload);
               }
               results.groupsUpdated++;
             } else {
@@ -451,13 +553,16 @@ Deno.serve(async (req) => {
           if (existing) {
             if (doUpdate) {
               if (!isDryRun) {
-                await base44.asServiceRole.entities.CatalogueOptionValue.update(existing.id, {
+                const updatePayload = {
                   option_group_id: optionGroupId, catalogue_item_id: catalogueItemId || existing.catalogue_item_id,
                   name: val.name, description: val.description, price_modifier: val.price_modifier,
-                  quantity_modifier: val.quantity_modifier, requires_approval: val.requires_approval,
+                  quantity_modifier: val.quantity_modifier,
                   display_order: val.display_order, status, customer_note: val.customer_note,
                   internal_note: val.internal_note, tier: val.tier, option_value_key: val.option_value_key
-                });
+                };
+                // Only set requires_approval if explicitly provided
+                if (val._boolProvided.requires_approval) updatePayload.requires_approval = val.requires_approval;
+                await base44.asServiceRole.entities.CatalogueOptionValue.update(existing.id, updatePayload);
               }
               results.valuesUpdated++;
             } else {

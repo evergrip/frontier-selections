@@ -79,7 +79,12 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
   }
 
   const p = preview?.preview;
-  const hasIssues = p && (p.duplicateImportKeys.length > 0 || p.missingCatalogueItemRefs.length > 0 || p.missingOptionGroupRefs.length > 0 || p.invalidCategories.length > 0 || p.invalidStatuses.length > 0);
+  const hasIssues = p && (
+    p.duplicateImportKeys.length > 0 || p.duplicateOptionGroupKeys.length > 0 || p.duplicateOptionValueKeys.length > 0 ||
+    p.missingCatalogueItemRefs.length > 0 || p.missingOptionGroupRefs.length > 0 ||
+    p.invalidCategories.length > 0 || p.invalidStatuses.length > 0
+  );
+  const hasMissingKeys = p && (p.missingItemKeys.length > 0 || p.missingGroupKeys.length > 0 || p.missingValueKeys.length > 0);
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setTimeout(reset, 200); }}>
@@ -196,6 +201,22 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
                     </div>
                   </div>
                 )}
+                {p.duplicateOptionGroupKeys.length > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-sm font-medium text-red-700 mb-1">Duplicate option_group_keys ({p.duplicateOptionGroupKeys.length})</p>
+                    <div className="text-xs text-red-600 space-y-0.5 max-h-24 overflow-y-auto">
+                      {p.duplicateOptionGroupKeys.map((d, i) => <div key={i}>Row {d.row}: "{d.key}" (first seen at row {d.first_row})</div>)}
+                    </div>
+                  </div>
+                )}
+                {p.duplicateOptionValueKeys.length > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-sm font-medium text-red-700 mb-1">Duplicate option_value_keys ({p.duplicateOptionValueKeys.length})</p>
+                    <div className="text-xs text-red-600 space-y-0.5 max-h-24 overflow-y-auto">
+                      {p.duplicateOptionValueKeys.map((d, i) => <div key={i}>Row {d.row}: "{d.key}" (first seen at row {d.first_row})</div>)}
+                    </div>
+                  </div>
+                )}
                 {p.missingCatalogueItemRefs.length > 0 && (
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                     <p className="text-sm font-medium text-amber-700 mb-1">Missing catalogue_item_key references ({p.missingCatalogueItemRefs.length})</p>
@@ -216,7 +237,9 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                     <p className="text-sm font-medium text-amber-700 mb-1">Invalid categories ({p.invalidCategories.length})</p>
                     <div className="text-xs text-amber-600 space-y-0.5 max-h-24 overflow-y-auto">
-                      {p.invalidCategories.map((c, i) => <div key={i}>Row {c.row}: "{c.value}" on "{c.name}" — will default to "Other"</div>)}
+                      {p.invalidCategories.map((c, i) => (
+                        <div key={i}>Row {c.row}: "{c.value}" on "{c.name}" — {c.suggestion ? `will map to "${c.willMapTo}"` : 'will default to "Other"'}</div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -236,10 +259,25 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
               </div>
             )}
 
+            {hasMissingKeys && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+                <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-700">
+                  <p className="font-medium mb-1">Rows without stable keys detected:</p>
+                  <ul className="space-y-0.5 list-disc list-inside">
+                    {p.missingItemKeys.length > 0 && <li>{p.missingItemKeys.length} CatalogueItem rows missing import_key</li>}
+                    {p.missingGroupKeys.length > 0 && <li>{p.missingGroupKeys.length} OptionGroup rows missing option_group_key</li>}
+                    {p.missingValueKeys.length > 0 && <li>{p.missingValueKeys.length} OptionValue rows missing option_value_key</li>}
+                  </ul>
+                  <p className="mt-1 italic">Rows without stable keys may duplicate on future imports.</p>
+                </div>
+              </div>
+            )}
+
             {p.counts.requirementTemplates > 0 && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
                 <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
-                <p className="text-xs text-blue-700">{p.counts.requirementTemplates} requirement template(s) detected. These will be previewed but not imported yet (template entity not available).</p>
+                <p className="text-xs text-blue-700">RequirementTemplates detected but not imported yet. Catalogue items and options will still import.</p>
               </div>
             )}
 
