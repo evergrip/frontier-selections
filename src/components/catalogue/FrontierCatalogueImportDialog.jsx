@@ -264,11 +264,30 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
                 <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
                 <div className="text-xs text-amber-700">
                   <p className="font-medium mb-1">Rows without stable keys detected:</p>
-                  <ul className="space-y-0.5 list-disc list-inside">
-                    {p.missingItemKeys.length > 0 && <li>{p.missingItemKeys.length} CatalogueItem rows missing import_key</li>}
-                    {p.missingGroupKeys.length > 0 && <li>{p.missingGroupKeys.length} OptionGroup rows missing option_group_key</li>}
-                    {p.missingValueKeys.length > 0 && <li>{p.missingValueKeys.length} OptionValue rows missing option_value_key</li>}
-                  </ul>
+                  {p.missingItemKeys.length > 0 && (
+                    <div className="mb-1">
+                      <p className="font-medium">{p.missingItemKeys.length} CatalogueItem rows missing import_key:</p>
+                      <div className="max-h-20 overflow-y-auto space-y-0.5">
+                        {p.missingItemKeys.map((m, i) => <div key={i}>Row {m.row}{m.name ? `: "${m.name}"` : ""}</div>)}
+                      </div>
+                    </div>
+                  )}
+                  {p.missingGroupKeys.length > 0 && (
+                    <div className="mb-1">
+                      <p className="font-medium">{p.missingGroupKeys.length} OptionGroup rows missing option_group_key:</p>
+                      <div className="max-h-20 overflow-y-auto space-y-0.5">
+                        {p.missingGroupKeys.map((m, i) => <div key={i}>Row {m.row}{m.name ? `: "${m.name}"` : ""}</div>)}
+                      </div>
+                    </div>
+                  )}
+                  {p.missingValueKeys.length > 0 && (
+                    <div className="mb-1">
+                      <p className="font-medium">{p.missingValueKeys.length} OptionValue rows missing option_value_key:</p>
+                      <div className="max-h-20 overflow-y-auto space-y-0.5">
+                        {p.missingValueKeys.map((m, i) => <div key={i}>Row {m.row}{m.name ? `: "${m.name}"` : ""}</div>)}
+                      </div>
+                    </div>
+                  )}
                   <p className="mt-1 italic">Rows without stable keys may duplicate on future imports.</p>
                 </div>
               </div>
@@ -288,7 +307,9 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
                   Mode: {IMPORT_MODES.find(m => m.value === importMode)?.label}
                 </p>
                 <Button onClick={handleConfirm} disabled={confirming}>
-                  {confirming ? "Importing..." : importMode === "dry_run" ? "Run Dry Run" : `Import ${p.counts.catalogueItems} Items`}
+                  {confirming ? "Importing..." : importMode === "dry_run"
+                    ? `Run Dry Run for ${p.counts.catalogueItems} items, ${p.counts.optionGroups} groups, ${p.counts.optionValues} values`
+                    : `Import ${p.counts.catalogueItems} items, ${p.counts.optionGroups} groups, ${p.counts.optionValues} values`}
                 </Button>
               </div>
             </div>
