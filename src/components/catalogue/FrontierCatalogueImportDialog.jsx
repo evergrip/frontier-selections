@@ -6,6 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle, Upload, CheckCircle, XCircle, Info, FileSpreadsheet } from "lucide-react";
 
+const IMPORT_SCOPES = [
+  { value: "all", label: "Import all" },
+  { value: "items_only", label: "Import items only" },
+  { value: "groups_only", label: "Import groups only" },
+  { value: "values_only", label: "Import values only" }
+];
+
 const IMPORT_MODES = [
   { value: "create_and_update", label: "Create and update" },
   { value: "create_only", label: "Create only (skip existing)" },
@@ -17,6 +24,7 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
   const [step, setStep] = useState("upload");
   const [fileUrl, setFileUrl] = useState(null);
   const [importMode, setImportMode] = useState("create_and_update");
+  const [importScope, setImportScope] = useState("all");
   const [uploading, setUploading] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -62,7 +70,7 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
     setError("");
     try {
       const res = await base44.functions.invoke("frontierCatalogueImport", {
-        action: "confirm", file_url: fileUrl, import_mode: importMode,
+        action: "confirm", file_url: fileUrl, import_mode: importMode, import_scope: importScope,
         preview_data: preview.preview
       });
       setResult(res.data);
@@ -85,6 +93,12 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
     p.invalidCategories.length > 0 || p.invalidStatuses.length > 0
   );
   const hasMissingKeys = p && (p.missingItemKeys.length > 0 || p.missingGroupKeys.length > 0 || p.missingValueKeys.length > 0);
+  const totalRecords = p ? p.counts.catalogueItems + p.counts.optionGroups + p.counts.optionValues : 0;
+  const scopeLabel = p ? (importScope === "all"
+    ? `${p.counts.catalogueItems} items, ${p.counts.optionGroups} groups, ${p.counts.optionValues} values`
+    : importScope === "items_only" ? `${p.counts.catalogueItems} items`
+    : importScope === "groups_only" ? `${p.counts.optionGroups} groups`
+    : `${p.counts.optionValues} values`) : "";
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setTimeout(reset, 200); }}>
@@ -300,16 +314,33 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
               </div>
             )}
 
+            {totalRecords > 500 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+                <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-700">
+                  This import contains {totalRecords} records. Large imports may take several minutes and will be processed in batches.
+                </p>
+              </div>
+            )}
+
+            <div>
+              <Label>Import Scope</Label>
+              <Select value={importScope} onValueChange={setImportScope}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{IMPORT_SCOPES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+
             <div className="flex justify-between items-center">
               <Button variant="outline" onClick={() => setStep("upload")}>Back</Button>
               <div className="text-right">
                 <p className="text-xs text-gray-500 mb-1">
-                  Mode: {IMPORT_MODES.find(m => m.value === importMode)?.label}
+                  Mode: {IMPORT_MODES.find(m => m.value === importMode)?.label} · Scope: {IMPORT_SCOPES.find(s => s.value === importScope)?.label}
                 </p>
                 <Button onClick={handleConfirm} disabled={confirming}>
                   {confirming ? "Importing..." : importMode === "dry_run"
-                    ? `Run Dry Run for ${p.counts.catalogueItems} items, ${p.counts.optionGroups} groups, ${p.counts.optionValues} values`
-                    : `Import ${p.counts.catalogueItems} items, ${p.counts.optionGroups} groups, ${p.counts.optionValues} values`}
+                    ? `Run Dry Run for ${scopeLabel}`
+                    : `Import ${scopeLabel}`}
                 </Button>
               </div>
             </div>
@@ -318,9 +349,22 @@ export default function FrontierCatalogueImportDialog({ open, onOpenChange, onDo
 
         {step === "result" && result && (
           <div className="space-y-4 text-center py-4">
-            <CheckCircle size={48} className="mx-auto text-green-500" />
+            {result.rateLimitStopped ? (
+              <AlertTriangle size={48} className="mx-auto text-amber-500" />
+            ) : (
+              <CheckCircle size={48} className="mx-auto text-green-500" />
+            )}
             <div className="space-y-1">
-              <p className="text-lg font-semibold">{result.isDryRun ? "Dry Run Complete" : "Import Complete"}</p>
+              <p className="text-lg font-semibold">{result.rateLimitStopped ? "Import Stopped" : result.isDryRun ? "Dry Run Complete" : "Import Complete"}</p>
+              {result.rateLimitStopped && (
+                <p className="text-sm text-amber-600 max-w-md">{result.message}</p>
+              )}
+              {result.results.completedPhase && result.rateLimitStopped && (
+                <p className="text-xs text-gray-400">Completed through: {result.results.completedPhase} phase</p>
+              )}
+              {result.results.rateLimitRetries > 0 && !result.rateLimitStopped && (
+                <p className="text-xs text-gray-400">{result.results.rateLimitRetries} rate limit retry(ies) occurred</p>
+              )}
               <div className="text-sm text-gray-500 space-y-0.5">
                 <p>Items: {result.results.itemsCreated} created, {result.results.itemsUpdated} updated, {result.results.itemsSkipped} skipped</p>
                 <p>Groups: {result.results.groupsCreated} created, {result.results.groupsUpdated} updated, {result.results.groupsSkipped} skipped</p>

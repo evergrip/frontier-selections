@@ -296,6 +296,47 @@ function conditionalBools(rec, fields) {
   return result;
 }
 
+async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function processInBatches(records, batchSize, delayMs, handler) {
+  const results = [];
+  for (let i = 0; i < records.length; i += batchSize) {
+    const batch = records.slice(i, i + batchSize);
+    for (const record of batch) {
+      results.push(await handler(record));
+    }
+    if (i + batchSize < records.length) {
+      await sleep(delayMs);
+    }
+  }
+  return results;
+}
+
+function isRateLimitError(e) {
+  const msg = (e.message || "").toLowerCase();
+  return msg.includes("rate limit") || msg.includes("429") || msg.includes("too many requests");
+}
+
+async function withRateLimitRetry(fn, results) {
+  for (let attempt = 0; attempt <= 3; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (isRateLimitError(e)) {
+        results.rateLimitRetries++;
+        if (attempt < 3) {
+          await sleep(2000);
+          continue;
+        }
+        throw e;
+      }
+      throw e;
+    }
+  }
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -361,6 +402,10 @@ Deno.serve(async (req) => {
       const isDryRun = import_mode === "dry_run";
       const doCreate = import_mode === "create_only" || import_mode === "create_and_update";
       const doUpdate = import_mode === "update_existing" || import_mode === "create_and_update";
+      const import_scope = body.import_scope || "all";
+      const doItems = import_scope === "all" || import_scope === "items_only";
+      const doGroups = import_scope === "all" || import_scope === "groups_only";
+      const doValues = import_scope === "all" || import_scope === "values_only";
 
       // Re-fetch file and parse to get full row data
       if (!file_url) return Response.json({ error: "file_url is required for confirm" }, { status: 400 });
@@ -377,14 +422,13 @@ Deno.serve(async (req) => {
       const groups = parseOptionGroups(readSheetRows(workbook, groupsSheet));
       const values = parseOptionValues(readSheetRows(workbook, valuesSheet));
 
-      // Fetch existing items for matching
+      // Fetch existing records for matching (resume-safe)
       const existingItems = await base44.asServiceRole.entities.CatalogueItem.list("-updated_date", 2000);
       const existingByKey = {};
       for (const ei of existingItems) {
         if (ei.import_key) existingByKey[ei.import_key] = ei;
       }
 
-      // Fetch existing option groups and values for matching
       const existingGroups = await base44.asServiceRole.entities.CatalogueOptionGroup.list("-created_date", 3000);
       const existingGroupByKey = {};
       for (const eg of existingGroups) {
@@ -401,206 +445,231 @@ Deno.serve(async (req) => {
         itemsCreated: 0, itemsUpdated: 0, itemsSkipped: 0,
         groupsCreated: 0, groupsUpdated: 0, groupsSkipped: 0,
         valuesCreated: 0, valuesUpdated: 0, valuesSkipped: 0,
-        errors: []
+        errors: [],
+        rateLimitRetries: 0,
+        completedPhase: null
       };
 
-      // Key -> created item ID map (for linking groups)
       const itemKeyToId = {};
+      let rateLimitStopped = false;
 
       // Phase 1: Catalogue Items
-      for (const item of items) {
+      if (doItems && !rateLimitStopped) {
         try {
-          if (!item.name) { results.errors.push({ row: item._rowIndex, error: "Missing name", type: "item" }); continue; }
-          const { category } = resolveCategory(item.category);
-          const status = item.status && VALID_ITEM_STATUSES.includes(item.status) ? item.status : "Active";
-          const taxStatus = item.tax_status || "Taxable";
+          await processInBatches(items, 10, 500, async (item) => {
+            try {
+              if (!item.name) { results.errors.push({ row: item._rowIndex, error: "Missing name", type: "item" }); return; }
+              const { category } = resolveCategory(item.category);
+              const status = item.status && VALID_ITEM_STATUSES.includes(item.status) ? item.status : "Active";
+              const taxStatus = item.tax_status || "Taxable";
+              const existing = item.import_key ? existingByKey[item.import_key] : null;
 
-          const existing = item.import_key ? existingByKey[item.import_key] : null;
-
-          if (existing) {
-            if (doUpdate) {
-              if (!isDryRun) {
-                const updatePayload = {
-                  name: item.name, category, supplier: item.supplier, brand: item.brand,
-                  collection: item.collection, sku: item.sku, model_number: item.model_number,
-                  description: item.description, customer_description: item.customer_description || item.description,
-                  base_price: item.base_price, default_quantity: item.default_quantity,
-                  unit_of_measure: item.unit_of_measure, status,
-                  tax_status: taxStatus, taxable: taxStatus === "Taxable",
-                  cost_type: item.cost_type, parent_group: item.parent_group,
-                  subgroup: item.subgroup, line_item_type: item.line_item_type,
-                  tags: item.tags, source_pdf_page: item.source_pdf_page || null,
-                  review_status: item.review_status, review_notes: item.review_notes,
-                  import_key: item.import_key
-                };
-                // Only set is_active if explicitly provided in workbook
-                if (item._boolProvided.is_active) updatePayload.is_active = item.is_active;
-                await base44.asServiceRole.entities.CatalogueItem.update(existing.id, updatePayload);
+              if (existing) {
+                if (doUpdate) {
+                  if (!isDryRun) {
+                    const updatePayload = {
+                      name: item.name, category, supplier: item.supplier, brand: item.brand,
+                      collection: item.collection, sku: item.sku, model_number: item.model_number,
+                      description: item.description, customer_description: item.customer_description || item.description,
+                      base_price: item.base_price, default_quantity: item.default_quantity,
+                      unit_of_measure: item.unit_of_measure, status,
+                      tax_status: taxStatus, taxable: taxStatus === "Taxable",
+                      cost_type: item.cost_type, parent_group: item.parent_group,
+                      subgroup: item.subgroup, line_item_type: item.line_item_type,
+                      tags: item.tags, source_pdf_page: item.source_pdf_page || null,
+                      review_status: item.review_status, review_notes: item.review_notes,
+                      import_key: item.import_key
+                    };
+                    if (item._boolProvided.is_active) updatePayload.is_active = item.is_active;
+                    await withRateLimitRetry(() => base44.asServiceRole.entities.CatalogueItem.update(existing.id, updatePayload), results);
+                  }
+                  results.itemsUpdated++;
+                  itemKeyToId[item.import_key] = existing.id;
+                } else {
+                  results.itemsSkipped++;
+                }
+              } else {
+                if (doCreate) {
+                  if (!isDryRun) {
+                    const created = await withRateLimitRetry(() => base44.asServiceRole.entities.CatalogueItem.create({
+                      name: item.name, import_key: item.import_key, category, supplier: item.supplier,
+                      brand: item.brand, collection: item.collection, sku: item.sku, model_number: item.model_number,
+                      description: item.description, customer_description: item.customer_description || item.description,
+                      base_price: item.base_price, default_quantity: item.default_quantity,
+                      unit_of_measure: item.unit_of_measure, status, is_active: item.is_active,
+                      tax_status: taxStatus, taxable: taxStatus === "Taxable",
+                      cost_type: item.cost_type, parent_group: item.parent_group,
+                      subgroup: item.subgroup, line_item_type: item.line_item_type,
+                      tags: item.tags, source_pdf_page: item.source_pdf_page || null,
+                      review_status: item.review_status, review_notes: item.review_notes
+                    }), results);
+                    itemKeyToId[item.import_key] = created.id;
+                  }
+                  results.itemsCreated++;
+                } else {
+                  results.itemsSkipped++;
+                }
               }
-              results.itemsUpdated++;
-              itemKeyToId[item.import_key] = existing.id;
-            } else {
-              results.itemsSkipped++;
+            } catch (e) {
+              if (isRateLimitError(e)) throw e;
+              results.errors.push({ row: item._rowIndex, error: e.message, type: "item", name: item.name });
             }
-          } else {
-            if (doCreate) {
-              if (!isDryRun) {
-                const created = await base44.asServiceRole.entities.CatalogueItem.create({
-                  name: item.name, import_key: item.import_key, category, supplier: item.supplier,
-                  brand: item.brand, collection: item.collection, sku: item.sku, model_number: item.model_number,
-                  description: item.description, customer_description: item.customer_description || item.description,
-                  base_price: item.base_price, default_quantity: item.default_quantity,
-                  unit_of_measure: item.unit_of_measure, status, is_active: item.is_active,
-                  tax_status: taxStatus, taxable: taxStatus === "Taxable",
-                  cost_type: item.cost_type, parent_group: item.parent_group,
-                  subgroup: item.subgroup, line_item_type: item.line_item_type,
-                  tags: item.tags, source_pdf_page: item.source_pdf_page || null,
-                  review_status: item.review_status, review_notes: item.review_notes
-                });
-                itemKeyToId[item.import_key] = created.id;
-              }
-              results.itemsCreated++;
-            } else {
-              results.itemsSkipped++;
-            }
-          }
+          });
+          results.completedPhase = "items";
         } catch (e) {
-          results.errors.push({ row: item._rowIndex, error: e.message, type: "item", name: item.name });
+          if (isRateLimitError(e)) { rateLimitStopped = true; }
+          else throw e;
         }
       }
 
       // Phase 2: Option Groups
-      for (const grp of groups) {
+      if (doGroups && !rateLimitStopped) {
         try {
-          if (!grp.name) { results.errors.push({ row: grp._rowIndex, error: "Missing name", type: "group" }); continue; }
-
-          // Resolve catalogue_item_key to ID
-          let catalogueItemId = null;
-          if (grp.catalogue_item_key) {
-            catalogueItemId = itemKeyToId[grp.catalogue_item_key] || (existingByKey[grp.catalogue_item_key]?.id) || null;
-          }
-          if (!catalogueItemId) {
-            results.errors.push({ row: grp._rowIndex, error: `Cannot resolve catalogue_item_key: ${grp.catalogue_item_key}`, type: "group", name: grp.name });
-            continue;
-          }
-
-          const existing = grp.option_group_key ? existingGroupByKey[grp.option_group_key] : null;
-
-          if (existing) {
-            if (doUpdate) {
-              if (!isDryRun) {
-                const updatePayload = {
-                  catalogue_item_id: catalogueItemId, name: grp.name, description: grp.description,
-                  display_order: grp.display_order,
-                  min_selections: grp.min_selections, max_selections: grp.max_selections,
-                  option_group_key: grp.option_group_key
-                };
-                Object.assign(updatePayload, conditionalBools(grp, [
-                  ["is_required"], ["customer_visible"], ["staff_only"], ["affects_price"], ["affects_buildertrend_export"]
-                ]));
-                await base44.asServiceRole.entities.CatalogueOptionGroup.update(existing.id, updatePayload);
+          await processInBatches(groups, 10, 500, async (grp) => {
+            try {
+              if (!grp.name) { results.errors.push({ row: grp._rowIndex, error: "Missing name", type: "group" }); return; }
+              let catalogueItemId = null;
+              if (grp.catalogue_item_key) {
+                catalogueItemId = itemKeyToId[grp.catalogue_item_key] || (existingByKey[grp.catalogue_item_key]?.id) || null;
               }
-              results.groupsUpdated++;
-            } else {
-              results.groupsSkipped++;
-            }
-          } else {
-            if (doCreate) {
-              if (!isDryRun) {
-                const created = await base44.asServiceRole.entities.CatalogueOptionGroup.create({
-                  catalogue_item_id: catalogueItemId, option_group_key: grp.option_group_key,
-                  name: grp.name, description: grp.description, display_order: grp.display_order,
-                  is_required: grp.is_required, min_selections: grp.min_selections,
-                  max_selections: grp.max_selections, customer_visible: grp.customer_visible,
-                  staff_only: grp.staff_only, affects_price: grp.affects_price,
-                  affects_buildertrend_export: grp.affects_buildertrend_export
-                });
-                // Store created group ID by key for value linking
-                if (grp.option_group_key) existingGroupByKey[grp.option_group_key] = { id: created.id };
+              if (!catalogueItemId) {
+                results.errors.push({ row: grp._rowIndex, error: `Cannot resolve catalogue_item_key: ${grp.catalogue_item_key}`, type: "group", name: grp.name });
+                return;
               }
-              results.groupsCreated++;
-            } else {
-              results.groupsSkipped++;
+
+              const existing = grp.option_group_key ? existingGroupByKey[grp.option_group_key] : null;
+
+              if (existing) {
+                if (doUpdate) {
+                  if (!isDryRun) {
+                    const updatePayload = {
+                      catalogue_item_id: catalogueItemId, name: grp.name, description: grp.description,
+                      display_order: grp.display_order,
+                      min_selections: grp.min_selections, max_selections: grp.max_selections,
+                      option_group_key: grp.option_group_key
+                    };
+                    Object.assign(updatePayload, conditionalBools(grp, [
+                      ["is_required"], ["customer_visible"], ["staff_only"], ["affects_price"], ["affects_buildertrend_export"]
+                    ]));
+                    await withRateLimitRetry(() => base44.asServiceRole.entities.CatalogueOptionGroup.update(existing.id, updatePayload), results);
+                  }
+                  results.groupsUpdated++;
+                } else {
+                  results.groupsSkipped++;
+                }
+              } else {
+                if (doCreate) {
+                  if (!isDryRun) {
+                    const created = await withRateLimitRetry(() => base44.asServiceRole.entities.CatalogueOptionGroup.create({
+                      catalogue_item_id: catalogueItemId, option_group_key: grp.option_group_key,
+                      name: grp.name, description: grp.description, display_order: grp.display_order,
+                      is_required: grp.is_required, min_selections: grp.min_selections,
+                      max_selections: grp.max_selections, customer_visible: grp.customer_visible,
+                      staff_only: grp.staff_only, affects_price: grp.affects_price,
+                      affects_buildertrend_export: grp.affects_buildertrend_export
+                    }), results);
+                    if (grp.option_group_key) existingGroupByKey[grp.option_group_key] = { id: created.id };
+                  }
+                  results.groupsCreated++;
+                } else {
+                  results.groupsSkipped++;
+                }
+              }
+            } catch (e) {
+              if (isRateLimitError(e)) throw e;
+              results.errors.push({ row: grp._rowIndex, error: e.message, type: "group", name: grp.name });
             }
-          }
+          });
+          results.completedPhase = "groups";
         } catch (e) {
-          results.errors.push({ row: grp._rowIndex, error: e.message, type: "group", name: grp.name });
+          if (isRateLimitError(e)) { rateLimitStopped = true; }
+          else throw e;
         }
       }
 
       // Phase 3: Option Values
-      for (const val of values) {
+      if (doValues && !rateLimitStopped) {
         try {
-          if (!val.name) { results.errors.push({ row: val._rowIndex, error: "Missing name", type: "value" }); continue; }
-
-          // Resolve option_group_key to ID
-          let optionGroupId = null;
-          let catalogueItemId = null;
-          if (val.option_group_key) {
-            optionGroupId = existingGroupByKey[val.option_group_key]?.id || null;
-          }
-          if (val.catalogue_item_key) {
-            catalogueItemId = itemKeyToId[val.catalogue_item_key] || (existingByKey[val.catalogue_item_key]?.id) || null;
-          }
-          if (!optionGroupId) {
-            results.errors.push({ row: val._rowIndex, error: `Cannot resolve option_group_key: ${val.option_group_key}`, type: "value", name: val.name });
-            continue;
-          }
-
-          const status = val.status && VALID_OPTION_STATUSES.includes(val.status) ? val.status : "Active";
-          const existing = val.option_value_key ? existingValueByKey[val.option_value_key] : null;
-
-          if (existing) {
-            if (doUpdate) {
-              if (!isDryRun) {
-                const updatePayload = {
-                  option_group_id: optionGroupId, catalogue_item_id: catalogueItemId || existing.catalogue_item_id,
-                  name: val.name, description: val.description, price_modifier: val.price_modifier,
-                  quantity_modifier: val.quantity_modifier,
-                  display_order: val.display_order, status, customer_note: val.customer_note,
-                  internal_note: val.internal_note, tier: val.tier, option_value_key: val.option_value_key
-                };
-                // Only set requires_approval if explicitly provided
-                if (val._boolProvided.requires_approval) updatePayload.requires_approval = val.requires_approval;
-                await base44.asServiceRole.entities.CatalogueOptionValue.update(existing.id, updatePayload);
+          await processInBatches(values, 25, 750, async (val) => {
+            try {
+              if (!val.name) { results.errors.push({ row: val._rowIndex, error: "Missing name", type: "value" }); return; }
+              let optionGroupId = null;
+              let catalogueItemId = null;
+              if (val.option_group_key) {
+                optionGroupId = existingGroupByKey[val.option_group_key]?.id || null;
               }
-              results.valuesUpdated++;
-            } else {
-              results.valuesSkipped++;
-            }
-          } else {
-            if (doCreate) {
-              if (!isDryRun) {
-                await base44.asServiceRole.entities.CatalogueOptionValue.create({
-                  option_group_id: optionGroupId, catalogue_item_id: catalogueItemId || null,
-                  option_value_key: val.option_value_key, name: val.name, description: val.description,
-                  price_modifier: val.price_modifier, quantity_modifier: val.quantity_modifier,
-                  requires_approval: val.requires_approval, display_order: val.display_order,
-                  status, customer_note: val.customer_note, internal_note: val.internal_note, tier: val.tier
-                });
+              if (val.catalogue_item_key) {
+                catalogueItemId = itemKeyToId[val.catalogue_item_key] || (existingByKey[val.catalogue_item_key]?.id) || null;
               }
-              results.valuesCreated++;
-            } else {
-              results.valuesSkipped++;
+              if (!optionGroupId) {
+                results.errors.push({ row: val._rowIndex, error: `Cannot resolve option_group_key: ${val.option_group_key}`, type: "value", name: val.name });
+                return;
+              }
+
+              const status = val.status && VALID_OPTION_STATUSES.includes(val.status) ? val.status : "Active";
+              const existing = val.option_value_key ? existingValueByKey[val.option_value_key] : null;
+
+              if (existing) {
+                if (doUpdate) {
+                  if (!isDryRun) {
+                    const updatePayload = {
+                      option_group_id: optionGroupId, catalogue_item_id: catalogueItemId || existing.catalogue_item_id,
+                      name: val.name, description: val.description, price_modifier: val.price_modifier,
+                      quantity_modifier: val.quantity_modifier,
+                      display_order: val.display_order, status, customer_note: val.customer_note,
+                      internal_note: val.internal_note, tier: val.tier, option_value_key: val.option_value_key
+                    };
+                    if (val._boolProvided.requires_approval) updatePayload.requires_approval = val.requires_approval;
+                    await withRateLimitRetry(() => base44.asServiceRole.entities.CatalogueOptionValue.update(existing.id, updatePayload), results);
+                  }
+                  results.valuesUpdated++;
+                } else {
+                  results.valuesSkipped++;
+                }
+              } else {
+                if (doCreate) {
+                  if (!isDryRun) {
+                    await withRateLimitRetry(() => base44.asServiceRole.entities.CatalogueOptionValue.create({
+                      option_group_id: optionGroupId, catalogue_item_id: catalogueItemId || null,
+                      option_value_key: val.option_value_key, name: val.name, description: val.description,
+                      price_modifier: val.price_modifier, quantity_modifier: val.quantity_modifier,
+                      requires_approval: val.requires_approval, display_order: val.display_order,
+                      status, customer_note: val.customer_note, internal_note: val.internal_note, tier: val.tier
+                    }), results);
+                  }
+                  results.valuesCreated++;
+                } else {
+                  results.valuesSkipped++;
+                }
+              }
+            } catch (e) {
+              if (isRateLimitError(e)) throw e;
+              results.errors.push({ row: val._rowIndex, error: e.message, type: "value", name: val.name });
             }
-          }
+          });
+          results.completedPhase = "values";
         } catch (e) {
-          results.errors.push({ row: val._rowIndex, error: e.message, type: "value", name: val.name });
+          if (isRateLimitError(e)) { rateLimitStopped = true; }
+          else throw e;
         }
       }
 
       // Audit log
-      if (!isDryRun) {
+      if (!isDryRun && !rateLimitStopped) {
         await base44.asServiceRole.entities.AuditLog.create({
           target_type: "catalogue_import", target_id: "N/A",
           action: "frontier_catalogue_import", action_type: "frontier_catalogue_import",
-          description: `${user.full_name || user.email} imported Frontier catalogue workbook: ${results.itemsCreated} items created, ${results.itemsUpdated} updated, ${results.groupsCreated} groups created, ${results.valuesCreated} values created`,
+          description: `${user.full_name || user.email} imported Frontier catalogue workbook (${import_scope}): ${results.itemsCreated} items created, ${results.itemsUpdated} updated, ${results.groupsCreated} groups created, ${results.valuesCreated} values created`,
           actor_user_id: user.id, actor_name: user.full_name || user.email, actor_role: user.role,
           severity: "high"
         });
       }
 
-      return Response.json({ ok: true, import_mode, isDryRun, results });
+      return Response.json({
+        ok: true, import_mode, import_scope, isDryRun, results,
+        rateLimitStopped,
+        message: rateLimitStopped ? "Import stopped due to rate limiting. Re-run Create and update to resume safely." : null
+      });
     }
 
     return Response.json({ error: "Unknown action. Use 'preview' or 'confirm'." }, { status: 400 });
