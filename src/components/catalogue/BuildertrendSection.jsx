@@ -21,9 +21,9 @@ export default function BuildertrendSection({ form, update }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div><Label>Cost Code</Label><Input value={form.cost_code || ""} onChange={e => update("cost_code", e.target.value)} placeholder="Buildertrend Flat Rate" /></div>
           <div><Label>Cost Type</Label>
-            <Select value={form.cost_type || ""} onValueChange={v => update("cost_type", v)}>
+            <Select value={form.cost_type || "__blank__"} onValueChange={v => update("cost_type", v === "__blank__" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-              <SelectContent>{BT_COST_TYPES.map(c => <SelectItem key={c || "blank"} value={c || ""}>{c || "—"}</SelectItem>)}</SelectContent>
+              <SelectContent>{BT_COST_TYPES.map(c => <SelectItem key={c || "__blank__"} value={c || "__blank__"}>{c || "—"}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div><Label>Parent Group</Label><Input value={form.parent_group || ""} onChange={e => update("parent_group", e.target.value)} placeholder="e.g. Bathroom" /></div>

@@ -407,21 +407,21 @@ function CatalogueSearchDialog({ requirement, existingIds, onAdd, onClose }) {
             {searchQuery && <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"><X size={16} /></button>}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <Select value={filterCategory} onValueChange={setFilterCategory}>
+            <Select value={filterCategory || "__all__"} onValueChange={v => setFilterCategory(v === "__all__" ? "" : v)}>
               <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Category" /></SelectTrigger>
-              <SelectContent><SelectItem value={null}>All Categories</SelectItem>{CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              <SelectContent><SelectItem value="__all__">All Categories</SelectItem>{CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
             </Select>
-            <Select value={filterBrand} onValueChange={setFilterBrand}>
+            <Select value={filterBrand || "__all__"} onValueChange={v => setFilterBrand(v === "__all__" ? "" : v)}>
               <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Brand" /></SelectTrigger>
-              <SelectContent><SelectItem value={null}>All Brands</SelectItem>{brands.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
+              <SelectContent><SelectItem value="__all__">All Brands</SelectItem>{brands.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
             </Select>
-            <Select value={filterSupplier} onValueChange={setFilterSupplier}>
+            <Select value={filterSupplier || "__all__"} onValueChange={v => setFilterSupplier(v === "__all__" ? "" : v)}>
               <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Supplier" /></SelectTrigger>
-              <SelectContent><SelectItem value={null}>All Suppliers</SelectItem>{suppliers.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              <SelectContent><SelectItem value="__all__">All Suppliers</SelectItem>{suppliers.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
             </Select>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <Select value={filterStatus || "__all__"} onValueChange={v => setFilterStatus(v === "__all__" ? "" : v)}>
               <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
-              <SelectContent><SelectItem value={null}>All Statuses</SelectItem>{ITEM_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              <SelectContent><SelectItem value="__all__">All Statuses</SelectItem>{ITEM_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
             </Select>
           </div>
 

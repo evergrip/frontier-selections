@@ -84,15 +84,15 @@ export default function AddMoodBoardDialog({ open, onClose, projectId, areas, on
             </div>
           </div>
           <div><Label>Room / Area</Label>
-            <Select value={form.area_id} onValueChange={v => setForm({ ...form, area_id: v })} disabled={readOnly}>
+            <Select value={form.area_id || "__none__"} onValueChange={v => setForm({ ...form, area_id: v === "__none__" ? "" : v })} disabled={readOnly}>
               <SelectTrigger><SelectValue placeholder="Optional" /></SelectTrigger>
-              <SelectContent><SelectItem value={null}>None</SelectItem>{Object.values(areas).map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
+              <SelectContent><SelectItem value="__none__">None</SelectItem>{Object.values(areas).map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div><Label>Selection Category</Label>
-            <Select value={form.selection_category} onValueChange={v => setForm({ ...form, selection_category: v })} disabled={readOnly}>
+            <Select value={form.selection_category || "__none__"} onValueChange={v => setForm({ ...form, selection_category: v === "__none__" ? "" : v })} disabled={readOnly}>
               <SelectTrigger><SelectValue placeholder="Optional" /></SelectTrigger>
-              <SelectContent><SelectItem value={null}>None</SelectItem>{CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              <SelectContent><SelectItem value="__none__">None</SelectItem>{CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="What inspires you about this?" rows={2} disabled={readOnly} /></div>

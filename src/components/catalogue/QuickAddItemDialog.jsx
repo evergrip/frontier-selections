@@ -88,16 +88,16 @@ export default function QuickAddItemDialog({ open, onOpenChange, onCreated }) {
             <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg">
               <div><Label>Cost Code</Label><Input value={form.cost_code} onChange={e => update("cost_code", e.target.value)} /></div>
               <div><Label>Cost Type</Label>
-                <Select value={form.cost_type} onValueChange={v => update("cost_type", v)}>
+                <Select value={form.cost_type || "__blank__"} onValueChange={v => update("cost_type", v === "__blank__" ? "" : v)}>
                   <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>{["Labor", "Material", "Equipment", "Subcontractor", "Other", ""].map(c => <SelectItem key={c || "blank"} value={c || ""}>{c || "—"}</SelectItem>)}</SelectContent>
+                  <SelectContent>{["Labor", "Material", "Equipment", "Subcontractor", "Other", ""].map(c => <SelectItem key={c || "__blank__"} value={c || "__blank__"}>{c || "—"}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div><Label>Markup</Label><Input type="number" value={form.markup} onChange={e => update("markup", Number(e.target.value))} /></div>
               <div><Label>Markup Type</Label>
-                <Select value={form.markup_type} onValueChange={v => update("markup_type", v)}>
+                <Select value={form.markup_type || "__blank__"} onValueChange={v => update("markup_type", v === "__blank__" ? "" : v)}>
                   <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>{["%", "$", "$/Unit", "C/P", ""].map(m => <SelectItem key={m || "blank"} value={m || ""}>{m || "—"}</SelectItem>)}</SelectContent>
+                  <SelectContent>{["%", "$", "$/Unit", "C/P", ""].map(m => <SelectItem key={m || "__blank__"} value={m || "__blank__"}>{m || "—"}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div><Label>Brand</Label><Input value={form.brand} onChange={e => update("brand", e.target.value)} /></div>
