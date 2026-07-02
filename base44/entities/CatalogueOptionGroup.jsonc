@@ -5,6 +5,9 @@
     "catalogue_item_id": {
       "type": "string"
     },
+    "option_group_key": {
+      "type": "string"
+    },
     "name": {
       "type": "string"
     },

@@ -5,6 +5,9 @@
     "name": {
       "type": "string"
     },
+    "import_key": {
+      "type": "string"
+    },
     "category": {
       "type": "string",
       "enum": [
@@ -209,6 +212,15 @@
     "last_reviewed_date": {
       "type": "string",
       "format": "date-time"
+    },
+    "source_pdf_page": {
+      "type": "number"
+    },
+    "review_status": {
+      "type": "string"
+    },
+    "review_notes": {
+      "type": "string"
     }
   },
   "required": [

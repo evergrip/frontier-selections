@@ -8,6 +8,9 @@
     "catalogue_item_id": {
       "type": "string"
     },
+    "option_value_key": {
+      "type": "string"
+    },
     "name": {
       "type": "string"
     },
@@ -100,6 +103,9 @@
       "items": {
         "type": "string"
       }
+    },
+    "tier": {
+      "type": "string"
     }
   },
   "required": [

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "@/components/ui/use-toast";
-import { Plus, Search, Package, Edit2, Copy, Eye, Download, Upload, LayoutDashboard, CheckSquare, Square, Trash2, Grid, List, CheckCircle, Archive, Ban, AlertTriangle } from "lucide-react";
+import { Plus, Search, Package, Edit2, Copy, Eye, Download, Upload, FileSpreadsheet, LayoutDashboard, CheckSquare, Square, Trash2, Grid, List, CheckCircle, Archive, Ban, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,6 +12,7 @@ import NextActionPanel from "@/components/staff/NextActionPanel";
 import QuickAddItemDialog from "@/components/catalogue/QuickAddItemDialog";
 import BulkEditDialog from "@/components/catalogue/BulkEditDialog";
 import BuildertrendImportDialog from "@/components/catalogue/BuildertrendImportDialog";
+import FrontierCatalogueImportDialog from "@/components/catalogue/FrontierCatalogueImportDialog";
 
 export default function Catalogue() {
   const [items, setItems] = useState([]);
@@ -30,6 +31,7 @@ export default function Catalogue() {
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showFrontierImport, setShowFrontierImport] = useState(false);
   const [duplicating, setDuplicating] = useState(null);
   const [viewMode, setViewMode] = useState("table");
   const [bulkAction, setBulkAction] = useState(null);
@@ -178,7 +180,8 @@ export default function Catalogue() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link to="/catalogue-dashboard"><Button variant="outline" className="gap-2"><LayoutDashboard size={16} /> Dashboard</Button></Link>
-          <Button variant="outline" onClick={() => setShowImport(true)} className="gap-2"><Upload size={16} /> Import</Button>
+          <Button variant="outline" onClick={() => setShowImport(true)} className="gap-2"><Upload size={16} /> Import Estimate</Button>
+          <Button variant="outline" onClick={() => setShowFrontierImport(true)} className="gap-2"><FileSpreadsheet size={16} /> Import Catalogue Workbook</Button>
           <Button variant="outline" onClick={exportCSV} className="gap-2" disabled={filtered.length === 0}><Download size={16} /> Export CSV</Button>
           <Button onClick={() => setShowQuickAdd(true)} className="gap-2"><Plus size={16} /> Quick Add</Button>
           <Link to="/catalogue/new"><Button variant="outline" className="gap-2"><Edit2 size={16} /> Full Editor</Button></Link>
@@ -398,6 +401,7 @@ export default function Catalogue() {
       <QuickAddItemDialog open={showQuickAdd} onOpenChange={setShowQuickAdd} onCreated={() => load()} />
       <BulkEditDialog open={showBulkEdit} onOpenChange={setShowBulkEdit} selectedIds={selected} onDone={() => { load(); setSelected([]); }} />
       <BuildertrendImportDialog open={showImport} onOpenChange={setShowImport} onDone={() => load()} />
+      <FrontierCatalogueImportDialog open={showFrontierImport} onOpenChange={setShowFrontierImport} onDone={() => load()} />
     </div>
   );
 }
